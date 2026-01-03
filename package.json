@@ -1,0 +1,43 @@
+{
+  "name": "yardhop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "cd frontend && vite",
+    "build": "cd frontend && vite build",
+    "preview": "cd frontend && vite preview",
+    "start": "node server.js",
+    "dev:server": "cd frontend && vite build && cd .. && node server.js",
+    "deploy": "bash deploy.sh",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop yardhop",
+    "pm2:restart": "pm2 restart yardhop",
+    "pm2:logs": "pm2 logs yardhop",
+    "pm2:status": "pm2 status"
+  },
+  "dependencies": {
+    "@google/genai": "^1.34.0",
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.39.3",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.22.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "lucide-react": "0.263.1",
+    "morgan": "^1.10.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vercel/node": "^3.0.7",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vercel": "^50.1.3",
+    "vite": "^6.2.0"
+  }
+}
