@@ -1,272 +1,689 @@
-// API client for YardHop backend
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || '/api';
+/**
+ * ============================================================
+ * YARDHOP API CLIENT
+ * Centralized API calls to backend
+ * ============================================================
+ */
 
-interface RequestOptions extends RequestInit {
-  token?: string | null;
-}
+// Get API base URL from environment or default to localhost
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api';
 
-// Get auth token from Supabase session
-async function getAuthToken(): Promise<string | null> {
+// Helper to get auth token from Supabase session
+const getAuthToken = (): string | null => {
   try {
-    const { supabase } = await import('./supabase');
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
-  } catch (error) {
+    // Try to get from localStorage where Supabase stores it
+    const storageKey = Object.keys(localStorage).find(key => 
+      key.startsWith('sb-') && key.endsWith('-auth-token')
+    );
+    if (storageKey) {
+      const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      return data.access_token || null;
+    }
+    return null;
+  } catch {
     return null;
   }
-}
+};
 
-async function apiRequest<T>(
+// Base fetch wrapper with auth and error handling
+async function apiFetch<T>(
   endpoint: string,
-  options: RequestOptions = {}
+  options: RequestInit = {}
 ): Promise<T> {
-  let { token, ...fetchOptions } = options;
+  const token = getAuthToken();
   
-  // Auto-get token if not provided
-  if (!token) {
-    token = await getAuthToken();
-  }
-
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...fetchOptions.headers,
+    ...options.headers,
   };
-
+  
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE}${endpoint}`;
-  const response = await fetch(url, {
-    ...fetchOptions,
-    headers,
-  });
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.message || errorData.error || `API Error: ${response.status}`);
+      // Attach error data to error object for access to code, usage, etc.
+      (error as any).errorData = errorData;
+      (error as any).code = errorData.code;
+      throw error;
+    }
+
+    return response.json();
+  } catch (error: any) {
+    // Network error - backend might not be running
+    if (error.message === 'Failed to fetch') {
+      throw new Error('Cannot connect to server. Make sure the backend is running on port 3000.');
+    }
+    throw error;
   }
-
-  return response.json();
 }
 
-// Products API
+// ============================================================
+// AUTH API
+// ============================================================
+export const authApi = {
+  signup: (email: string, password: string, name?: string) =>
+    apiFetch<{ user: any; session: any }>('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name }),
+    }),
+
+  login: (email: string, password: string) =>
+    apiFetch<{ user: any; session: any }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  logout: () =>
+    apiFetch<{ message: string }>('/auth/logout', { method: 'POST' }),
+
+  me: () =>
+    apiFetch<{ user: any }>('/auth/me'),
+
+  refresh: (refresh_token: string) =>
+    apiFetch<{ session: any }>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token }),
+    }),
+};
+
+// ============================================================
+// PRODUCTS API
+// ============================================================
 export const productsApi = {
-  list: async (params?: {
+  list: (params?: {
+    q?: string;
     category?: string;
-    minPrice?: number;
-    maxPrice?: number;
-    isSteal?: boolean;
-    lat?: number;
-    lng?: number;
+    min_price?: number;
+    max_price?: number;
+    condition?: string;
+    is_steal?: boolean;
+    latitude?: number;
+    longitude?: number;
     radius?: number;
-    sortBy?: 'price' | 'distance' | 'newest';
+    sort_by?: string;
+    sort_order?: string;
+    page?: number;
+    limit?: number;
   }) => {
     const searchParams = new URLSearchParams();
-    if (params?.category) searchParams.set('category', params.category);
-    if (params?.minPrice) searchParams.set('minPrice', params.minPrice.toString());
-    if (params?.maxPrice) searchParams.set('maxPrice', params.maxPrice.toString());
-    if (params?.isSteal) searchParams.set('isSteal', 'true');
-    if (params?.lat) searchParams.set('lat', params.lat.toString());
-    if (params?.lng) searchParams.set('lng', params.lng.toString());
-    if (params?.radius) searchParams.set('radius', params.radius.toString());
-    if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
-
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
     const query = searchParams.toString();
-    return apiRequest(`/products${query ? `?${query}` : ''}`);
+    return apiFetch<{ products: any[]; pagination: any }>(`/products${query ? `?${query}` : ''}`);
   },
 
-  get: async (id: string) => {
-    return apiRequest(`/products/${id}`);
-  },
+  get: (id: string) =>
+    apiFetch<any>(`/products/${id}`),
 
-  create: async (product: any, token?: string | null) => {
-    return apiRequest('/products', {
+  create: (data: any) =>
+    apiFetch<any>('/products', {
       method: 'POST',
-      body: JSON.stringify(product),
-      token,
-    });
-  },
+      body: JSON.stringify(data),
+    }),
 
-  update: async (id: string, updates: any, token?: string | null) => {
-    return apiRequest(`/products/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-      token,
-    });
-  },
+  update: (id: string, data: any) =>
+    apiFetch<any>(`/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 
-  delete: async (id: string, token?: string | null) => {
-    return apiRequest(`/products/${id}`, {
-      method: 'DELETE',
-      token,
-    });
-  },
+  delete: (id: string) =>
+    apiFetch<{ message: string }>(`/products/${id}`, { method: 'DELETE' }),
 };
 
-// AI API
-export const aiApi = {
-  analyzeImage: async (imageBase64: string, mimeType?: string, token?: string) => {
-    return apiRequest('/ai/analyze-image', {
-      method: 'POST',
-      body: JSON.stringify({ imageBase64, mimeType }),
-      token,
-    });
-  },
-
-  suggestPrice: async (
-    title: string,
-    description?: string,
-    condition?: string,
-    category?: string,
-    token?: string
-  ) => {
-    return apiRequest('/ai/suggest-price', {
-      method: 'POST',
-      body: JSON.stringify({ title, description, condition, category }),
-      token,
-    });
-  },
-
-  generateDescription: async (imageBase64: string, mimeType?: string, token?: string) => {
-    return apiRequest('/ai/generate-description', {
-      method: 'POST',
-      body: JSON.stringify({ imageBase64, mimeType }),
-      token,
-    });
-  },
-};
-
-// Upload API
-export const uploadApi = {
-  uploadImage: async (imageBase64: string, bucket: string, fileName?: string, token?: string | null) => {
-    return apiRequest('/upload', {
-      method: 'POST',
-      body: JSON.stringify({ imageBase64, bucket, fileName }),
-      token,
-    });
-  },
-};
-
-// Garage Sales API
+// ============================================================
+// GARAGE SALES API
+// ============================================================
 export const salesApi = {
-  list: async (params?: { date?: string; lat?: number; lng?: number; radius?: number }) => {
+  list: (params?: {
+    date?: string;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    status?: string;
+    is_multi_family?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
     const searchParams = new URLSearchParams();
-    if (params?.date) searchParams.set('date', params.date);
-    if (params?.lat) searchParams.set('lat', params.lat.toString());
-    if (params?.lng) searchParams.set('lng', params.lng.toString());
-    if (params?.radius) searchParams.set('radius', params.radius.toString());
-
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
     const query = searchParams.toString();
-    return apiRequest(`/sales${query ? `?${query}` : ''}`);
+    return apiFetch<{ sales: any[]; pagination: any }>(`/sales${query ? `?${query}` : ''}`);
   },
 
-  get: async (id: string) => {
-    return apiRequest(`/sales/${id}`);
-  },
+  get: (id: string) =>
+    apiFetch<any>(`/sales/${id}`),
 
-  create: async (sale: any, token?: string | null) => {
-    return apiRequest('/sales', {
+  create: (data: any) =>
+    apiFetch<any>('/sales', {
       method: 'POST',
-      body: JSON.stringify(sale),
-      token,
-    });
-  },
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: any) =>
+    apiFetch<any>(`/sales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<{ message: string }>(`/sales/${id}`, { method: 'DELETE' }),
 };
 
-// Favorites API
+// ============================================================
+// AI API
+// ============================================================
+export const aiApi = {
+  /**
+   * Analyze an image and get AI-generated listing details
+   * @param imageBase64 - Base64 encoded image (without data:image prefix)
+   * @param imageUrl - Alternative: URL to image
+   */
+  analyzeImage: (imageBase64?: string, imageUrl?: string) =>
+    apiFetch<{
+      success: boolean;
+      analysis: {
+        title: string;
+        description: string;
+        category: string;
+        condition: string;
+        price_range: { low: number; high: number };
+        suggested_price: number;
+        market_average: number;
+        features: string[];
+        is_potential_steal: boolean;
+        confidence: number;
+      };
+    }>('/ai/analyze', {
+      method: 'POST',
+      body: JSON.stringify({
+        image_base64: imageBase64,
+        image_url: imageUrl,
+      }),
+    }),
+
+  /**
+   * Get AI price suggestion based on item details
+   */
+  suggestPrice: (data: {
+    title: string;
+    description?: string;
+    condition?: string;
+    category?: string;
+    original_price?: number;
+  }) =>
+    apiFetch<{
+      suggested_price: number;
+      market_average: number;
+      price_range: { low: number; high: number };
+      confidence: number;
+      reasoning?: string;
+      source: 'ai' | 'estimate';
+    }>('/ai/suggest-price', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Generate description from item details
+   */
+  generateDescription: (data: {
+    title: string;
+    condition?: string;
+    category?: string;
+    features?: string[];
+  }) =>
+    apiFetch<{
+      description: string;
+      source: 'ai' | 'template';
+    }>('/ai/generate-description', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Detect steals from a list of items
+   */
+  detectSteals: (items: Array<{
+    id: string;
+    title: string;
+    price: number;
+    market_average?: number;
+    original_price?: number;
+  }>) =>
+    apiFetch<{
+      all_items: any[];
+      top_steals: any[];
+      steal_count: number;
+      total_potential_savings: number;
+    }>('/ai/detect-steals', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+
+  /**
+   * Get user's AI analysis history
+   */
+  getHistory: (page = 1, limit = 20) =>
+    apiFetch<{ analyses: any[]; pagination: any }>(`/ai/history?page=${page}&limit=${limit}`),
+
+  /**
+   * Get current user's AI scan usage and limits
+   */
+  getUsage: () =>
+    apiFetch<{
+      tier: string;
+      usage: {
+        current: number;
+        limit: number | string;
+        remaining: number | string;
+        percentage: number;
+        byType: Record<string, number>;
+      };
+      subscription: {
+        status: string;
+        expiresAt: string | null;
+      };
+      resetsAt: string;
+      upgrades: Record<string, { price: number; scans: number | string }>;
+    }>('/ai/usage'),
+};
+
+// ============================================================
+// FAVORITES API
+// ============================================================
 export const favoritesApi = {
-  list: async (token?: string | null) => {
-    return apiRequest('/favorites', { token });
-  },
+  list: (page = 1, limit = 20) =>
+    apiFetch<{ favorites: any[]; pagination: any }>(`/favorites?page=${page}&limit=${limit}`),
 
-  add: async (productId: string, token?: string | null) => {
-    return apiRequest(`/favorites/${productId}`, {
+  add: (product_id: string) =>
+    apiFetch<any>('/favorites', {
       method: 'POST',
-      token,
-    });
-  },
+      body: JSON.stringify({ product_id }),
+    }),
 
-  remove: async (productId: string, token?: string | null) => {
-    return apiRequest(`/favorites/${productId}`, {
-      method: 'DELETE',
-      token,
-    });
-  },
+  remove: (product_id: string) =>
+    apiFetch<{ message: string }>(`/favorites/${product_id}`, { method: 'DELETE' }),
+
+  check: (product_id: string) =>
+    apiFetch<{ is_favorited: boolean }>(`/favorites/check/${product_id}`),
 };
 
-// Cart API
+// ============================================================
+// CART API
+// ============================================================
 export const cartApi = {
-  list: async (token?: string | null) => {
-    return apiRequest('/cart', { token });
-  },
+  get: () =>
+    apiFetch<{ items: any[]; summary: any }>('/cart'),
 
-  add: async (productId: string, quantity: number = 1, token?: string | null) => {
-    return apiRequest(`/cart/${productId}`, {
+  add: (product_id: string, quantity = 1) =>
+    apiFetch<any>('/cart', {
       method: 'POST',
+      body: JSON.stringify({ product_id, quantity }),
+    }),
+
+  update: (item_id: string, quantity: number) =>
+    apiFetch<any>(`/cart/${item_id}`, {
+      method: 'PUT',
       body: JSON.stringify({ quantity }),
-      token,
-    });
-  },
+    }),
 
-  remove: async (productId: string, token?: string | null) => {
-    return apiRequest(`/cart/${productId}`, {
-      method: 'DELETE',
-      token,
-    });
-  },
+  remove: (item_id: string) =>
+    apiFetch<{ message: string }>(`/cart/${item_id}`, { method: 'DELETE' }),
+
+  clear: () =>
+    apiFetch<{ message: string }>('/cart', { method: 'DELETE' }),
 };
 
-// Orders API
+// ============================================================
+// ORDERS API
+// ============================================================
 export const ordersApi = {
-  list: async (token?: string | null) => {
-    return apiRequest('/orders', { token });
+  list: (params?: { role?: string; status?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.append(key, String(value));
+      });
+    }
+    const query = searchParams.toString();
+    return apiFetch<{ orders: any[]; pagination: any }>(`/orders${query ? `?${query}` : ''}`);
   },
 
-  create: async (order: any, token?: string | null) => {
-    return apiRequest('/orders', {
+  get: (id: string) =>
+    apiFetch<any>(`/orders/${id}`),
+
+  create: (data: any) =>
+    apiFetch<any>('/orders', {
       method: 'POST',
-      body: JSON.stringify(order),
-      token,
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: any) =>
+    apiFetch<any>(`/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+};
+
+// ============================================================
+// MESSAGES API
+// ============================================================
+export const messagesApi = {
+  getConversations: (page = 1, limit = 20) =>
+    apiFetch<{ conversations: any[]; pagination: any }>(`/messages/conversations?page=${page}&limit=${limit}`),
+
+  getConversation: (id: string, page = 1, limit = 50) =>
+    apiFetch<{ conversation: any; messages: any[]; pagination: any }>(
+      `/messages/conversations/${id}?page=${page}&limit=${limit}`
+    ),
+
+  send: (data: {
+    conversation_id?: string;
+    recipient_id?: string;
+    product_id?: string;
+    content: string;
+  }) =>
+    apiFetch<any>('/messages', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getUnreadCount: () =>
+    apiFetch<{ unread_count: number }>('/messages/unread-count'),
+
+  markAsRead: (conversation_id: string) =>
+    apiFetch<{ message: string }>(`/messages/conversations/${conversation_id}/read`, {
+      method: 'PUT',
+    }),
+};
+
+// ============================================================
+// CONVERSATIONS API (alias for messagesApi with legacy interface)
+// ============================================================
+export const conversationsApi = {
+  list: async (authToken?: string | null) => {
+    const result = await messagesApi.getConversations();
+    // Transform to match expected format
+    return result.conversations || [];
+  },
+
+  get: async (conversationId: string, authToken?: string | null) => {
+    const result = await messagesApi.getConversation(conversationId);
+    // Transform to match expected format (array of messages)
+    return result.messages || [];
+  },
+
+  sendMessage: async (conversationId: string, content: string, authToken?: string | null) => {
+    return messagesApi.send({
+      conversation_id: conversationId,
+      content,
     });
   },
 };
 
-// Conversations/Messaging API
-export const conversationsApi = {
-  list: async (token?: string | null) => {
-    return apiRequest('/conversations', { token });
+// ============================================================
+// COMMUNITY API
+// ============================================================
+export const communityApi = {
+  list: (params?: { type?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.append(key, String(value));
+      });
+    }
+    const query = searchParams.toString();
+    return apiFetch<{ posts: any[]; pagination: any }>(`/community${query ? `?${query}` : ''}`);
   },
 
-  get: async (id: string, token?: string | null) => {
-    return apiRequest(`/conversations/${id}`, { token });
-  },
+  get: (id: string) =>
+    apiFetch<any>(`/community/${id}`),
 
-  sendMessage: async (conversationId: string, content: string, token?: string | null) => {
-    return apiRequest(`/conversations/${conversationId}/messages`, {
+  create: (data: any) =>
+    apiFetch<any>('/community', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  like: (id: string) =>
+    apiFetch<{ liked: boolean }>(`/community/${id}/like`, { method: 'POST' }),
+
+  comment: (id: string, content: string) =>
+    apiFetch<any>(`/community/${id}/comments`, {
       method: 'POST',
       body: JSON.stringify({ content }),
-      token,
-    });
-  },
+    }),
+
+  delete: (id: string) =>
+    apiFetch<{ message: string }>(`/community/${id}`, { method: 'DELETE' }),
 };
 
-// Community API
-export const communityApi = {
-  list: async (params?: { type?: string }) => {
+// ============================================================
+// SEARCH API
+// ============================================================
+export const searchApi = {
+  search: (params: {
+    q?: string;
+    type?: 'all' | 'products' | 'sales';
+    category?: string;
+    min_price?: number;
+    max_price?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    page?: number;
+    limit?: number;
+  }) => {
     const searchParams = new URLSearchParams();
-    if (params?.type) searchParams.set('type', params.type);
-
-    const query = searchParams.toString();
-    return apiRequest(`/community${query ? `?${query}` : ''}`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
+    });
+    return apiFetch<{ products: any[]; sales: any[] }>(`/search?${searchParams.toString()}`);
   },
 
-  create: async (post: any, token?: string | null) => {
-    return apiRequest('/community', {
+  getSuggestions: (q: string) =>
+    apiFetch<Array<{ type: string; text: string }>>(`/search/suggestions?q=${encodeURIComponent(q)}`),
+
+  getRecent: () =>
+    apiFetch<any[]>('/search/recent'),
+
+  clearRecent: () =>
+    apiFetch<{ message: string }>('/search/recent', { method: 'DELETE' }),
+
+  getSaved: () =>
+    apiFetch<any[]>('/search/saved'),
+
+  saveSearch: (name: string, search_criteria: any, notify_enabled = false) =>
+    apiFetch<any>('/search/saved', {
       method: 'POST',
-      body: JSON.stringify(post),
-      token,
+      body: JSON.stringify({ name, search_criteria, notify_enabled }),
+    }),
+
+  deleteSaved: (id: string) =>
+    apiFetch<{ message: string }>(`/search/saved/${id}`, { method: 'DELETE' }),
+};
+
+// ============================================================
+// UPLOAD API
+// ============================================================
+export const uploadApi = {
+  uploadImage: async (file: File, bucket = 'listing-images'): Promise<{ url: string; path: string }> => {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('bucket', bucket);
+
+    const token = getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}/upload/image`, {
+      method: 'POST',
+      headers,
+      body: formData,
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  uploadImages: async (files: File[], bucket = 'listing-images'): Promise<{ uploaded: any[]; errors?: any[] }> => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('images', file));
+    formData.append('bucket', bucket);
+
+    const token = getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}/upload/images`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  uploadAvatar: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const token = getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}/upload/avatar`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      // Backend returns { error: "message" } not { message: "message" }
+      throw new Error(error.error || error.message || `Upload failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
   },
 };
 
+// ============================================================
+// PROFILES API
+// ============================================================
+export const profilesApi = {
+  get: (id: string) =>
+    apiFetch<any>(`/profiles/${id}`),
+
+  update: (id: string, data: any) =>
+    apiFetch<any>(`/profiles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  getProducts: (id: string, params?: { status?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.append(key, String(value));
+      });
+    }
+    const query = searchParams.toString();
+    return apiFetch<{ products: any[]; pagination: any }>(`/profiles/${id}/products${query ? `?${query}` : ''}`);
+  },
+
+  getSales: (id: string, params?: { status?: string; page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.append(key, String(value));
+      });
+    }
+    const query = searchParams.toString();
+    return apiFetch<{ sales: any[]; pagination: any }>(`/profiles/${id}/sales${query ? `?${query}` : ''}`);
+  },
+
+  getReviews: (id: string, page = 1, limit = 20) =>
+    apiFetch<{ reviews: any[]; pagination: any }>(`/profiles/${id}/reviews?page=${page}&limit=${limit}`),
+};
+
+// ============================================================
+// REVIEWS API
+// ============================================================
+export const reviewsApi = {
+  getForUser: (userId: string, page = 1, limit = 20) =>
+    apiFetch<{ reviews: any[]; stats: any; pagination: any }>(
+      `/reviews/user/${userId}?page=${page}&limit=${limit}`
+    ),
+
+  create: (data: {
+    reviewee_id: string;
+    order_id?: string;
+    rating: number;
+    comment?: string;
+  }) =>
+    apiFetch<any>('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getPending: () =>
+    apiFetch<any[]>('/reviews/pending'),
+};
+
+// Default export for convenience
+export default {
+  auth: authApi,
+  products: productsApi,
+  sales: salesApi,
+  ai: aiApi,
+  favorites: favoritesApi,
+  cart: cartApi,
+  orders: ordersApi,
+  messages: messagesApi,
+  community: communityApi,
+  search: searchApi,
+  upload: uploadApi,
+  profiles: profilesApi,
+  reviews: reviewsApi,
+};

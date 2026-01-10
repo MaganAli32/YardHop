@@ -1,4 +1,4 @@
--- YardHop Supabase Storage Setup
+-- YardFront Supabase Storage Setup
 -- Run this SQL in Supabase SQL Editor after creating storage buckets manually
 
 -- Storage Bucket Policies

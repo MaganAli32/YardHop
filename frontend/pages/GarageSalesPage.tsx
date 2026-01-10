@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { salesApi } from '../lib/api';
 import { GarageSale } from '../types';
+
+// Fallback image constant
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop';
 
 const GarageSalesPage: React.FC = () => {
   const { coords } = usePersistence();
@@ -16,12 +20,51 @@ const GarageSalesPage: React.FC = () => {
       try {
         const params: any = {};
         if (coords) {
-          params.lat = coords.lat;
-          params.lng = coords.lng;
+          params.latitude = coords.lat;
+          params.longitude = coords.lng;
           params.radius = 10;
         }
         const data = await salesApi.list(params);
-        setSales(data || []);
+        
+        // Helper to extract primary image URL from a sale object
+        const getSaleImage = (sale: any): string => {
+          // If there's already an image field with a value
+          if (sale.image && typeof sale.image === 'string' && sale.image.trim() !== '') {
+            return sale.image;
+          }
+          
+          // If images is an array, extract from it
+          if (Array.isArray(sale.images) && sale.images.length > 0) {
+            // Sort by is_primary first, then by order_index
+            const sorted = [...sale.images].sort((a: any, b: any) => {
+              if (a?.is_primary && !b?.is_primary) return -1;
+              if (!a?.is_primary && b?.is_primary) return 1;
+              return (a?.order_index || 0) - (b?.order_index || 0);
+            });
+            
+            const first = sorted[0];
+            
+            // If it's a string
+            if (typeof first === 'string' && first.trim() !== '') {
+              return first;
+            }
+            
+            // If it's an object with url property
+            if (first && typeof first === 'object' && first.url) {
+              return first.url;
+            }
+          }
+          
+          return 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop';
+        };
+        
+        // Process sales to ensure each has an image field
+        const salesWithImages = (data?.sales || []).map((sale: any) => ({
+          ...sale,
+          image: getSaleImage(sale)
+        }));
+        
+        setSales(salesWithImages);
       } catch (err: any) {
         console.error('Failed to fetch garage sales:', err);
         setError(err.message || 'Failed to load garage sales');
@@ -121,19 +164,36 @@ const GarageSalesPage: React.FC = () => {
                     </div>
                   ) : (
                     sales.map(sale => (
-                      <a key={sale.id} href={`/sales/${sale.id}`} className="flex flex-col bg-surface-light dark:bg-surface-dark rounded-lg overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow cursor-pointer">
-                        <div className="aspect-video w-full bg-cover bg-center" style={{backgroundImage: `url("${sale.image}")`}}></div>
+                      <Link 
+                        key={sale.id} 
+                        to={`/sales/${sale.id}`} 
+                        className="flex flex-col bg-surface-light dark:bg-surface-dark rounded-lg overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow cursor-pointer"
+                      >
+                        <div className="aspect-video w-full bg-slate-100 relative overflow-hidden">
+                          <img 
+                            src={sale.image || FALLBACK_IMAGE} 
+                            alt={sale.title} 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = FALLBACK_IMAGE;
+                            }} 
+                          />
+                        </div>
                         <div className="p-4 flex flex-col flex-1">
                           <h3 className="text-lg font-bold text-text-light dark:text-text-dark mb-1">{sale.title}</h3>
-                          <p className="text-sm text-subtle-light dark:text-subtle-dark font-medium mb-2">{sale.date} • {sale.time}</p>
-                          <p className="text-sm text-text-light dark:text-text-dark mb-4 flex-1">{sale.description}</p>
+                          <p className="text-sm text-subtle-light dark:text-subtle-dark font-medium mb-2">
+                            {sale.start_date || sale.date} • {sale.start_time || sale.time}
+                          </p>
+                          <p className="text-sm text-text-light dark:text-text-dark mb-4 flex-1 line-clamp-2">
+                            {sale.description}
+                          </p>
                           <div className="flex flex-wrap gap-2 mt-auto">
                             {sale.tags?.map(tag => (
                               <span key={tag} className="px-2 py-1 bg-primary/10 text-primary text-xs font-bold rounded-md">{tag}</span>
                             ))}
                           </div>
                         </div>
-                      </a>
+                      </Link>
                     ))
                   )}
                 </div>

@@ -26,7 +26,7 @@ const OrdersPage: React.FC = () => {
         // Transform API response to match frontend structure
         const transformedOrders = (data || []).map((order: any) => ({
           id: order.id,
-          orderNumber: `YH-${order.id}`,
+          orderNumber: `YF-${order.id}`,
           date: new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           status: order.status || 'processing',
           items: (order.order_items || []).map((item: any) => ({

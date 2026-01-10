@@ -1,8 +1,17 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { salesApi, uploadApi } from '../lib/api';
+import { fileToBase64, blobUrlToFile } from '../lib/fileUtils';
+import { LocationPrivacySelector } from '../components/maps';
+import {
+  ChevronRight,
+  ChevronLeft,
+  MapPin,
+  Check,
+  X,
+  Plus,
+} from 'lucide-react';
 
 const CreateGarageSalePage: React.FC = () => {
   const navigate = useNavigate();
@@ -11,45 +20,50 @@ const CreateGarageSalePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [photos, setPhotos] = useState<string[]>([]);
+  
   const [eventData, setEventData] = useState({
     name: '',
     description: '',
     date: '',
     startTime: '08:00',
     endTime: '14:00',
-    address: '123 Neighborhood Way, Austin, TX'
+    address: '',
+    city: '',
+    state: '',
+    hideExactAddress: true
   });
+  const [locationData, setLocationData] = useState<{
+    address: string;
+    latitude: number;
+    longitude: number;
+    privacy: 'exact' | 'neighborhood' | 'city';
+  } | null>(null);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-    });
-  };
+  const isValidTimeRange = (start: string, end: string) => start < end;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      const newPhotos = newFiles.map(file => URL.createObjectURL(file as Blob));
-      setPhotos(prev => [...prev, ...newPhotos]);
+  const handleContinue = () => {
+    if (step === 1) {
+      if (!eventData.name || !eventData.date || !locationData) {
+        setError('Please fill in all required fields including location');
+        return;
+      }
+      if (!isValidTimeRange(eventData.startTime, eventData.endTime)) {
+        setError('End time must be after start time');
+        return;
+      }
+      setError('');
+      setStep(2);
+    } else if (step === 2) {
+      setStep(3);
+    } else {
+      handlePublish();
     }
   };
+
 
   const handlePublish = async () => {
     if (!authToken) {
-      alert('Please log in to create a garage sale');
-      navigate('/login');
-      return;
-    }
-
-    if (!eventData.name || !eventData.date || !eventData.address) {
-      setError('Please fill in all required fields');
+      setError('Session expired. Please log in again.');
       return;
     }
 
@@ -57,275 +71,336 @@ const CreateGarageSalePage: React.FC = () => {
     setError('');
 
     try {
-      // Upload images
       const imageUrls: string[] = [];
       
       for (const photoUrl of photos) {
-        try {
-          const response = await fetch(photoUrl);
-          const blob = await response.blob();
-          const file = new File([blob], `garage-sale-${Date.now()}.jpg`, { type: 'image/jpeg' });
-          const base64 = await fileToBase64(file);
-          
-          const uploadResult = await uploadApi.uploadImage(
-            base64,
-            'garage-sale-images',
-            `garage-sale-${Date.now()}.jpg`,
-            authToken
-          );
-          
-          imageUrls.push(uploadResult.url);
-        } catch (error) {
-          console.error('Failed to upload image:', error);
-        }
+        const uploadId = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+        const file = await blobUrlToFile(photoUrl, `sale-${uploadId}.jpg`);
+        const base64 = await fileToBase64(file);
+        
+        const result = await uploadApi.uploadImage(
+          base64, 
+          'garage-sale-images', 
+          `sale-${uploadId}.jpg`, 
+          authToken
+        ) as { url: string };
+        
+        imageUrls.push(result.url);
       }
 
-      // Create garage sale
-      const saleData = {
+      const payload = {
         title: eventData.name,
         description: eventData.description,
-        address: eventData.address,
+        address: locationData?.address || eventData.address,
+        city: eventData.city,
+        state: eventData.state,
+        latitude: locationData?.latitude,
+        longitude: locationData?.longitude,
+        location_privacy: locationData?.privacy || 'neighborhood',
         start_date: eventData.date,
         end_date: eventData.date,
         start_time: eventData.startTime,
         end_time: eventData.endTime,
-        images: imageUrls,
-        tags: [],
-        is_multi_family: false,
+        image_urls: imageUrls, // API expects image_urls, not images
+        is_private: locationData?.privacy !== 'exact'
       };
 
-      await salesApi.create(saleData, authToken);
-      navigate('/sales');
+      const finalResult = await salesApi.create(payload, authToken) as { id: string };
+      
+      if (finalResult.id) {
+        navigate('/search?mode=events', { replace: true });
+      }
     } catch (err: any) {
-      console.error('Failed to create garage sale:', err);
-      setError(err.message || 'Failed to create garage sale');
+      setError(err.message || 'Error publishing listing.');
     } finally {
       setLoading(false);
+  }
+};
+
+// --- PhotoUploader ---
+const PhotoUploader: React.FC<{
+  photos: string[];
+  onPhotosChange: (photos: string[]) => void;
+  maxPhotos?: number;
+}> = ({ photos, onPhotosChange, maxPhotos = 10 }) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newUrls = Array.from(files).map((file: File) => URL.createObjectURL(file));
+    onPhotosChange([...photos, ...newUrls].slice(0, maxPhotos));
+  };
+
+  const removePhoto = (idx: number) => {
+    const updated = [...photos];
+    if (updated[idx] && updated[idx].startsWith('blob:')) {
+      URL.revokeObjectURL(updated[idx]);
     }
+    updated.splice(idx, 1);
+    onPhotosChange(updated);
   };
 
   return (
-    <div className="flex-grow w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20">
-      <div className="bg-white dark:bg-surface-dark rounded-[48px] shadow-2xl overflow-hidden border border-gray-100 dark:border-white/5">
-        <div className="grid grid-cols-1 md:grid-cols-12">
-          {/* Progress Sidebar */}
-          <aside className="md:col-span-4 bg-slate-900 p-10 text-white flex flex-col justify-between relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-64 h-64 bg-primary rounded-full blur-[100px] opacity-10"></div>
-             <div className="relative z-10 space-y-12">
-                <div>
-                   <h2 className="text-3xl font-black mb-2">Host a Sale</h2>
-                   <p className="text-slate-400 font-medium">Turn your yard into a local destination.</p>
-                </div>
-                
-                <div className="space-y-10">
-                   {[
-                     { num: 1, label: 'Event Details', sub: 'Name, time, and place' },
-                     { num: 2, label: 'Inventory', sub: 'What are you selling?' },
-                     { num: 3, label: 'Publish', sub: 'Go live on the map' }
-                   ].map(s => (
-                     <div key={s.num} className={`flex items-start gap-4 transition-all ${step === s.num ? 'opacity-100' : 'opacity-40'}`}>
-                        <div className={`size-10 rounded-2xl flex items-center justify-center font-black ${step === s.num ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-white/10 text-white'}`}>{s.num}</div>
-                        <div>
-                           <p className="font-bold text-sm leading-tight">{s.label}</p>
-                           <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">{s.sub}</p>
-                        </div>
-                     </div>
-                   ))}
-                </div>
-             </div>
-
-             <div className="relative z-10 p-6 bg-white/5 rounded-3xl border border-white/10">
-                <p className="text-xs text-slate-400 italic">"Garage sales with 5+ items get 4x more visitors in the first hour."</p>
-             </div>
-          </aside>
-
-          {/* Form Area */}
-          <main className="md:col-span-8 p-10 md:p-16">
-             {step === 1 && (
-               <div className="space-y-8 animate-fadeIn">
-                  <div className="space-y-6">
-                     <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-widest text-slate-400">Sale Name</label>
-                        <input 
-                           type="text" 
-                           placeholder="e.g. Annual Block Party Sale"
-                           value={eventData.name}
-                           onChange={e => setEventData({...eventData, name: e.target.value})}
-                           className="w-full rounded-2xl border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 py-4 px-6 text-lg font-bold focus:ring-primary focus:border-primary transition-all" 
-                        />
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-widest text-slate-400">Description</label>
-                        <textarea 
-                           value={eventData.description}
-                           onChange={e => setEventData({...eventData, description: e.target.value})}
-                           placeholder="Describe your garage sale..."
-                           className="w-full rounded-2xl border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 py-4 px-6 font-medium min-h-[120px] focus:ring-primary focus:border-primary transition-all"
-                        />
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                           <label className="text-xs font-black uppercase tracking-widest text-slate-400">Date</label>
-                           <input 
-                              type="date" 
-                              value={eventData.date}
-                              onChange={e => setEventData({...eventData, date: e.target.value})}
-                              className="w-full rounded-2xl border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 py-4 px-6 font-bold" 
-                           />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-xs font-black uppercase tracking-widest text-slate-400">Start Time</label>
-                           <input 
-                              type="time" 
-                              value={eventData.startTime}
-                              onChange={e => setEventData({...eventData, startTime: e.target.value})}
-                              className="w-full rounded-2xl border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 py-4 px-6 font-bold" 
-                           />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-xs font-black uppercase tracking-widest text-slate-400">End Time</label>
-                           <input 
-                              type="time" 
-                              value={eventData.endTime}
-                              onChange={e => setEventData({...eventData, endTime: e.target.value})}
-                              className="w-full rounded-2xl border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 py-4 px-6 font-bold" 
-                           />
-                        </div>
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-widest text-slate-400">Address</label>
-                        <div className="relative">
-                           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary">location_on</span>
-                           <input 
-                              type="text" 
-                              value={eventData.address}
-                              onChange={e => setEventData({...eventData, address: e.target.value})}
-                              className="w-full rounded-2xl border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5 py-4 pl-12 pr-6 font-bold" 
-                           />
-                        </div>
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-widest text-slate-400">Photos</label>
-                        <input 
-                           type="file"
-                           multiple
-                           accept="image/*"
-                           onChange={handleFileChange}
-                           className="hidden"
-                           id="garage-sale-photos"
-                        />
-                        <label 
-                           htmlFor="garage-sale-photos"
-                           className="block border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-8 text-center cursor-pointer hover:border-primary transition-colors"
-                        >
-                           <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">add_photo_alternate</span>
-                           <p className="text-sm font-bold text-slate-600">Click to add photos</p>
-                           <p className="text-xs text-slate-400 mt-1">{photos.length} photo(s) selected</p>
-                        </label>
-                        {photos.length > 0 && (
-                          <div className="grid grid-cols-4 gap-4 mt-4">
-                            {photos.map((photo, idx) => (
-                              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden">
-                                <img src={photo} alt="" className="w-full h-full object-cover" />
-                                <button
-                                  onClick={() => {
-                                    URL.revokeObjectURL(photo);
-                                    setPhotos(prev => prev.filter((_, i) => i !== idx));
-                                  }}
-                                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                     </div>
-                  </div>
-               </div>
-             )}
-
-             {step === 2 && (
-               <div className="space-y-8 animate-fadeIn text-center py-12">
-                  <div className="size-24 bg-primary/10 text-primary rounded-[32px] flex items-center justify-center mx-auto mb-6">
-                     <span className="material-symbols-outlined !text-5xl">check_circle</span>
-                  </div>
-                  <div className="space-y-2">
-                     <h3 className="text-2xl font-black">Review Your Sale</h3>
-                     <p className="text-slate-500">Make sure all details are correct before publishing.</p>
-                  </div>
-                  
-                  <div className="p-8 bg-slate-50 dark:bg-white/5 rounded-[40px] text-left border border-gray-100 dark:border-white/5 mt-8">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Preview</p>
-                     <div className="flex gap-6 items-center">
-                        <div className="size-20 bg-primary rounded-[28px] flex items-center justify-center text-white shadow-lg shadow-primary/30">
-                           <span className="material-symbols-outlined text-4xl">storefront</span>
-                        </div>
-                        <div>
-                           <h4 className="font-black text-xl">{eventData.name || 'Your Event Name'}</h4>
-                           <p className="text-sm font-bold text-slate-500">{eventData.address}</p>
-                           <p className="text-sm font-black text-primary mt-1 uppercase tracking-tighter">
-                              {eventData.date ? new Date(eventData.date).toLocaleDateString('en-US', { weekday: 'short' }) : ''}, {eventData.startTime} - {eventData.endTime}
-                           </p>
-                        </div>
-                     </div>
-                  </div>
-                  
-                  {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
-                      {error}
-                    </div>
-                  )}
-               </div>
-             )}
-
-             {step === 3 && (
-               <div className="space-y-8 animate-fadeIn text-center">
-                  <div className="size-32 bg-green-100 text-green-600 rounded-[40px] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-green-100/50">
-                     <span className="material-symbols-outlined !text-6xl animate-bounce">rocket_launch</span>
-                  </div>
-                  <div className="space-y-2">
-                     <h3 className="text-3xl font-black">Ready for Takeoff!</h3>
-                     <p className="text-slate-500 max-w-sm mx-auto">Your Garage Sale will be pinned on the Austin map for all neighbors to see. We'll send you a notification 1 hour before it starts.</p>
-                  </div>
-                  
-                  <div className="p-8 bg-slate-50 dark:bg-white/5 rounded-[40px] text-left border border-gray-100 dark:border-white/5">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Live Preview</p>
-                     <div className="flex gap-6 items-center">
-                        <div className="size-20 bg-primary rounded-[28px] flex items-center justify-center text-white shadow-lg shadow-primary/30">
-                           <span className="material-symbols-outlined text-4xl">storefront</span>
-                        </div>
-                        <div>
-                           <h4 className="font-black text-xl">{eventData.name || 'Your Event Name'}</h4>
-                           <p className="text-sm font-bold text-slate-500">{eventData.address}</p>
-                           <p className="text-sm font-black text-primary mt-1 uppercase tracking-tighter">Sun, 8:00 AM - 2:00 PM</p>
-                        </div>
-                     </div>
-                  </div>
-               </div>
-             )}
-
-             <div className="flex gap-4 mt-16 pt-8 border-t border-gray-100 dark:border-white/5">
-                {step > 1 && (
-                  <button onClick={() => setStep(step - 1)} className="flex-1 py-4 bg-gray-50 dark:bg-white/5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-gray-100">Back</button>
-                )}
-                <button 
-                  onClick={() => {
-                    if (step < 3) {
-                      setStep(step + 1);
-                    } else {
-                      handlePublish();
-                    }
-                  }}
-                  disabled={loading}
-                  className="flex-[2] py-4 bg-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                   {loading ? 'Publishing...' : step === 3 ? 'Publish Event' : 'Continue'}
-                </button>
-             </div>
-          </main>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
+      {photos.map((url, i) => (
+        <div key={i} className="relative aspect-square border border-gray-200 bg-gray-50 overflow-hidden rounded-md">
+          <img src={url} className="w-full h-full object-cover" alt="Item" />
+          <button 
+            type="button"
+            onClick={() => removePhoto(i)}
+            className="absolute top-1 right-1 size-6 bg-white border border-gray-300 text-gray-900 flex items-center justify-center hover:bg-gray-100 transition-colors"
+          >
+            <X size={14} />
+          </button>
         </div>
-      </div>
+      ))}
+      {photos.length < maxPhotos && (
+        <label className="aspect-square border border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-gray-400 transition-all rounded-md">
+          <Plus size={20} />
+          <span className="text-[10px] font-bold uppercase tracking-wider mt-2 text-gray-500">Add Photo</span>
+          <input type="file" className="hidden" onChange={handleFileChange} multiple accept="image/*" />
+        </label>
+      )}
+    </div>
+  );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col md:flex-row font-sans text-gray-900">
+      {/* Sidebar Navigation */}
+      <aside className="w-full md:w-64 bg-slate-900 p-8 text-white flex flex-col border-r border-slate-800">
+        <div className="mb-12">
+          <h1 className="text-xl font-bold tracking-tight">YardFront</h1>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Host Portal</p>
+        </div>
+
+        <nav className="flex-1 space-y-8">
+          {[
+            { num: 1, label: 'Event Details' },
+            { num: 2, label: 'Review' },
+            { num: 3, label: 'Publish' }
+          ].map((s) => (
+            <div key={s.num} className={`flex items-center gap-4 transition-all ${step === s.num ? 'opacity-100' : 'opacity-40'}`}>
+              <div className={`size-8 rounded-sm flex items-center justify-center font-bold text-xs ${step === s.num ? 'bg-primary text-white' : 'bg-slate-800 text-slate-400'}`}>
+                {s.num}
+              </div>
+              <span className="font-bold text-sm">{s.label}</span>
+            </div>
+          ))}
+        </nav>
+
+        <div className="pt-8 border-t border-slate-800 hidden md:block">
+          <p className="text-xs text-slate-500 leading-normal">
+            Your listing will be visible to nearby users.
+          </p>
+        </div>
+      </aside>
+
+      {/* Main Form Content */}
+      <main className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 overflow-y-auto">
+        <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-md p-8 md:p-12 shadow-sm">
+          
+          {error && (
+            <div className="mb-8 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md text-xs font-bold">
+              {error}
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-8">
+              <header>
+                <h2 className="text-2xl font-bold text-gray-900">Create event</h2>
+                <p className="text-gray-500 text-sm mt-2">Enter the details for your garage sale.</p>
+              </header>
+
+              <div className="space-y-6">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Event Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Block Sale"
+                    className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 focus:ring-1 focus:ring-primary focus:border-primary transition-all text-sm outline-none"
+                    value={eventData.name}
+                    onChange={(e) => setEventData({ ...eventData, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Description</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe items for sale..."
+                    className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-none text-sm outline-none"
+                    value={eventData.description}
+                    onChange={(e) => setEventData({ ...eventData, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Date *</label>
+                    <input
+                      type="date"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      value={eventData.date}
+                      onChange={(e) => setEventData({ ...eventData, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Start Time *</label>
+                    <input
+                      type="time"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      value={eventData.startTime}
+                      onChange={(e) => setEventData({ ...eventData, startTime: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">End Time *</label>
+                    <input
+                      type="time"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      value={eventData.endTime}
+                      onChange={(e) => setEventData({ ...eventData, endTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <input
+                      type="text"
+                      placeholder="City"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      value={eventData.city}
+                      onChange={(e) => setEventData({ ...eventData, city: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="State"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      value={eventData.state}
+                      onChange={(e) => setEventData({ ...eventData, state: e.target.value })}
+                    />
+                  </div>
+
+                  <LocationPrivacySelector
+                    address={eventData.address}
+                    cityName={eventData.city ? `${eventData.city}, ${eventData.state}` : 'Temecula, CA'}
+                    onLocationChange={(data) => {
+                      setLocationData(data);
+                      if (data?.address) {
+                        setEventData({ ...eventData, address: data.address });
+                      }
+                    }}
+                    showPreview={true}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2 pt-4 border-t border-gray-100">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Photos (Up to 10)</label>
+                  <PhotoUploader photos={photos} onPhotosChange={setPhotos} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-8">
+              <header>
+                <h2 className="text-2xl font-bold text-gray-900">Review listing</h2>
+                <p className="text-gray-500 text-sm mt-2">Confirm details before publishing.</p>
+              </header>
+
+              <div className="border border-gray-200 rounded-md bg-gray-50 p-6 space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">{eventData.name || 'Untitled Event'}</h3>
+                  <p className="text-sm font-medium text-gray-600 mt-1 flex items-center gap-2">
+                    <MapPin size={16} /> {eventData.address}, {eventData.city} {eventData.state}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white p-4 border border-gray-200 rounded-md">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Date</p>
+                    <p className="font-bold text-gray-800 mt-1 text-sm">{eventData.date || 'TBD'}</p>
+                  </div>
+                  <div className="bg-white p-4 border border-gray-200 rounded-md">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Hours</p>
+                    <p className="font-bold text-gray-800 mt-1 text-sm">{eventData.startTime} - {eventData.endTime}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Description</p>
+                  <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                    {eventData.description || 'No description.'}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200 flex justify-between items-center text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <span>{photos.length} Photos added</span>
+                  <span className={eventData.hideExactAddress ? 'text-gray-400' : 'text-green-600'}>
+                    {eventData.hideExactAddress ? 'Private Location' : 'Public Location'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="py-8 space-y-6 text-center">
+              <div className="size-16 bg-gray-100 border border-gray-200 flex items-center justify-center mx-auto text-gray-400 rounded-md">
+                <Check size={20} />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">Ready to publish</h2>
+                <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                  Your event will be visible to everyone on the YardFront map. You can manage this listing from your host dashboard.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 p-6 text-left rounded-md">
+                <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider">Note on visibility</h4>
+                <p className="text-xs text-gray-600 mt-2 leading-relaxed font-medium">
+                  Listing addresses that are verified and include multiple photos tend to receive higher engagement from local buyers.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Action Bar */}
+          <div className="mt-12 pt-8 border-t border-gray-100 flex gap-4">
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={() => setStep(step - 1)}
+                className="px-6 py-3 border border-gray-300 rounded-md font-bold text-xs uppercase tracking-wider text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <ChevronLeft size={18} />
+                Back
+              </button>
+            )}
+            
+            <button
+              type="button"
+              onClick={handleContinue}
+              disabled={loading}
+              className="flex-1 bg-slate-900 text-white px-8 py-3 rounded-md font-bold text-xs uppercase tracking-wider hover:bg-black transition-all flex items-center justify-center gap-3 disabled:bg-gray-400"
+            >
+              {loading ? (
+                <div className="size-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  {step === 3 ? 'Publish event' : 'Save and Continue'}
+                  {step < 3 && <ChevronRight size={18} />}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

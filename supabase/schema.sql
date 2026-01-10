@@ -1,4 +1,4 @@
--- YardHop Database Schema for Supabase
+-- YardFront Database Schema for Supabase
 -- Copy ALL the SQL below (from this line to the end) and paste into Supabase SQL Editor
 
 -- Enable necessary extensions
@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   verified BOOLEAN DEFAULT FALSE,
   safe_meet_only BOOLEAN DEFAULT TRUE,
   notifications_enabled BOOLEAN DEFAULT TRUE,
+  rating_average DECIMAL(3,2) DEFAULT 0,
+  rating_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -45,6 +47,7 @@ CREATE TABLE IF NOT EXISTS products (
   status TEXT CHECK (status IN ('active', 'sold', 'reserved', 'deleted')) DEFAULT 'active',
   is_featured BOOLEAN DEFAULT FALSE,
   view_count INTEGER DEFAULT 0,
+  garage_sale_id UUID REFERENCES garage_sales(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -75,6 +78,7 @@ CREATE TABLE IF NOT EXISTS garage_sales (
   tags TEXT[],
   is_multi_family BOOLEAN DEFAULT FALSE,
   status TEXT CHECK (status IN ('upcoming', 'active', 'completed', 'cancelled')) DEFAULT 'upcoming',
+  view_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -85,6 +89,7 @@ CREATE TABLE IF NOT EXISTS garage_sale_images (
   garage_sale_id UUID REFERENCES garage_sales(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
   is_primary BOOLEAN DEFAULT FALSE,
+  order_index INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -221,6 +226,7 @@ CREATE TABLE IF NOT EXISTS price_analyses (
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_seller ON products(seller_id);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_garage_sale ON products(garage_sale_id);
 CREATE INDEX IF NOT EXISTS idx_garage_sales_date ON garage_sales(start_date);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);

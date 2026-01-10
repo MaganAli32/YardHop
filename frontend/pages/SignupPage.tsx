@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SignInPage, Testimonial } from '../components/ui/sign-in';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const sampleTestimonials: Testimonial[] = [
   {
@@ -28,6 +28,12 @@ const SignupPage: React.FC = () => {
     event.preventDefault();
     setError('');
     setLoading(true);
+
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const formData = new FormData(event.currentTarget);
@@ -74,17 +80,36 @@ const SignupPage: React.FC = () => {
     setError('');
     setLoading(true);
 
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const { error: googleError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/profile`,
+          redirectTo: `${window.location.origin}${window.location.pathname}#/profile`,
         },
       });
 
       if (googleError) throw googleError;
     } catch (err: any) {
-      setError(err.message || 'Failed to sign up with Google.');
+      let errorMessage = 'Failed to sign up with Google.';
+      
+      // Check for specific error about provider not being enabled
+      if (err.message?.includes('provider is not enabled') || err.message?.includes('Unsupported provider')) {
+        if (err.message?.includes('missing OAuth secret') || err.message?.includes('OAuth secret')) {
+          errorMessage = 'Google OAuth is enabled but credentials are missing. Go to Authentication > Providers > Google in your Supabase dashboard and add your Client ID and Client Secret from Google Cloud Console.';
+        } else {
+          errorMessage = 'Google sign-in is not enabled in your Supabase project. To enable it, go to Authentication > Providers in your Supabase dashboard and enable Google OAuth.';
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };

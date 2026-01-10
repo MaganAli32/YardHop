@@ -58,7 +58,16 @@ export interface Product {
   isVerified?: boolean;
   price_percentage?: number;
   quantity?: number;
+  // Location privacy fields
+  latitude?: number;
+  longitude?: number;
+  location_privacy?: LocationPrivacy;
+  display_latitude?: number;
+  display_longitude?: number;
+  privacy_radius_meters?: number;
 }
+
+export type LocationPrivacy = 'exact' | 'neighborhood' | 'city';
 
 export interface GarageSale {
   id: string;
@@ -68,6 +77,15 @@ export interface GarageSale {
   description: string;
   image: string;
   tags: string[];
+  // Location privacy fields
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  location_privacy?: LocationPrivacy;
+  display_latitude?: number;
+  display_longitude?: number;
+  display_text?: string;
+  privacy_radius_meters?: number;
 }
 
 export interface CommunityPost {
@@ -101,4 +119,11 @@ export interface DetectedItem {
   };
   confidence: number;
   location: string;
+  // Additional fields from AI analysis
+  description?: string;
+  category?: string;
+  condition?: string;
+  suggested_price?: number;
+  features?: string[];
+  is_potential_steal?: boolean;
 }

@@ -37,9 +37,17 @@ const CartPage: React.FC = () => {
         const data = await cartApi.list(authToken);
         setCartItems(data || []);
       } catch (err: any) {
-        console.error('Failed to fetch cart:', err);
-        setError(err.message || 'Failed to load cart');
-        setCartItems([]);
+        // Check if backend is unavailable (silently handle this case)
+        if (err?.isBackendUnavailable) {
+          // Backend API not available - silently use empty array
+          setCartItems([]);
+          // Don't show error message for unavailable backend
+        } else {
+          // Only log/show errors for actual API errors
+          console.error('Failed to fetch cart:', err);
+          setError(err.message || 'Failed to load cart');
+          setCartItems([]);
+        }
       } finally {
         setLoading(false);
       }

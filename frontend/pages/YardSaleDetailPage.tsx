@@ -1,8 +1,175 @@
-
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { salesApi } from '../lib/api';
+import { SALES, FALLBACK_IMAGE } from '../data';
 import { GarageSale } from '../types';
+import { DiscoveryMap } from '../components/maps';
+import { 
+  MapPin, 
+  ChevronRight, 
+  Zap,
+  Navigation,
+  ShieldCheck,
+  RefreshCw,
+  Lock,
+  Cpu,
+  Activity,
+  Clock,
+  Calendar,
+  User,
+  Sparkles,
+  TrendingDown,
+  Share2,
+  Heart,
+  MessageCircle,
+  AlertCircle,
+  ArrowRight,
+  Info,
+} from 'lucide-react';
+
+// --- CONSTANTS ---
+const DEFAULT_LAT = 33.4936;
+const DEFAULT_LNG = -117.1484;
+
+// --- GEMINI API INTEGRATION ---
+const GEMINI_API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY || '';
+
+async function callGemini(
+  prompt: string,
+  systemPrompt = 'You are a neighborhood marketplace expert named Stitch AI.'
+): Promise<string> {
+  if (!GEMINI_API_KEY) {
+    return "AI diagnostic unavailable. API key not configured.";
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+  };
+
+  const maxRetries = 4;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        return result.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
+      }
+
+      if (res.status === 429 || res.status >= 500) {
+        await new Promise((r) => setTimeout(r, Math.pow(2, i) * 1000));
+        continue;
+      }
+      return `AI error (${res.status}).`;
+    } catch {
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 1000));
+    }
+  }
+  return 'AI diagnostic unavailable. Please try again later.';
+}
+
+// --- SUBCOMPONENTS ---
+const Img = ({
+  src,
+  alt,
+  className,
+}: {
+  src?: string;
+  alt: string;
+  className?: string;
+}) => {
+  const [imgSrc, setImgSrc] = useState(src || FALLBACK_IMAGE);
+  useEffect(() => setImgSrc(src || FALLBACK_IMAGE), [src]);
+  return (
+    <img
+      src={imgSrc || FALLBACK_IMAGE}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => setImgSrc(FALLBACK_IMAGE)}
+    />
+  );
+};
+
+
+const StitchSaleIntelligence = ({ sale }: { sale: GarageSale }) => {
+  const [stage, setStage] = useState<'locked' | 'loading' | 'ready'>('locked');
+  const [report, setReport] = useState<string>('');
+
+  const runAnalysis = async () => {
+    setStage('loading');
+    const prompt = `Analyze this garage sale event:
+Title: ${sale.title}
+Date: ${sale.date}
+Time: ${sale.time}
+Tags: ${(sale.tags || []).join(', ')}
+
+Return:
+- Quality score (0-100)
+- Best arrival strategy
+- Top 3 categories to prioritize
+
+Make it concise and use bold labels.`;
+    const res = await callGemini(prompt);
+    setReport(res);
+    setStage('ready');
+  };
+
+  return (
+    <div className="bg-[#121c32] rounded-2xl overflow-hidden border border-slate-800 p-6 shadow-xl">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <Cpu size={16} className="text-[#FF6B35]" />
+          <span className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
+            Stitch Intelligence
+          </span>
+        </div>
+        <div
+          className={`w-1.5 h-1.5 rounded-full ${
+            stage === 'ready'
+              ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]'
+              : 'bg-[#FF6B35] animate-pulse'
+          }`}
+        />
+      </div>
+
+      {stage === 'locked' && (
+        <div className="space-y-4">
+          <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+            Unlock a quick plan: best time to arrive + what to hunt first.
+          </p>
+          <button
+            onClick={runAnalysis}
+            className="w-full py-3 bg-white hover:bg-[#FF6B35] text-[#121c32] hover:text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2"
+          >
+            <Lock size={12} /> Unlock Diagnostic
+          </button>
+        </div>
+      )}
+
+      {stage === 'loading' && (
+        <div className="py-8 flex flex-col items-center gap-3">
+          <RefreshCw className="animate-spin text-[#FF6B35]" size={24} />
+          <span className="text-[9px] text-white/40 uppercase tracking-widest font-black">
+            Analyzing…
+          </span>
+        </div>
+      )}
+
+      {stage === 'ready' && (
+        <div className="text-[11px] text-slate-200 leading-relaxed font-mono whitespace-pre-wrap bg-black/40 p-4 rounded-xl border border-white/5 max-h-[300px] overflow-y-auto">
+          {report}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface SaleItem {
   id: number;
@@ -11,45 +178,95 @@ interface SaleItem {
   listedPrice: number;
   marketValue: { min: number; max: number };
   condition: string;
-  isSteal: boolean;
-  stealPercentage?: number;
   category: string;
+  isSteal?: boolean;
 }
 
+// --- YARD SALE DETAIL PAGE ---
 const YardSaleDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [showPriceAnalysis, setShowPriceAnalysis] = useState<number | null>(null);
   const [saleInfo, setSaleInfo] = useState<GarageSale | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const fetchSale = async () => {
-      if (!id) return;
-      
       setLoading(true);
-      setError('');
       try {
-        const data = await salesApi.get(id);
-        const saleData: any = {
-          id: data.id,
-          title: data.title,
-          description: data.description || '',
-          date: data.date || '',
-          time: data.time || '',
-          image: data.image || '',
-          images: data.images || [data.image || ''],
-          tags: data.tags || [],
-          location: data.address || '',
-          address: data.address || '',
-          hostName: data.hostName || '',
-          isLive: data.date === new Date().toISOString().split('T')[0],
-        };
-        setSaleInfo(saleData);
+        // Try to fetch from API first
+        let data: any = null;
+        try {
+          data = await salesApi.get(id || '');
+        } catch (apiError) {
+          // Fallback to mock data if API fails
+          console.warn('API fetch failed, using mock data:', apiError);
+          data = SALES.find(s => s.id === id) || null;
+        }
+
+        if (data) {
+          // Extract image using the same logic as other pages
+          let imageUrl = '';
+          
+          // First, try the convenience image field
+          if (data.image && typeof data.image === 'string' && data.image.trim() !== '') {
+            imageUrl = data.image;
+          } 
+          // Then, try to extract from images array
+          else if (Array.isArray(data.images) && data.images.length > 0) {
+            // Sort by is_primary first, then by order_index
+            const sorted = [...data.images].sort((a: any, b: any) => {
+              if (a?.is_primary && !b?.is_primary) return -1;
+              if (!a?.is_primary && b?.is_primary) return 1;
+              return (a?.order_index || 0) - (b?.order_index || 0);
+            });
+            
+            const first = sorted[0];
+            if (typeof first === 'string' && first.trim() !== '') {
+              imageUrl = first;
+            } else if (first && typeof first === 'object' && first.url) {
+              imageUrl = first.url;
+            }
+          }
+          
+          // Format date and time from API response
+          const formatDate = (dateStr: string) => {
+            if (!dateStr) return '';
+            try {
+              const date = new Date(dateStr);
+              return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch {
+              return dateStr;
+            }
+          };
+          
+          const formatTime = (timeStr: string) => {
+            if (!timeStr) return '';
+            return timeStr.slice(0, 5); // HH:MM format
+          };
+          
+          const saleData: GarageSale = {
+            id: data.id,
+            title: data.title,
+            description: data.description || '',
+            date: data.start_date ? formatDate(data.start_date) : (data.date || ''),
+            time: data.start_time ? formatTime(data.start_time) : (data.time || ''),
+            image: imageUrl || FALLBACK_IMAGE,
+            tags: data.tags || [],
+          };
+          
+          console.log('YardSaleDetailPage - Image extraction:', {
+            hasImageField: !!data.image,
+            imageFieldValue: data.image,
+            hasImagesArray: Array.isArray(data.images),
+            imagesArrayLength: Array.isArray(data.images) ? data.images.length : 0,
+            extractedImage: imageUrl
+          });
+          
+          setSaleInfo(saleData);
+        }
       } catch (err: any) {
         console.error('Failed to fetch garage sale:', err);
-        setError(err.message || 'Failed to load garage sale');
       } finally {
         setLoading(false);
       }
@@ -58,420 +275,382 @@ const YardSaleDetailPage: React.FC = () => {
     fetchSale();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center py-20">Loading garage sale...</div>
-      </div>
-    );
-  }
-
-  if (error || !saleInfo) {
-    return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center py-20">
-          <p className="text-red-500">{error || 'Garage sale not found'}</p>
-          <button onClick={() => navigate('/sales')} className="mt-4 text-primary">
-            Back to Sales
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Mock items with AI price intelligence
   const items: SaleItem[] = [
     {
       id: 1,
-      image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600",
-      title: "Mid-Century Modern Lounge Chair",
+      image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80',
+      title: 'MCM Lounge Chair',
       listedPrice: 45,
       marketValue: { min: 180, max: 250 },
-      condition: "Good",
+      condition: 'Good',
+      category: 'Furniture',
       isSteal: true,
-      stealPercentage: 78,
-      category: "Furniture"
     },
     {
       id: 2,
-      image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600",
-      title: "Vintage Canon AE-1 Camera",
+      image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop&q=80',
+      title: 'Vintage Canon AE-1',
       listedPrice: 35,
       marketValue: { min: 120, max: 180 },
-      condition: "Good",
+      condition: 'Good',
+      category: 'Electronics',
       isSteal: true,
-      stealPercentage: 71,
-      category: "Electronics"
     },
     {
       id: 3,
-      image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=600",
-      title: "Set of 6 Dining Chairs",
-      listedPrice: 80,
-      marketValue: { min: 90, max: 140 },
-      condition: "Like New",
-      isSteal: false,
-      category: "Furniture"
+      image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?w=600&auto=format&fit=crop&q=80',
+      title: 'Dining Set (6 Chairs)',
+      listedPrice: 120,
+      marketValue: { min: 140, max: 200 },
+      condition: 'Like New',
+      category: 'Furniture',
     },
     {
       id: 4,
-      image: "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=600",
-      title: "Kids' Bicycle (Ages 6-9)",
-      listedPrice: 25,
-      marketValue: { min: 60, max: 95 },
-      condition: "Good",
+      image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=600&auto=format&fit=crop&q=80',
+      title: "Kids' Bike",
+      listedPrice: 40,
+      marketValue: { min: 95, max: 150 },
+      condition: 'Fair',
+      category: 'Kids',
       isSteal: true,
-      stealPercentage: 58,
-      category: "Kids"
     },
-    {
-      id: 5,
-      image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600",
-      title: "Hardcover Book Collection (50+ books)",
-      listedPrice: 20,
-      marketValue: { min: 25, max: 40 },
-      condition: "Good",
-      isSteal: false,
-      category: "Books"
-    },
-    {
-      id: 6,
-      image: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600",
-      title: "Ninja Blender System",
-      listedPrice: 30,
-      marketValue: { min: 75, max: 110 },
-      condition: "Like New",
-      isSteal: true,
-      stealPercentage: 60,
-      category: "Kitchen"
-    }
   ];
 
-  const stealItems = items.filter(item => item.isSteal);
-  const totalPotentialSavings = stealItems.reduce((sum, item) => 
-    sum + (item.marketValue.max - item.listedPrice), 0
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <RefreshCw className="animate-spin text-[#FF6B35]" size={32} />
+      </div>
+    );
+  }
+
+  if (!saleInfo) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white p-8 text-center">
+        <AlertCircle size={48} className="text-slate-200 mb-4 mx-auto" />
+        <h2 className="text-xl font-bold text-[#121c32] mb-2">Event Not Found</h2>
+        <button
+          onClick={() => navigate('/sales')}
+          className="bg-[#121c32] text-white px-6 py-2 rounded-lg font-bold text-sm uppercase mt-4"
+        >
+          Back to Sales
+        </button>
+      </div>
+    );
+  }
+
+  const lat = saleInfo.latitude || (saleInfo as any).lat || DEFAULT_LAT;
+  const lng = saleInfo.longitude || (saleInfo as any).lng || DEFAULT_LNG;
+  const privacy = (saleInfo.location_privacy || 'neighborhood') as 'exact' | 'neighborhood' | 'city';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      
-      {/* Back Button Integrated Bar */}
-      <div className="bg-white border-b border-slate-200 sticky top-16 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          <button 
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
-            </svg>
-            <span>Back to Sales Feed</span>
-          </button>
-        </div>
+    <div className="min-h-screen bg-white text-[#121c32] font-sans selection:bg-[#FF6B35] selection:text-white pb-20">
+      {/* Breadcrumbs */}
+      <div className="border-b border-slate-100 sticky top-0 z-50 bg-white/80 backdrop-blur-md">
+        <nav className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+          <Link to="/" className="hover:text-[#FF6B35] transition-colors">
+            Home
+          </Link>
+          <ChevronRight size={12} className="text-slate-200" />
+          <Link to="/sales" className="hover:text-[#FF6B35] transition-colors">
+            Garage Sales
+          </Link>
+          <ChevronRight size={12} className="text-slate-200" />
+          <span className="text-slate-900 truncate">{saleInfo.title}</span>
+        </nav>
       </div>
 
-      {/* Hero Section */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            
-            {/* Left - Large Interactive Gallery */}
-            <div>
-              <div className="relative aspect-[4/3] bg-slate-100 rounded-2xl overflow-hidden shadow-sm mb-4">
-                <img 
-                  src={saleInfo.images[0]}
-                  alt="Yard sale"
-                  className="w-full h-full object-cover"
-                />
-                {saleInfo.isLive && (
-                  <div className="absolute top-5 right-5">
-                    <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm text-slate-900 text-xs font-bold px-3 py-1.5 rounded-full border border-slate-200 shadow-xl tracking-wider uppercase">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      <span>Happening Now</span>
-                    </div>
-                  </div>
-                )}
+      {/* Hero */}
+      <section className="max-w-7xl mx-auto px-6 mt-8 mb-16">
+        <div className="relative w-full h-[320px] md:h-[480px] rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
+          <Img
+            src={saleInfo.image}
+            alt={saleInfo.title}
+            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+          <div className="absolute top-4 md:top-8 left-4 md:left-8">
+            <div className="flex items-center gap-3 bg-white/95 backdrop-blur px-3 md:px-5 py-2 md:py-2.5 rounded-xl border border-slate-200 shadow-xl">
+              <Zap size={14} className="text-[#FF6B35]" fill="currentColor" />
+              <span className="text-[9px] md:text-[10px] font-black text-[#121c32] uppercase tracking-[0.2em]">
+                Garage Sale Event
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 md:mt-12 flex flex-col lg:flex-row lg:items-end justify-between gap-8 md:gap-10">
+          <div className="space-y-4 md:space-y-6 max-w-3xl">
+            <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-[#121c32] leading-[1.1]">
+              {saleInfo.title}
+            </h1>
+
+            <div className="flex flex-wrap gap-3 md:gap-4">
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-4 md:px-5 py-2 md:py-3 rounded-xl text-[11px] md:text-xs font-bold text-slate-700">
+                <Calendar size={14} className="text-[#FF6B35]" /> {saleInfo.date}
               </div>
-              
-              <div className="grid grid-cols-4 gap-3">
-                {saleInfo.images.map((img, idx) => (
-                  <div key={idx} className="aspect-video bg-slate-100 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all border border-slate-200">
-                    <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
-                  </div>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-4 md:px-5 py-2 md:py-3 rounded-xl text-[11px] md:text-xs font-bold text-slate-700">
+                <Clock size={14} className="text-[#FF6B35]" /> {saleInfo.time}
+              </div>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-4 md:px-5 py-2 md:py-3 rounded-xl text-[11px] md:text-xs font-bold text-slate-700">
+                <MapPin size={14} className="text-[#FF6B35]" /> {(saleInfo as any).location || 'Temecula, CA'}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 lg:pb-2">
+            <button
+              onClick={() => window.open(`https://maps.google.com/?q=${lat},${lng}`, '_blank')}
+              className="flex items-center gap-2 md:gap-3 bg-[#FF6B35] hover:bg-[#121c32] text-white px-6 md:px-10 py-3 md:py-5 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-orange-500/10 active:scale-95"
+            >
+              <Navigation size={18} /> Directions
+            </button>
+            <button className="p-3 md:p-5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-[#121c32] transition-colors">
+              <Heart size={20} />
+            </button>
+            <button className="p-3 md:p-5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-[#121c32] transition-colors">
+              <Share2 size={20} />
+            </button>
+            <button className="flex items-center gap-2 md:gap-3 px-5 md:px-8 py-3 md:py-5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-900 font-bold text-[10px] md:text-xs uppercase tracking-widest transition-colors">
+              <MessageCircle size={18} /> Message
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Main grid */}
+      <section className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-16">
+        {/* Left */}
+        <div className="lg:col-span-8 space-y-12 md:space-y-20">
+          <div className="space-y-6 md:space-y-8">
+            <div className="flex items-center gap-4">
+              <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-[#121c32]">
+                About this sale
+              </h3>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+            <p className="text-slate-600 leading-relaxed text-lg md:text-xl font-medium">
+              {saleInfo.description}
+            </p>
+
+            {!!saleInfo.tags?.length && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {saleInfo.tags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className="text-[9px] md:text-[10px] font-black uppercase tracking-widest px-3 md:px-4 py-1.5 md:py-2 bg-slate-50 text-slate-400 rounded-lg border border-slate-200"
+                  >
+                    #{tag}
+                  </span>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Featured */}
+          <div className="space-y-6 md:space-y-8">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-[#121c32]">
+                Featured Items
+              </h3>
+              <a
+                href="#catalog"
+                className="text-[9px] md:text-[10px] font-bold text-[#FF6B35] uppercase tracking-[0.2em] flex items-center gap-2 hover:underline"
+              >
+                See Full Catalog <ArrowRight size={14} />
+              </a>
             </div>
-            
-            {/* Right - Sale Content & Action Hub */}
-            <div className="flex flex-col">
-              <div className="flex-1">
-                <div className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 text-[10px] font-black px-2.5 py-1 rounded-md mb-4 uppercase tracking-widest border border-orange-100">
-                  Verified Yard Sale
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {items.slice(0, 4).map((item) => (
+                <div key={item.id} className="group cursor-pointer">
+                  <div className="aspect-square rounded-2xl overflow-hidden border border-slate-100 mb-3 md:mb-4 bg-slate-50">
+                    <Img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
+                  </div>
+                  <h4 className="text-[10px] md:text-[11px] font-black text-slate-900 uppercase tracking-tight truncate">
+                    {item.title}
+                  </h4>
+                  <p className="text-xs md:text-sm font-black text-[#FF6B35] mt-1">
+                    ${item.listedPrice}
+                  </p>
                 </div>
-                <h1 className="text-3xl font-black text-slate-900 mb-4 leading-tight tracking-tight">
-                  {saleInfo.title}
-                </h1>
-                
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600">
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">{saleInfo.date}</p>
-                      <p className="text-xs text-slate-500 font-medium">{saleInfo.time}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">{saleInfo.location}</p>
-                      <p className="text-xs text-slate-500 font-medium">{saleInfo.distance}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3 text-slate-600">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
-                      </svg>
-                    </div>
-                    <p className="text-sm font-medium leading-snug">{saleInfo.address}</p>
-                  </div>
-                </div>
-                
-                <p className="text-base text-slate-600 leading-relaxed mb-8 font-medium">
-                  {saleInfo.description}
-                </p>
-              </div>
-              
-              {/* Primary Actions */}
-              <div className="flex items-center gap-3">
-                <button className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg shadow-orange-500/20 active:scale-95">
-                  Navigate to Yard
-                </button>
-                <button className="p-4 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl transition-all shadow-sm">
-                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/>
-                  </svg>
-                </button>
-                <button className="p-4 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl transition-all shadow-sm">
-                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"/>
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold shadow-md">
-                    SJ
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Hosted by</p>
-                    <p className="text-sm font-bold text-slate-900">{saleInfo.hostName}</p>
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <svg key={i} className="w-3.5 h-3.5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                    </svg>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* AI Treasure Scanner Intelligence Alert */}
-      {stealItems.length > 0 && (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-y border-emerald-100">
-          <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-              <div className="w-16 h-16 bg-emerald-500 rounded-[24px] flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20 rotate-3">
-                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/>
-                </svg>
+        {/* Right */}
+        <div className="lg:col-span-4 space-y-8 md:space-y-10">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
+                Location Preview
+              </h4>
+              <div className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">
+                Safe Zone
               </div>
-              <div className="flex-1 text-center md:text-left">
-                <h3 className="text-xl font-black text-slate-900 mb-1 leading-none tracking-tight">
-                  🎯 Stitch Scanner Detected {stealItems.length} Major Steals!
-                </h3>
-                <p className="text-sm text-slate-600 mb-5 font-medium leading-relaxed max-w-2xl">
-                  Our price engine cross-referenced current market values on eBay and FB Marketplace. 
-                  <span className="text-emerald-600 font-black ml-1">Total potential neighborhood savings: ${totalPotentialSavings}+</span>
+            </div>
+
+            <DiscoveryMap
+              lat={lat}
+              lng={lng}
+              privacy={privacy}
+              height="280px"
+              showUserLocation={true}
+              interactive={true}
+            />
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <p className="text-[11px] font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <Info size={14} className="text-blue-500" /> Safety Note
+              </p>
+              <p className="text-[11px] text-slate-500 leading-relaxed mt-2 font-medium">
+                Address may be revealed on the morning of the sale for host security. Meet in daylight and
+                prefer public areas when possible.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
+              The Host
+            </h4>
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden">
+                <User size={30} className="text-slate-300" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-base font-black text-[#121c32] tracking-tighter uppercase leading-none">
+                  {(saleInfo as any).hostName || 'Verified Neighbor'}
                 </p>
-                <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                  {stealItems.slice(0, 3).map((item) => (
-                    <div key={item.id} className="inline-flex items-center gap-2 bg-white text-emerald-700 text-[10px] font-black px-3 py-1.5 rounded-lg border border-emerald-200 shadow-sm uppercase tracking-wider">
-                      <span>{item.title}</span>
-                      <span className="bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded">-{item.stealPercentage}%</span>
-                    </div>
-                  ))}
-                  {stealItems.length > 3 && (
-                    <div className="inline-flex items-center text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">
-                      +{stealItems.length - 3} MORE TREASURES
+                <p className="text-[10px] font-bold text-slate-400 uppercase">
+                  {(saleInfo as any).hostLabel || 'Trusted Host'}
+                </p>
+              </div>
+            </div>
+            <button className="w-full py-4 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#FF6B35] transition-colors">
+              View Profile
+            </button>
+          </div>
+
+          <StitchSaleIntelligence sale={saleInfo} />
+        </div>
+      </section>
+
+      {/* Catalog */}
+      <section
+        id="catalog"
+        className="max-w-7xl mx-auto px-6 mt-24 pt-16 border-t border-slate-100"
+      >
+        <div className="flex items-end justify-between gap-6 mb-10">
+          <div>
+            <h2 className="text-3xl font-black uppercase tracking-tight text-[#121c32]">Item Catalog</h2>
+            <p className="text-slate-500 font-medium mt-2">Preview items before you arrive.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {items.map((item) => {
+            const pct = Math.round((1 - item.listedPrice / item.marketValue.max) * 100);
+            return (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col hover:border-[#FF6B35] hover:shadow-xl transition-all duration-300 group"
+              >
+                <div className="relative aspect-square bg-slate-50 overflow-hidden">
+                  <Img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  />
+
+                  <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      onClick={() =>
+                        setShowPriceAnalysis(showPriceAnalysis === item.id ? null : item.id)
+                      }
+                      className="p-3 bg-white/95 backdrop-blur rounded-xl border border-slate-200 text-[#121c32] hover:text-[#FF6B35] shadow-xl"
+                      aria-label="Toggle market analysis"
+                    >
+                      <Activity size={16} />
+                    </button>
+                    <button
+                      className="p-3 bg-white/95 backdrop-blur rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 shadow-xl"
+                      aria-label="Save item"
+                    >
+                      <Heart size={16} />
+                    </button>
+                  </div>
+
+                  {item.isSteal && (
+                    <div className="absolute top-4 left-4">
+                      <div className="bg-[#FF6B35] text-white text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-xl flex items-center gap-1.5">
+                        <Sparkles size={10} fill="currentColor" />
+                        Yard Steal
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="hidden xl:block">
-                 <div className="p-4 bg-white/40 backdrop-blur rounded-2xl border border-emerald-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Last Update</p>
-                    <p className="text-xs font-bold text-slate-700">Live Signal: 4 mins ago</p>
-                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Items Grid Section */}
-      <div className="max-w-7xl mx-auto px-6 py-16 flex-grow">
-        
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-          <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-3">
-              Items at This Sale ({items.length})
-            </h2>
-            <p className="text-slate-500 font-medium">Scanned and cataloged by host.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort by:</span>
-            <select className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-4 py-2 outline-none focus:border-orange-500 shadow-xs">
-              <option>Best Neighborhood Steals</option>
-              <option>Price: Low to High</option>
-              <option>Price: High to Low</option>
-              <option>Recently Scanned</option>
-            </select>
-          </div>
-        </div>
+                <div className="p-6 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start gap-4 mb-4">
+                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight flex-1 line-clamp-2">
+                      {item.title}
+                    </h4>
+                    <div className="text-right">
+                      <p className="text-xl font-black text-[#121c32] tracking-tighter leading-none">
+                        ${item.listedPrice}
+                      </p>
+                    </div>
+                  </div>
 
-        {/* Professional Items Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {items.map((item) => (
-            <article 
-              key={item.id}
-              className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col"
-            >
-              
-              {/* Item Visual */}
-              <div className="relative aspect-square bg-slate-100 overflow-hidden">
-                <img 
-                  src={item.image}
-                  alt={item.title}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                />
-                
-                {/* Steal Indicator Badge */}
-                {item.isSteal && (
-                  <div className="absolute top-4 left-4">
-                    <span className="inline-flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] font-black px-2.5 py-1.5 rounded-lg shadow-xl uppercase tracking-widest">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/>
-                      </svg>
-                      <span>HUGE STEAL</span>
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 bg-slate-50 rounded border border-slate-100">
+                      {item.condition}
+                    </span>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 bg-slate-50 rounded border border-slate-100">
+                      {item.category}
                     </span>
                   </div>
-                )}
-                
-                {/* AI Intelligence Toggle */}
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setShowPriceAnalysis(showPriceAnalysis === item.id ? null : item.id); }}
-                  className="absolute top-4 right-4 bg-slate-900/90 backdrop-blur-md hover:bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-lg border border-white/10 shadow-xl transition-all flex items-center gap-2 group/btn active:scale-95"
-                >
-                  <span className="material-symbols-outlined !text-sm text-orange-400 group-hover/btn:animate-spin-slow">magic_button</span>
-                  <span>AI APPRAISAL</span>
-                </button>
-              </div>
-              
-              {/* Item Details */}
-              <div className="p-6 flex flex-col flex-1">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <h3 className="text-lg font-black text-slate-900 leading-tight flex-1 group-hover:text-orange-500 transition-colors">
-                    {item.title}
-                  </h3>
-                </div>
-                
-                <div className="flex items-center gap-2 mb-6">
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[9px] font-black rounded-md uppercase tracking-wider">{item.category}</span>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[9px] font-black rounded-md uppercase tracking-wider">{item.condition}</span>
-                </div>
-                
-                {/* Price Display */}
-                <div className="mt-auto flex items-end justify-between pt-6 border-t border-slate-50">
-                  <div>
-                    <p className="text-3xl font-black text-slate-900 tracking-tighter">
-                      ${item.listedPrice}
-                    </p>
-                    {item.isSteal && (
-                      <p className="text-[10px] text-slate-400 line-through font-bold uppercase tracking-widest mt-1">
-                        Market Avg: ${item.marketValue.max}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {item.isSteal && (
-                    <div className="text-right">
-                      <div className="text-xs font-black text-emerald-600 flex items-center justify-end gap-1">
-                        <span className="material-symbols-outlined !text-sm">trending_down</span>
-                        <span>SAVE ${item.marketValue.max - item.listedPrice}</span>
+
+                  {showPriceAnalysis === item.id && (
+                    <div className="mb-6 p-4 bg-[#121c32] text-white rounded-2xl border border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingDown size={14} className="text-[#FF6B35]" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#FF6B35]">
+                          Market Intelligence
+                        </span>
                       </div>
-                      <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">
-                        {item.stealPercentage}% LOCAL DISCOUNT
-                      </p>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-400 uppercase font-bold">Resale Range</span>
+                          <span className="font-black text-white">
+                            ${item.marketValue.min} - ${item.marketValue.max}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 leading-relaxed font-medium italic">
+                          Priced about {pct}% below active resale listings.
+                        </div>
+                      </div>
                     </div>
                   )}
-                </div>
-                
-                {/* AI Detail Panel (Animated Dropdown) */}
-                {showPriceAnalysis === item.id && (
-                  <div className="mt-6 pt-6 border-t border-slate-100 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
-                    <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-inner relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl"></div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined !text-lg text-orange-400">insights</span>
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-400">Market Intelligence</h4>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-400 font-bold uppercase tracking-wider">Web Range</span>
-                          <span className="font-black text-white">${item.marketValue.min} - ${item.marketValue.max}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-400 font-bold uppercase tracking-wider">Current List</span>
-                          <span className="font-black text-orange-400">${item.listedPrice}</span>
-                        </div>
-                        
-                        {item.isSteal && (
-                          <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/5">
-                            <p className="text-emerald-400 font-black text-[10px] uppercase tracking-[0.15em] leading-tight">
-                              ⚡ Verified neighborhood deal. Priced significantly lower than active Seattle/Austin resale listings.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-            </article>
-          ))}
-        </div>
-      </div>
 
+                  <div className="mt-auto">
+                    <button className="w-full py-3.5 bg-[#121c32] hover:bg-[#FF6B35] text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all">
+                      Inquire
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 };

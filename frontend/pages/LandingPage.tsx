@@ -1,256 +1,333 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { PRODUCTS } from '../data';
 import ProductCard from '../components/ProductCard';
+import Footer from '../components/Footer';
+import { ChevronRight, Star, ArrowRight, Zap, Camera, TrendingUp, ShieldCheck, LayoutGrid } from 'lucide-react';
 
-const LandingPage: React.FC = () => {
-  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+// --- MAXIMALIST LAYER COMPONENTS ---
+
+const DitherOverlay = () => (
+  <div 
+    className="fixed inset-0 pointer-events-none z-[9999] opacity-[0.15] mix-blend-overlay"
+    style={{
+      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+    }}
+  />
+);
+
+const InteractiveParticles = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouse = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let raf: number;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    resize();
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.current.x = e.clientX;
+      mouse.current.y = e.clientY;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('resize', resize);
+
+    const particles = Array.from({ length: 40 }).map(() => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      size: Math.random() * 2 + 1
+    }));
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        const dx = mouse.current.x - p.x;
+        const dy = mouse.current.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) {
+          p.vx -= (dx / dist) * 0.05;
+          p.vy -= (dy / dist) * 0.05;
+        }
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        ctx.fillStyle = '#FF6B35';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      raf = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none opacity-30" />;
+};
+
+const LandingPage: React.FC = () => {
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('animate-fadeIn');
+            entry.target.classList.add('is-visible');
             observer.unobserve(entry.target);
           }
         });
       },
-      { threshold: 0.1, rootMargin: '0px 0px -80px 0px' }
+      { 
+        threshold: 0.12, 
+        rootMargin: '0px 0px -80px 0px' 
+      }
     );
 
-    sectionRefs.current.forEach((ref) => {
-      if (ref) observer.observe(ref);
+    document.querySelectorAll('.scroll-reveal').forEach(el => {
+      observer.observe(el);
     });
 
-    return () => observer.disconnect();
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+    };
   }, []);
 
   return (
-    <div className="flex flex-col w-full overflow-hidden bg-white">
-      {/* 1. HERO SECTION - Split Panel (Precise 520px height and 65/35 split) */}
-      <section className="relative flex flex-col lg:flex-row h-auto lg:h-[520px] bg-white">
+    <div className="flex flex-col w-full overflow-hidden bg-[#121c32] selection:bg-[#FF6B35] selection:text-white">
+      <DitherOverlay />
+
+      {/* 1. HERO SECTION */}
+      <section className="relative flex flex-col lg:flex-row lg:h-[480px] bg-white overflow-hidden">
+        <InteractiveParticles />
         
-        {/* LEFT PANEL - Browse/Buy (65% width) */}
-        <div className="relative flex-[3] min-h-[300px] lg:h-full bg-slate-100 overflow-hidden group">
+        {/* LEFT PANEL */}
+        <div className="relative flex-[3] min-h-[320px] bg-slate-100 overflow-hidden">
           <img 
-            src="https://images.unsplash.com/photo-1594026112284-02bb6f3352fe?w=1600&q=80&fit=crop"
-            alt="Styled interior"
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-[4000ms] group-hover:scale-105"
+            src="https://images.unsplash.com/photo-1594026112284-02bb6f3352fe?w=1600&q=80&fit=crop" 
+            alt="Hero Furniture" 
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ transform: `translateY(${scrollY * 0.1}px)` }}
           />
-          {/* White Gradient Overlay - AptDeco Style */}
-          <div 
-            className="absolute inset-0 z-1"
-            style={{
-              background: 'linear-gradient(to right, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 30%, rgba(255,255,255,0.70) 55%, rgba(255,255,255,0.30) 75%, rgba(255,255,255,0) 100%)'
-            }}
-          ></div>
+          {/* Dark gradient overlay for text visibility */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#121c32]/70 via-[#121c32]/50 to-transparent z-[5]" />
           
-          <div className="relative z-10 h-full flex items-center">
-            <div className="max-w-xl px-8 lg:px-20 py-12 lg:py-0">
-              <h1 className="text-4xl lg:text-[3.5rem] font-extrabold text-slate-900 leading-[1.05] tracking-tight mb-10">
-                The easiest way <br/>to buy & sell used <br/>furniture
+          <div className="relative z-10 flex items-center h-full">
+            <div className="max-w-lg px-6 lg:px-12 py-8 w-full">
+              <h1 className="text-[clamp(1.9rem,4.2vw,3.4rem)] leading-[0.92] font-black tracking-tighter uppercase italic mb-6 font-display text-white drop-shadow-2xl">
+                The easiest way <br/>to buy & sell <br/>used furniture
               </h1>
-              <Link 
-                to="/search"
-                className="inline-flex items-center gap-4 bg-orange-500 hover:bg-orange-600 text-white font-black px-10 py-4 rounded shadow-sm transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-[11px] uppercase tracking-[0.2em]"
-              >
-                <span>BROWSE</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
-                </svg>
+              <p className="text-base font-bold text-white/90 mb-6 uppercase italic max-w-sm font-display drop-shadow-lg">Your neighborhood marketplace for trusted local exchanges.</p>
+              <Link to="/search" className="inline-flex items-center gap-4 bg-[#FF6B35] text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] shadow-xl hover:-translate-y-1 transition italic font-display">
+                Browse Feed
+                <ArrowRight size={18} strokeWidth={4} />
               </Link>
             </div>
           </div>
         </div>
-        
-        {/* RIGHT PANEL - Sell Side (35% width) */}
-        <div className="relative flex-[2] min-h-[250px] lg:h-full bg-slate-800 overflow-hidden group">
+
+        {/* RIGHT PANEL */}
+        <div className="relative flex-[2] min-h-[260px] bg-[#FF6B35] overflow-hidden">
           <img 
-            src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1000&q=80&fit=crop"
-            alt="Warm texture"
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-[4000ms] group-hover:scale-110"
+            src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1000&q=80&fit=crop" 
+            alt="Sell Furniture" 
+            className="absolute inset-0 w-full h-full object-cover opacity-20"
+            style={{ transform: `translateY(${scrollY * 0.15}px)` }}
           />
-          {/* Burnt Orange Overlay (75% opacity) */}
-          <div className="absolute inset-0 bg-orange-600/75"></div>
           
-          <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-10 py-12 lg:py-0">
-            <h2 className="text-3xl lg:text-4xl font-extrabold text-white leading-[1.1] tracking-tight mb-10">
-              Ready to start <br/>selling?
-            </h2>
-            <Link 
-              to="/sell-hub"
-              className="inline-flex items-center justify-center border-2 border-white bg-transparent hover:bg-white hover:text-orange-600 text-white font-black px-10 py-3.5 rounded transition-all active:scale-95 text-[10px] uppercase tracking-[0.2em]"
-            >
-              LEARN MORE
-            </Link>
+          <div className="relative z-10 flex items-center justify-center h-full px-8 py-10 text-center">
+            <div className="w-full">
+              <h2 className="text-[clamp(1.5rem,2.6vw,2.2rem)] leading-[0.9] font-black uppercase italic mb-6 text-white font-display">
+                Ready to start <br/>selling?
+              </h2>
+              <Link to="/sell-hub" className="border border-white/40 text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] hover:bg-white hover:text-[#FF6B35] transition italic font-display">
+                Learn More
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 2. FRESH ON THE BLOCK - Product Grid */}
-      <section 
-        ref={(el) => { sectionRefs.current[0] = el; }}
-        className="py-24 px-6 opacity-0"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between mb-12 gap-4">
-            <div>
-              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-none mb-3">Fresh on the Block</h2>
-              <p className="text-base font-medium text-slate-500">Just listed by your neighborhood community.</p>
-            </div>
-            <Link to="/search" className="group flex items-center gap-2 text-orange-500 font-bold text-xs uppercase tracking-widest transition-all hover:text-orange-600">
-              <span>EXPLORE ALL</span>
-              <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
-          </div>
+      {/* WAVE DIVIDER */}
+      <div className="h-24 w-full bg-white relative z-20 overflow-hidden">
+        <svg viewBox="0 0 1440 100" className="absolute bottom-0 w-full h-full fill-[#121c32]">
+          <path d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,48C1120,43,1280,53,1360,58.7L1440,64L1440,100L1360,100C1280,100,1120,100,960,100C800,100,640,100,480,100C320,100,160,100,80,100L0,100Z"></path>
+        </svg>
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {PRODUCTS.slice(0, 4).map((product, idx) => (
-              <div 
-                key={product.id} 
-                className="opacity-0" 
-                style={{ animation: `fadeSlideIn 0.4s ease-out forwards ${idx * 0.1}s` }}
-              >
-                <ProductCard product={product} />
+      {/* 2. AI POWERED FEATURES */}
+      <section className="py-40 px-8 bg-[#121c32] relative">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="flex flex-col md:flex-row items-end justify-between mb-24 gap-8 scroll-reveal">
+            <div>
+              <div className="w-16 h-1.5 bg-[#FF6B35] mb-8" />
+              <h2 className="text-5xl font-black text-white tracking-tighter leading-none mb-6 uppercase italic font-display">AI Pricing Intelligence</h2>
+              <p className="text-xl font-bold text-white/40 uppercase tracking-widest text-xs italic font-display">Silicon Valley algorithms scaling neighborhood discovery.</p>
+            </div>
+            <div className="flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display">
+              <Zap size={14} fill="currentColor" />
+              Neural Network Active
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: TrendingUp, num: "01", title: "Market Arbitrage", desc: "Identify items listed 30% below national averages." },
+              { icon: Camera, num: "02", title: "Vision Recognition", desc: "Get MSRP data and descriptions from one photo." },
+              { icon: ShieldCheck, num: "03", title: "Trust Protocol", desc: "Verified neighborhood profiles and safe zones." },
+              { icon: LayoutGrid, num: "04", title: "Discovery Hub", desc: "High-fidelity neighborhood sale browser." }
+            ].map((f, i) => (
+              <div key={i} className="bg-white/5 backdrop-blur-md border border-white/10 p-10 rounded-2xl hover:border-[#FF6B35]/40 transition-all group scroll-reveal">
+                <div className="flex justify-between items-start mb-8">
+                  <f.icon className="text-[#FF6B35] group-hover:scale-110 transition-transform" size={32} strokeWidth={3} />
+                  <span className="text-2xl font-black text-white/10 group-hover:text-[#FF6B35]/20 font-display transition-colors">{f.num}</span>
+                </div>
+                <h3 className="text-xl font-black text-white mb-4 italic tracking-tighter uppercase font-display">{f.title}</h3>
+                <p className="text-white/40 text-sm leading-relaxed font-medium font-body">{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 3. HOW IT WORKS - A Simpler Way */}
-      <section 
-        ref={(el) => { sectionRefs.current[1] = el; }}
-        className="py-32 px-6 bg-slate-50 border-y border-slate-100 opacity-0"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-24 text-center">
-            <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
-              A simpler way to <br/><span className="text-orange-500">hop from yard to yard.</span>
+      {/* 3. WORKFLOW - NUMERIC STEPS WITH ICONS */}
+      <section className="py-48 px-8 bg-[#121c32] border-y border-white/5 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="mb-32 text-center scroll-reveal">
+            <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white mb-10 leading-[0.85] uppercase italic font-display">
+              The System Workflow
             </h2>
-            <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
-              Forget clunky lists and sketchy meetups. YardHop is designed for speed, safety, and community trust.
-            </p>
+            <p className="text-2xl text-white/40 max-w-2xl mx-auto font-black uppercase tracking-widest text-xs leading-loose font-display">Optimized discovery through localized data analysis.</p>
           </div>
 
-          <div className="flex flex-col gap-32">
-            {/* Step 1 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-               <div className="order-2 md:order-1 rounded-2xl overflow-hidden border border-slate-200 bg-white aspect-[4/3] shadow-xl">
-                  <img 
-                    src="https://images.unsplash.com/photo-1556740714-a8395b3bf30f?w=800&q=80&fit=crop" 
-                    alt="Taking photo of item" 
-                    className="w-full h-full object-cover" 
-                  />
-               </div>
-               <div className="order-1 md:order-2">
-                  <span className="text-6xl font-extrabold text-slate-200 block leading-none mb-6">01</span>
-                  <h3 className="text-3xl font-extrabold text-slate-900 mb-6">Snap & List in Seconds</h3>
-                  <p className="text-lg text-slate-500 font-medium leading-relaxed mb-8">
-                     Turn clutter into neighborhood cash without the headache. Our AI, <strong className="text-slate-700">Stitch</strong>, auto-fills details and suggests pricing so you don't have to.
-                  </p>
-                  <ul className="space-y-4">
-                     {[
-                       'Auto-enhanced photos', 
-                       'Smart market pricing', 
-                       'Instant local visibility'
-                     ].map(item => (
-                       <li key={item} className="flex items-center gap-3 text-slate-700 text-sm font-bold uppercase tracking-wide">
-                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100">
-                            <svg className="w-3.5 h-3.5 text-orange-500" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                            </svg>
-                          </span> 
-                          {item}
-                       </li>
-                     ))}
-                  </ul>
-               </div>
-            </div>
-
-            {/* Step 2 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-               <div className="order-1">
-                  <span className="text-6xl font-extrabold text-slate-200 block leading-none mb-6">02</span>
-                  <h3 className="text-3xl font-extrabold text-slate-900 mb-6">Connect & Secure</h3>
-                  <p className="text-lg text-slate-500 font-medium leading-relaxed mb-8">
-                     Negotiate, ask questions, and agree on a meeting spot directly through our secure in-app hub. No private phone numbers required.
-                  </p>
-                  <div className="flex gap-4">
-                     <span className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-[10px] font-bold uppercase text-slate-500 tracking-widest">
-                       Verified Profiles
-                     </span>
-                     <span className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-[10px] font-bold uppercase text-slate-500 tracking-widest">
-                       Safe Zones
-                     </span>
-                  </div>
-               </div>
-               <div className="order-2 rounded-2xl overflow-hidden border border-slate-200 bg-white aspect-[4/3] shadow-xl flex items-center justify-center p-8 md:p-12">
-                  <div className="w-full flex flex-col gap-6">
-                     <div className="self-start bg-slate-100 border border-slate-200 rounded-2xl rounded-tl-none p-5 max-w-[85%] shadow-sm">
-                        <p className="text-sm font-semibold text-slate-700 leading-snug">Is this available for pickup today?</p>
-                     </div>
-                     <div className="self-end bg-orange-500 rounded-2xl rounded-tr-none p-5 max-w-[85%] shadow-lg">
-                        <p className="text-sm font-semibold text-white leading-snug">Yes! I'm at the Zilker park gate until 4PM.</p>
-                     </div>
-                  </div>
-               </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 text-center">
+            {[
+              { num: "01", title: "Browse", desc: "Scan neighborhood patterns for high-potential listings." },
+              { num: "02", title: "Validate", desc: "Snap a photo for neural recognition and MSRP data." },
+              { num: "03", title: "Acquire", desc: "Secure the deal with protected local payments." },
+              { num: "04", title: "Scale", desc: "Flip or resell using automated SEO descriptions." }
+            ].map((step, i) => (
+              <div key={i} className="scroll-reveal group">
+                <div className="text-7xl md:text-8xl font-black text-white/5 group-hover:text-[#FF6B35]/20 transition-colors mb-6 select-none italic tracking-tighter font-display leading-none">
+                  {step.num}
+                </div>
+                <h4 className="text-xl font-black text-white mb-4 uppercase italic font-display">{step.title}</h4>
+                <p className="text-white/40 text-sm font-body px-4">{step.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* 4. FINAL CTA */}
-      <section 
-        ref={(el) => { sectionRefs.current[2] = el; }}
-        className="py-32 bg-slate-900 px-6 relative overflow-hidden opacity-0"
-      >
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-orange-500/10 via-transparent to-transparent pointer-events-none"></div>
-        <div className="relative z-10 max-w-4xl mx-auto text-center space-y-10">
-          <h2 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight">
-            Start Hopping Today.
+      {/* 4. MARKET FINDS */}
+      <section className="py-40 px-8 bg-[#0a101d]">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-end mb-20 scroll-reveal">
+            <h2 className="text-5xl font-black text-white tracking-tighter italic uppercase leading-none font-display">Recent Market Finds</h2>
+            <Link to="/search" className="group flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display">
+              <span>EXPLORE ALL</span>
+              <div className="w-10 h-10 rounded-full border-2 border-current flex items-center justify-center group-hover:bg-[#FF6B35] group-hover:text-white group-hover:border-[#FF6B35] transition-all">
+                <ChevronRight size={18} strokeWidth={4} />
+              </div>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+            {PRODUCTS.slice(0, 4).map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 5. REVIEWS SECTION (LUCIDE STARS, NO EMOJIS) */}
+      <section className="py-40 px-8 bg-[#121c32] border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-24 scroll-reveal">
+            <h2 className="text-5xl font-black text-white tracking-tighter uppercase italic font-display">Trusted by Your Neighbors</h2>
+            <div className="w-24 h-1 bg-[#FF6B35] mx-auto mt-8" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                stars: 5,
+                quote: "YardFront's pricing intelligence helped me find a vintage Fender amp for $20. The valuation was spot-on.",
+                author: "Marcus Thorne, Verified Buyer"
+              },
+              {
+                stars: 5,
+                quote: "I cleared out my garage in a weekend. Pricing, listings, and discovery were handled automatically.",
+                author: "Elena G., Verified Seller"
+              },
+              {
+                stars: 5,
+                quote: "The trust layer makes all the difference. No sketchy meetups, no guessing.",
+                author: "Jordan Pierce, Neighborhood Curator"
+              }
+            ].map((review, i) => (
+              <div key={i} className="bg-white/5 backdrop-blur-md border border-white/10 p-10 rounded-2xl scroll-reveal group">
+                <div className="flex gap-1 mb-6 text-[#FF6B35]">
+                  {[...Array(review.stars)].map((_, j) => (
+                    <Star key={j} size={16} fill="currentColor" />
+                  ))}
+                </div>
+                <p className="text-white/80 text-lg mb-8 italic font-body">"{review.quote}"</p>
+                <div className="h-px w-10 bg-[#FF6B35] mb-4" />
+                <p className="text-[#FF6B35] text-[10px] font-black uppercase tracking-widest font-display">{review.author}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. FINAL CTA */}
+      <section className="py-64 bg-[#121c32] px-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B35]/20 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-[40rem] h-[40rem] bg-[#FF6B35]/10 rounded-full blur-[120px]" />
+        
+        <div className="relative z-10 max-w-5xl mx-auto text-center space-y-16 scroll-reveal">
+          <h2 className="text-6xl md:text-9xl font-black text-white tracking-tighter leading-[0.8] uppercase italic font-display">
+            Own the <br/>Neighborhood.
           </h2>
-          <p className="text-lg text-slate-400 max-w-xl mx-auto font-medium">
-            Join 50,000+ neighbors finding hidden treasures and clearing the clutter.
+          <p className="text-2xl text-white/40 max-w-2xl mx-auto font-black uppercase tracking-[0.3em] text-sm italic font-display">
+            Join 50,000+ neighbors discoverying value with Silicon Valley tools.
           </p>
-          <div className="pt-6">
+          <div className="pt-10">
             <Link 
               to="/signup" 
-              className="inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold uppercase tracking-widest px-12 py-5 rounded transition-all shadow-2xl hover:shadow-orange-500/30 hover:-translate-y-1 active:scale-95"
+              className="group inline-flex items-center justify-center bg-[#FF6B35] hover:bg-white hover:text-[#FF6B35] text-white text-base font-black uppercase tracking-[0.4em] px-24 py-8 rounded-md transition-all shadow-[0_20px_60px_-10px_rgba(255,107,53,0.5)] hover:-translate-y-2 active:scale-95 italic font-display"
             >
-              GET STARTED FREE
+              <span>GET STARTED FREE</span>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* 5. FOOTER */}
-      <footer className="bg-slate-950 py-12 px-6 text-slate-400">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
-              </svg>
-            </div>
-            <span className="text-lg font-bold text-white tracking-tight">YardHop</span>
-          </Link>
-          
-          <div className="flex items-center gap-8 text-sm font-medium">
-            <Link to="/about" className="hover:text-white transition-colors">About</Link>
-            <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
-            <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
-            <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
-          </div>
-          
-          <p className="text-sm font-medium">
-            © 2025 YardHop. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };

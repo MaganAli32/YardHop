@@ -90,7 +90,7 @@ const InboxPage: React.FC = () => {
 
     try {
       const conversation = messages.map(m => `${m.senderName}: ${m.text}`).join('\n');
-      const prompt = `You are the YardHop Stitch Assistant. Analyze this negotiation for "${activeChat.productTitle || 'this item'}" listed at $${activeChat.productPrice || 0}.
+      const prompt = `You are the YardFront Stitch Assistant. Analyze this negotiation for "${activeChat.productTitle || 'this item'}" listed at $${activeChat.productPrice || 0}.
         Conversation:
         ${conversation}
         

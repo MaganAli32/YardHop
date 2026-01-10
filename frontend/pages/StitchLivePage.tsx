@@ -78,7 +78,12 @@ const StitchLivePage: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       if (videoRef.current) videoRef.current.srcObject = stream;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Get API key from environment (Vite exposes env vars with VITE_ prefix)
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = outputAudioContext;
@@ -169,7 +174,7 @@ const StitchLivePage: React.FC = () => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: 'You are the YardHop Stitch Advisor. You see through the users camera. Help them find high-value items at garage sales. When you see something valuable like vintage electronics, mid-century furniture, or collectibles, point it out and give a rough neighborhood market estimate. Be friendly, energetic, and act like a treasure hunting expert. If you see something that looks like junk, suggest it for the free pile.',
+          systemInstruction: 'You are the YardFront Stitch Advisor. You see through the users camera. Help them find high-value items at garage sales. When you see something valuable like vintage electronics, mid-century furniture, or collectibles, point it out and give a rough neighborhood market estimate. Be friendly, energetic, and act like a treasure hunting expert. If you see something that looks like junk, suggest it for the free pile.',
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
           outputAudioTranscription: {},
         }

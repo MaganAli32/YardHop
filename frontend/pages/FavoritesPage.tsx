@@ -10,6 +10,7 @@ const FavoritesPage: React.FC = () => {
   const [favorites, setFavorites] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [filter, setFilter] = useState<'all' | 'steals' | 'recent'>('all');
 
   useEffect(() => {
     const fetchFavorites = async () => {
@@ -21,12 +22,21 @@ const FavoritesPage: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const data = await favoritesApi.list(authToken);
-        setFavorites(data || []);
+        const data = await favoritesApi.list();
+        // Extract favorites array from response object
+        setFavorites(data?.favorites || []);
       } catch (err: any) {
-        console.error('Failed to fetch favorites:', err);
-        setError(err.message || 'Failed to load favorites');
-        setFavorites([]);
+        // Check if backend is unavailable (silently handle this case)
+        if (err?.isBackendUnavailable) {
+          // Backend API not available - silently use empty array
+          setFavorites([]);
+          // Don't show error message for unavailable backend
+        } else {
+          // Only log/show errors for actual API errors
+          console.error('Failed to fetch favorites:', err);
+          setError(err.message || 'Failed to load favorites');
+          setFavorites([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -39,7 +49,7 @@ const FavoritesPage: React.FC = () => {
     if (!authToken) return;
 
     try {
-      await favoritesApi.remove(productId, authToken);
+      await favoritesApi.remove(productId);
       setFavorites(prev => prev.filter(f => f.id !== productId));
     } catch (err: any) {
       console.error('Failed to remove favorite:', err);
@@ -73,8 +83,6 @@ const FavoritesPage: React.FC = () => {
       </div>
     );
   }
-
-  const [filter, setFilter] = useState<'all' | 'steals' | 'recent'>('all');
 
   const filteredItems = favorites.filter(item => {
     if (filter === 'steals') return item.isSteal;

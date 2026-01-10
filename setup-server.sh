@@ -1,9 +1,9 @@
 #!/bin/bash
-# Complete Server Setup Script for YardHop
+# Complete Server Setup Script for YardFront
 
 set -e
 
-echo "🚀 YardHop Server Setup"
+echo "🚀 YardFront Server Setup"
 echo "======================="
 echo ""
 
@@ -50,8 +50,8 @@ mkdir -p logs
 # Start with PM2
 echo ""
 echo "🌟 Starting application..."
-if pm2 list | grep -q "yardhop"; then
-    pm2 restart yardhop
+if pm2 list | grep -q "yardfront"; then
+    pm2 restart yardfront
 else
     pm2 start ecosystem.config.js
 fi
@@ -66,16 +66,22 @@ sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u $USER --hp $HOME
 echo ""
 echo "✅ Server setup complete!"
 echo ""
-echo "Your YardHop application is now running!"
+echo "Your YardFront application is now running!"
 echo ""
 echo "Useful commands:"
 echo "  pm2 status          - Check server status"
-echo "  pm2 logs yardhop    - View logs (--lines 100 for more)"
-echo "  pm2 restart yardhop - Restart server"
-echo "  pm2 stop yardhop    - Stop server"
+echo "  pm2 logs yardfront    - View logs (--lines 100 for more)"
+echo "  pm2 restart yardfront - Restart server"
+echo "  pm2 stop yardfront    - Stop server"
 echo "  pm2 monit           - Monitor resources"
 echo ""
 echo "📍 Server URL: http://localhost:3000"
 echo "   (or your server's IP address)"
+
+
+
+
+
+
 
 

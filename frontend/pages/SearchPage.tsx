@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import { usePersistence } from '../store/PersistenceContext';
-import { productsApi } from '../lib/api';
+import { productsApi, salesApi } from '../lib/api';
 import { Product, GarageSale } from '../types';
 import { FALLBACK_IMAGE } from '../data';
 
@@ -46,11 +46,12 @@ const CATEGORIES = [
 ];
 
 const SearchPage: React.FC = () => {
-  const { sales, coords } = usePersistence();
+  const { coords } = usePersistence();
   const [searchParams] = useSearchParams();
   const initialView = searchParams.get('view') === 'map' ? 'map' : 'grid';
+  const initialMode = searchParams.get('mode') === 'items' ? 'items' : 'events';
 
-  const [mode, setMode] = useState<'events' | 'items'>('events');
+  const [mode, setMode] = useState<'events' | 'items'>(initialMode);
   const [searchQuery, setSearchQuery] = useState('');
   const [distanceRange, setDistanceRange] = useState<number>(10);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -58,13 +59,29 @@ const SearchPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'map'>(initialView);
   
   const [products, setProducts] = useState<Product[]>([]);
+  const [sales, setSales] = useState<GarageSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [pulse, setPulse] = useState<string>("Analyzing your neighborhood...");
   const [isPulseLoading, setIsPulseLoading] = useState(true);
 
-  // Fetch products from API
+  // Update mode when URL changes - trigger refetch when mode changes
   useEffect(() => {
+    const urlMode = searchParams.get('mode') === 'items' ? 'items' : 'events';
+    if (urlMode !== mode) {
+      setMode(urlMode);
+      // Force loading state to trigger refetch
+      setLoading(true);
+    }
+  }, [searchParams]);
+
+  // Fetch products from API (when in 'items' mode)
+  useEffect(() => {
+    // Only fetch products when in 'items' mode
+    if (mode !== 'items') {
+      return;
+    }
+
     const fetchProducts = async () => {
       setLoading(true);
       setError('');
@@ -84,7 +101,8 @@ const SearchPage: React.FC = () => {
         }
 
         const data = await productsApi.list(params);
-        setProducts(data || []);
+        // API returns { products: [], pagination: {} }
+        setProducts(data?.products || []);
       } catch (err: any) {
         console.error('Failed to fetch products:', err);
         setError(err.message || 'Failed to load products');
@@ -95,12 +113,63 @@ const SearchPage: React.FC = () => {
     };
 
     fetchProducts();
-  }, [selectedCategory, distanceRange, coords]);
+  }, [mode, selectedCategory, distanceRange, coords]);
+
+  // Fetch garage sales from API (when in 'events' mode)
+  useEffect(() => {
+    // Only fetch sales when in 'events' mode
+    if (mode !== 'events') {
+      return;
+    }
+
+    const fetchSales = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const params: any = {};
+        if (coords) {
+          params.latitude = coords.lat;
+          params.longitude = coords.lng;
+          params.radius = distanceRange;
+        }
+
+        const data = await salesApi.list(params);
+        // API returns { sales: [], pagination: {} }
+        // Ensure each sale has an image field, extract from images array if needed
+        const salesWithImages = (data?.sales || []).map((sale: any) => {
+          let imageUrl = sale.image;
+          // If no image field, try to extract from images array
+          if (!imageUrl && sale.images && Array.isArray(sale.images) && sale.images.length > 0) {
+            const primary = sale.images.find((img: any) => img.is_primary);
+            imageUrl = primary?.url || sale.images[0]?.url;
+          }
+          // Fallback to placeholder if still no image
+          if (!imageUrl) {
+            imageUrl = FALLBACK_IMAGE;
+          }
+          return { ...sale, image: imageUrl };
+        });
+        setSales(salesWithImages);
+      } catch (err: any) {
+        console.error('Failed to fetch garage sales:', err);
+        setError(err.message || 'Failed to load garage sales');
+        setSales([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSales();
+  }, [mode, distanceRange, coords]);
 
   useEffect(() => {
-    setPulse("Perfect weather for yard hopping! Active sales found nearby.");
+    if (mode === 'events') {
+      setPulse("Perfect weather for yard hopping! Active sales found nearby.");
+    } else {
+      setPulse("Discovering unique treasures in your neighborhood...");
+    }
     setIsPulseLoading(false);
-  }, [sales]);
+  }, [sales, mode]);
 
   const filteredItems = useMemo(() => {
     let filtered = products;

@@ -521,7 +521,7 @@ const CheckoutPage: React.FC = () => {
                    </div>
                    <div>
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Neighbor Trust</p>
-                      <p className="text-[10px] leading-relaxed text-slate-500 font-medium mt-1">Encrypted local checkout powered by YardHop Escrow.</p>
+                      <p className="text-[10px] leading-relaxed text-slate-500 font-medium mt-1">Encrypted local checkout powered by YardFront Escrow.</p>
                    </div>
                  </div>
                  

@@ -1,9 +1,9 @@
 #!/bin/bash
-# YardHop Deployment Script
+# YardFront Deployment Script
 
 set -e  # Exit on error
 
-echo "🚀 YardHop Deployment"
+echo "🚀 YardFront Deployment"
 echo "===================="
 
 # Check if Node.js is installed
@@ -45,11 +45,11 @@ fi
 # Start/restart with PM2
 echo ""
 echo "🌟 Starting server with PM2..."
-if pm2 list | grep -q "yardhop"; then
-    echo "   Restarting existing yardhop process..."
-    pm2 restart yardhop
+if pm2 list | grep -q "yardfront"; then
+    echo "   Restarting existing yardfront process..."
+    pm2 restart yardfront
 else
-    echo "   Starting new yardhop process..."
+    echo "   Starting new yardfront process..."
     pm2 start ecosystem.config.js
 fi
 
@@ -63,9 +63,15 @@ echo "📍 Server running on port 3000"
 echo ""
 echo "Useful commands:"
 echo "  pm2 status          - Check server status"
-echo "  pm2 logs yardhop    - View logs"
-echo "  pm2 restart yardhop - Restart server"
-echo "  pm2 stop yardhop    - Stop server"
+echo "  pm2 logs yardfront    - View logs"
+echo "  pm2 restart yardfront - Restart server"
+echo "  pm2 stop yardfront    - Stop server"
 echo "  pm2 monit           - Monitor server"
+
+
+
+
+
+
 
 

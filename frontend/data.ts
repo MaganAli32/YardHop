@@ -114,7 +114,7 @@ export const SALES: GarageSale[] = [
   },
   {
     id: 's3',
-    title: "Saturday Morning Neighborhood Yard Hop",
+    title: "Saturday Morning Neighborhood YardFront",
     date: 'Saturday',
     time: '9:00 AM - 3:00 PM',
     description: 'Join the block for 5 houses worth of treasures. Clothing, books, and home decor.',

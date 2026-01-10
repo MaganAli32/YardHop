@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import HeaderWrapper from './components/HeaderWrapper';
@@ -26,6 +25,7 @@ import SellHubPage from './pages/SellHubPage';
 import { PersistenceProvider } from './store/PersistenceContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import AuthCallbackHandler from './components/AuthCallbackHandler';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -40,88 +40,133 @@ const Layout: React.FC<{children: React.ReactNode}> = ({ children }) => {
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
   const isInbox = location.pathname === '/inbox';
   const isLive = location.pathname === '/live-advisor';
+  const isLandingPage = location.pathname === '/';
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display antialiased">
+    <div className={`flex min-h-screen flex-col ${isLandingPage ? '' : 'bg-slate-50 dark:bg-background-dark'} text-slate-900 dark:text-slate-100 font-display antialiased`}>
       {!isAuthPage && !isLive && <HeaderWrapper />}
       <main className={`flex-grow flex flex-col ${isAuthPage || isLive ? 'h-screen' : ''}`}>
         {children}
       </main>
-      {!isAuthPage && !isInbox && !isLive && <Footer />}
+      {/* Footer is rendered inside LandingPage, so don't show it here for landing page */}
+      {!isAuthPage && !isInbox && !isLive && !isLandingPage && <Footer />}
     </div>
   );
 }
 
 const App: React.FC = () => {
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .scroll-reveal {
+        opacity: 0;
+        transform: translateY(24px);
+        transition: opacity 900ms cubic-bezier(0.16, 1, 0.3, 1), transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: transform, opacity;
+      }
+      .scroll-reveal.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      @keyframes shimmer-text {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      .shimmer-text {
+        background: linear-gradient(90deg, #121c32 0%, #FF6B35 50%, #121c32 100%);
+        background-size: 200% auto;
+        color: transparent;
+        -webkit-background-clip: text;
+        background-clip: text;
+        animation: shimmer-text 5s linear infinite;
+      }
+      @font-face {
+        font-family: 'Breul Grotesk';
+        src: local('Impact'), local('Arial Black');
+      }
+      .font-display { font-family: 'Breul Grotesk', 'Impact', sans-serif !important; }
+      .font-body { font-family: 'Inter', sans-serif !important; }
+      * { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <PersistenceProvider>
         <Router>
           <ScrollToTop />
+          <AuthCallbackHandler />
           <Layout>
             <Routes>
-            <Route path="/" element={<LandingPage />} />
-            {/* Redirect /feed to the new unified /search hub */}
-            <Route path="/feed" element={<Navigate to="/search" replace />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/sell-hub" element={<SellHubPage />} />
-            <Route path="/sales" element={<GarageSalesPage />} />
-            <Route path="/sales/:id" element={<YardSaleDetailPage />} />
-            <Route path="/product/:id" element={<ProductDetailPage />} />
-            
-            {/* Protected Routes - Require Authentication */}
-            <Route path="/favorites" element={
-              <ProtectedRoute>
-                <FavoritesPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/cart" element={
-              <ProtectedRoute>
-                <CartPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/checkout" element={
-              <ProtectedRoute>
-                <CheckoutPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/orders" element={
-              <ProtectedRoute>
-                <OrdersPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/create" element={
-              <ProtectedRoute>
-                <CreateListingPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/create-sale" element={
-              <ProtectedRoute>
-                <CreateGarageSalePage />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            } />
-            <Route path="/inbox" element={
-              <ProtectedRoute>
-                <InboxPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/scanner" element={
-              <ProtectedRoute>
-                <GarageSaleScannerPage />
-              </ProtectedRoute>
-            } />
-            
-            {/* Public Routes */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/how-it-works" element={<HowItWorksPage />} />
-            <Route path="/community" element={<CommunityPage />} />
-            <Route path="/live-advisor" element={<StitchLivePage />} />
+              <Route path="/" element={<LandingPage />} />
+              {/* Redirect /feed to the new unified /search hub */}
+              <Route path="/feed" element={<Navigate to="/search" replace />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/sell-hub" element={<SellHubPage />} />
+              <Route path="/sales" element={<GarageSalesPage />} />
+              <Route path="/sales/:id" element={<YardSaleDetailPage />} />
+              <Route path="/product/:id" element={<ProductDetailPage />} />
+              
+              {/* Protected Routes - Require Authentication */}
+              <Route path="/favorites" element={
+                <ProtectedRoute>
+                  <FavoritesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/cart" element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/checkout" element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/orders" element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/create" element={
+                <ProtectedRoute>
+                  <CreateListingPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/create-sale" element={
+                <ProtectedRoute>
+                  <CreateGarageSalePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/inbox" element={
+                <ProtectedRoute>
+                  <InboxPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/scanner" element={
+                <ProtectedRoute>
+                  <GarageSaleScannerPage />
+                </ProtectedRoute>
+              } />
+              
+              {/* Public Routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/community" element={<CommunityPage />} />
+              <Route path="/live-advisor" element={<StitchLivePage />} />
             </Routes>
           </Layout>
         </Router>

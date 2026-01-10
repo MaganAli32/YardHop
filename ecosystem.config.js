@@ -1,7 +1,7 @@
-// PM2 Ecosystem Configuration for YardHop (CommonJS format)
+// PM2 Ecosystem Configuration for YardFront (CommonJS format)
 module.exports = {
   apps: [{
-    name: 'yardhop',
+    name: 'yardfront',
     script: './server.js',
     instances: 1,
     exec_mode: 'fork',

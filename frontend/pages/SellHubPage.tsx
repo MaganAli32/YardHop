@@ -8,7 +8,7 @@ const SellHubPage: React.FC = () => {
       <div className="max-w-[1000px] mx-auto space-y-12">
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white">Start Selling</h1>
-          <p className="text-slate-500 font-medium max-w-xl mx-auto">Whether it's one unique treasure or a whole weekend event, YardHop gets you in front of neighbors instantly.</p>
+          <p className="text-slate-500 font-medium max-w-xl mx-auto">Whether it's one unique treasure or a whole weekend event, YardFront gets you in front of neighbors instantly.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

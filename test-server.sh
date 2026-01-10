@@ -1,7 +1,7 @@
 #!/bin/bash
 # Quick server connection test script
 
-echo "🔍 Testing YardHop Server Connection..."
+echo "🔍 Testing YardFront Server Connection..."
 echo ""
 
 # Test 1: Check if port is listening
@@ -64,5 +64,11 @@ echo "   1. Try http://127.0.0.1:3000 instead of localhost"
 echo "   2. Clear browser cache (Cmd+Shift+R on Mac)"
 echo "   3. Try a different browser or incognito mode"
 echo "   4. Check browser console for errors (F12)"
+
+
+
+
+
+
 
 

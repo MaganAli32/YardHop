@@ -12,7 +12,7 @@ const HowItWorksPage: React.FC = () => {
     {
       num: "01",
       title: "Snap & List",
-      desc: "Selling on YardHop is faster than making a cup of coffee. Just take a photo of your item, and our AI 'Stitch' handles the rest.",
+      desc: "Selling on YardFront is faster than making a cup of coffee. Just take a photo of your item, and our AI 'Stitch' handles the rest.",
       features: ["Auto-enhanced photos", "Smart market pricing", "Instant local visibility"],
       icon: "photo_camera",
       color: "text-orange-500",
@@ -57,7 +57,7 @@ const HowItWorksPage: React.FC = () => {
             The Neighborhood Playbook
           </div>
           <h1 className="text-5xl md:text-8xl font-black tracking-tighter text-white leading-[0.9]">
-            The New Way <br/>To <span className="text-primary">YardHop.</span>
+            The New Way <br/>To <span className="text-primary">YardFront.</span>
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto font-medium leading-relaxed">
             We've digitized the local garage sale experience. Faster, safer, and entirely neighborhood-focused.

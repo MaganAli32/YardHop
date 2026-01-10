@@ -37,6 +37,7 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Load user profile from Supabase
   const loadUserProfile = async (userId: string) => {
+    if (!supabase) return;
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -77,45 +78,68 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // Initialize Supabase Auth
     const initAuth = async () => {
-      // Check for existing session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        setAuthToken(session.access_token);
-        await loadUserProfile(session.user.id);
-      }
+      try {
+        if (!supabase) {
+          setLoading(false);
+          return;
+        }
 
-      setLoading(false);
-
-      // Listen for auth changes
-      supabase.auth.onAuthStateChange(async (event, session) => {
+        // Check for existing session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
         if (session) {
           setAuthToken(session.access_token);
           await loadUserProfile(session.user.id);
-        } else {
-          setAuthToken(null);
-          setUser(null);
         }
+
         setLoading(false);
-      });
+      } catch (err) {
+        setLoading(false);
+      }
+
+      // Listen for auth changes (only if supabase is available)
+      if (supabase) {
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (session) {
+            setAuthToken(session.access_token);
+            await loadUserProfile(session.user.id);
+          } else {
+            setAuthToken(null);
+            setUser(null);
+          }
+          setLoading(false);
+        });
+      }
     };
 
     initAuth();
 
     // Load saved chats from localStorage (temporary until messaging API is fully integrated)
-    const savedChats = localStorage.getItem('yh_chats');
-    if (savedChats) setChats(JSON.parse(savedChats));
+    // Backward compatibility: check both old and new localStorage keys
+    const savedChats = localStorage.getItem('yf_chats') || localStorage.getItem('yh_chats');
+    if (savedChats) {
+      setChats(JSON.parse(savedChats));
+      // Migrate old key to new key
+      if (localStorage.getItem('yh_chats') && !localStorage.getItem('yf_chats')) {
+        localStorage.setItem('yf_chats', savedChats);
+        localStorage.removeItem('yh_chats');
+      }
+    }
   }, []);
 
   useEffect(() => {
     // Save chats to localStorage (temporary)
     if (chats.length > 0) {
-      localStorage.setItem('yh_chats', JSON.stringify(chats));
+      localStorage.setItem('yf_chats', JSON.stringify(chats));
+      // Remove old key if it exists
+      if (localStorage.getItem('yh_chats')) {
+        localStorage.removeItem('yh_chats');
+      }
     }
   }, [chats]);
 
   const updateUser = async (updates: Partial<UserProfile>) => {
-    if (!user) return;
+    if (!user || !supabase) return;
     
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -151,11 +175,14 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
       setUser(null);
       setAuthToken(null);
       setChats([]);
-      localStorage.removeItem('yh_chats');
+      localStorage.removeItem('yf_chats');
+      localStorage.removeItem('yh_chats'); // Also remove old key for cleanup
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -214,6 +241,8 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
 export const usePersistence = () => {
   const context = useContext(PersistenceContext);
-  if (!context) throw new Error('usePersistence must be used within a PersistenceProvider');
+  if (!context) {
+    throw new Error('usePersistence must be used within a PersistenceProvider');
+  }
   return context;
 };

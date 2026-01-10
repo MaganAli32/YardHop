@@ -2,14 +2,14 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignInPage, Testimonial } from '../components/ui/sign-in';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const sampleTestimonials: Testimonial[] = [
   {
     avatarSrc: "https://randomuser.me/api/portraits/women/57.jpg",
     name: "Sarah Chen",
     handle: "@sarahhop",
-    text: "YardHop makes selling my vintage finds so easy. Love the community!"
+    text: "YardFront makes selling my vintage finds so easy. Love the community!"
   },
   {
     avatarSrc: "https://randomuser.me/api/portraits/men/64.jpg",
@@ -32,6 +32,12 @@ const LoginPage: React.FC = () => {
     event.preventDefault();
     setError('');
     setLoading(true);
+
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const formData = new FormData(event.currentTarget);
@@ -65,17 +71,43 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
 
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      setLoading(false);
+      return;
+    }
+
+    // FIXED: Remove hash from redirect URL - Supabase OAuth doesn't handle hash routing well
+    // Redirect to root, navigation will be handled by auth state listener
+    const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+
     try {
-      const { error: googleError } = await supabase.auth.signInWithOAuth({
+      const { data, error: googleError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/search`,
+          redirectTo: redirectUrl,
         },
       });
 
-      if (googleError) throw googleError;
+      if (googleError) {
+        throw googleError;
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in with Google.');
+      let errorMessage = 'Failed to sign in with Google.';
+      
+      // Check for specific error about provider not being enabled
+      const errMsg = err?.message || err?.error?.message || String(err);
+      if (errMsg?.includes('provider is not enabled') || errMsg?.includes('Unsupported provider')) {
+        if (errMsg?.includes('missing OAuth secret') || errMsg?.includes('OAuth secret')) {
+          errorMessage = 'Google OAuth is enabled but credentials are missing. Go to Authentication > Providers > Google in your Supabase dashboard and add your Client ID and Client Secret from Google Cloud Console.';
+        } else {
+          errorMessage = 'Google sign-in is not enabled in your Supabase project. To enable it, go to Authentication > Providers in your Supabase dashboard and enable Google OAuth.';
+        }
+      } else if (errMsg) {
+        errorMessage = errMsg;
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -85,11 +117,16 @@ const LoginPage: React.FC = () => {
   };
 
   const handleResetPassword = async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      alert('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      return;
+    }
+
     const email = prompt('Enter your email address to reset password:');
     if (email) {
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${window.location.origin}${window.location.pathname}#/reset-password`,
         });
         if (error) throw error;
         alert('Password reset email sent! Check your inbox.');

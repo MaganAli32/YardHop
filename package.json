@@ -1,5 +1,5 @@
 {
-  "name": "yardhop",
+  "name": "yardfront",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,9 +11,9 @@
     "dev:server": "cd frontend && vite build && cd .. && node server.js",
     "deploy": "bash deploy.sh",
     "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop yardhop",
-    "pm2:restart": "pm2 restart yardhop",
-    "pm2:logs": "pm2 logs yardhop",
+    "pm2:stop": "pm2 stop yardfront",
+    "pm2:restart": "pm2 restart yardfront",
+    "pm2:logs": "pm2 logs yardfront",
     "pm2:status": "pm2 status"
   },
   "dependencies": {
@@ -28,9 +28,12 @@
     "helmet": "^8.1.0",
     "lucide-react": "0.263.1",
     "morgan": "^1.10.1",
+    "multer": "^2.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.6"
+    "react-router-dom": "^7.9.6",
+    "sharp": "^0.33.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

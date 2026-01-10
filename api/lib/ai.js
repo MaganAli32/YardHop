@@ -17,7 +17,7 @@ function getGenAI() {
  * Analyze an image for garage sale items and estimate pricing
  */
 export async function analyzeImage(imageBase64, mimeType = 'image/jpeg') {
-  const model = getGenAI().getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   const prompt = `Analyze this garage sale photo and identify items that could be sold.
 For each item, provide:
@@ -67,7 +67,7 @@ export async function suggestPrice(
   condition,
   category
 ) {
-  const model = getGenAI().getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   const prompt = `Based on the following product information, suggest an appropriate selling price for a local marketplace:
 
@@ -106,7 +106,7 @@ Return ONLY JSON with this exact structure. No markdown.`;
  * Generate listing description from image
  */
 export async function generateDescription(imageBase64, mimeType = 'image/jpeg') {
-  const model = getGenAI().getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   const prompt = `Analyze this product image and generate:
 - title: concise, descriptive product title (max 60 characters)

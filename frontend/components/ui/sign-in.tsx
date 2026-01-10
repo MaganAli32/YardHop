@@ -123,7 +123,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
             </button>
 
             <p className="animate-element animate-delay-900 text-center text-sm text-slate-500 mt-4">
-              {buttonText === "Sign In" ? "New to YardHop? " : "Already have an account? "} 
+              {buttonText === "Sign In" ? "New to YardFront? " : "Already have an account? "} 
               <a href="#" onClick={(e) => { e.preventDefault(); onCreateAccount?.(); }} className="text-primary hover:underline transition-colors font-bold cursor-pointer">
                  {buttonText === "Sign In" ? "Create Account" : "Sign In"}
               </a>

@@ -1,7 +1,8 @@
-
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
 import { aiApi } from '../lib/api';
+import { ScanUsageBar } from '../components/ScanUsageBar';
+import { UpgradeModal } from '../components/UpgradeModal';
 
 // Helper function to convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -22,10 +23,15 @@ const GarageSaleScannerPage: React.FC = () => {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [detectedItems, setDetectedItems] = useState<DetectedItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [userTier, setUserTier] = useState('free');
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setUploadedImages(Array.from(e.target.files));
+      setError(null);
+      setDetectedItems([]);
     }
   };
 
@@ -33,18 +39,85 @@ const GarageSaleScannerPage: React.FC = () => {
     if (uploadedImages.length === 0) return;
     
     setIsScanning(true);
+    setError(null);
     
     try {
       // Convert first image to base64
       const imageBase64 = await fileToBase64(uploadedImages[0]);
-      const mimeType = uploadedImages[0].type || 'image/jpeg';
       
       // Call secure backend API
-      const result = await aiApi.analyzeImage(imageBase64, mimeType);
-      setDetectedItems(result.items || []);
+      const result = await aiApi.analyzeImage(imageBase64);
+      
+      // Transform backend response to match expected DetectedItem format
+      if (result.success && result.analysis) {
+        const analysis = result.analysis;
+        
+        // Create a DetectedItem from the analysis
+        const item: DetectedItem = {
+          id: '1',
+          name: analysis.title,
+          bounding_box: { 
+            x: 50, 
+            y: 50, 
+            width: 200, 
+            height: 200 
+          },
+          estimated_value: {
+            min: analysis.price_range.low,
+            max: analysis.price_range.high,
+          },
+          confidence: analysis.confidence || 0.85,
+          location: 'Center of image',
+          // Additional fields from analysis
+          description: analysis.description,
+          category: analysis.category,
+          condition: analysis.condition,
+          suggested_price: analysis.suggested_price,
+          features: analysis.features,
+          is_potential_steal: analysis.is_potential_steal,
+        };
+        
+        setDetectedItems([item]);
+      } else {
+        throw new Error('No analysis data returned');
+      }
     } catch (e: any) {
       console.error('Scan error:', e);
-      alert(`Failed to scan image: ${e.message || 'Unknown error'}`);
+      
+      // Check for scan limit exceeded error
+      const errorCode = e.code || e.errorData?.code;
+      const errorMsg = e.message || '';
+      
+      if (errorCode === 'SCAN_LIMIT_EXCEEDED' || 
+          errorMsg.includes('Scan Limit Reached') || 
+          errorMsg.includes('SCAN_LIMIT_EXCEEDED')) {
+        setShowUpgrade(true);
+        // Try to get current tier from error response or fetch it
+        try {
+          const usage = await aiApi.getUsage();
+          setUserTier(usage.tier);
+        } catch {
+          // If error response has tier info, use it
+          if (e.errorData?.usage?.tier) {
+            setUserTier(e.errorData.usage.tier);
+          }
+        }
+        setIsScanning(false);
+        return;
+      }
+      
+      // Provide helpful error messages
+      let errorMessage = errorMsg || 'Unknown error';
+      
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Cannot connect')) {
+        errorMessage = 'Cannot connect to server. Make sure the backend is running:\n\nnpm run dev:server';
+      } else if (errorMessage.includes('AI Service Unavailable')) {
+        errorMessage = 'AI service not configured. Add GEMINI_API_KEY to your backend .env file.';
+      } else if (errorMessage.includes('Authentication Required') || errorMessage.includes('AUTH_REQUIRED')) {
+        errorMessage = 'Please sign in to use AI scanning features.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsScanning(false);
     }
@@ -52,218 +125,299 @@ const GarageSaleScannerPage: React.FC = () => {
 
   const totalValue = detectedItems.reduce((sum, item) => sum + item.estimated_value.max, 0);
 
+  // Fetch user tier on mount
+  React.useEffect(() => {
+    const fetchTier = async () => {
+      try {
+        const usage = await aiApi.getUsage();
+        setUserTier(usage.tier);
+      } catch (error) {
+        // User might not be logged in, that's okay
+        console.error('Failed to fetch usage:', error);
+      }
+    };
+    fetchTier();
+  }, []);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-32">
-      {/* Header */}
-      <div className="mb-12 text-center md:text-left">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest mb-4">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-          Powered by Stitch AI
-        </div>
-        <h1 className="text-4xl md:text-6xl font-black tracking-tight text-slate-900 dark:text-white mb-4 leading-tight">
-          💎 Treasure Scanner
-        </h1>
-        <p className="text-xl text-slate-500 dark:text-slate-400 max-w-2xl font-medium">
-          Stitch analyzes photos of yard sales to automatically find hidden high-value items for you to buy or list.
-        </p>
-      </div>
+    <div className="min-h-screen bg-white text-[#121c32] font-sans">
+      <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-10 py-8 pb-20">
+        {/* Usage Bar */}
+        <ScanUsageBar onUpgradeClick={() => setShowUpgrade(true)} />
+        
+        {/* Upgrade Modal */}
+        <UpgradeModal 
+          isOpen={showUpgrade} 
+          onClose={() => setShowUpgrade(false)} 
+          currentTier={userTier}
+        />
 
-      {/* Upload Section */}
-      {detectedItems.length === 0 && (
-        <div className="bg-white dark:bg-surface-dark border-4 border-dashed border-gray-100 dark:border-white/5 rounded-[48px] p-20 text-center mb-6 shadow-sm transition hover:border-primary/40 group">
-          <input
-            type="file"
-            multiple
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-            id="image-upload"
-          />
-          <label 
-            htmlFor="image-upload"
-            className="cursor-pointer flex flex-col items-center"
-          >
-            <div className="size-24 rounded-[32px] bg-primary/10 text-primary flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-               <span className="material-symbols-outlined !text-5xl">photo_library</span>
-            </div>
-            <p className="text-2xl font-black text-slate-900 dark:text-white mb-3">
-              Upload Garage Sale Photos
-            </p>
-            <p className="text-slate-500 font-medium mb-10 max-w-sm">
-              Our AI analyzes every object in the photo to check market value instantly.
-            </p>
-            <div className="bg-slate-900 dark:bg-white text-white dark:text-black font-black px-10 py-5 rounded-2xl shadow-xl transition hover:-translate-y-1">
-              Choose Photos to Stitch
-            </div>
-          </label>
+        {/* Header */}
+        <div className="mb-8">
+          <p className="text-xs font-medium text-slate-500 mb-2">Photo appraisal</p>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#121c32] mb-3 leading-tight">
+            Scanner
+          </h1>
+          <p className="text-base text-slate-600 max-w-2xl">
+            Analyze photos of yard sales to automatically find high-value items for you to buy or list.
+          </p>
         </div>
-      )}
 
-      {/* Preview Uploaded Images */}
-      {uploadedImages.length > 0 && detectedItems.length === 0 && (
-        <div className="animate-fadeIn">
-          <div className="flex justify-between items-center mb-6">
-             <p className="text-sm font-black text-slate-400 uppercase tracking-widest">
-               {uploadedImages.length} Photo(s) Ready for Scan
-             </p>
-             <button onClick={() => setUploadedImages([])} className="text-xs font-bold text-red-500 hover:underline">Clear all</button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 mb-10">
-            {uploadedImages.map((file, idx) => (
-              <div key={idx} className="relative aspect-square rounded-[32px] overflow-hidden border-2 border-white dark:border-gray-800 shadow-lg">
-                <img 
-                  src={URL.createObjectURL(file)} 
-                  alt={`Upload ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-5 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex items-start gap-4">
+              <div className="size-10 bg-red-100 rounded-md flex items-center justify-center shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
               </div>
-            ))}
+              <div>
+                <h3 className="font-semibold text-red-800 mb-1">Scan Failed</h3>
+                <p className="text-sm text-red-600 leading-relaxed whitespace-pre-wrap">{error}</p>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={handleScan}
-            disabled={isScanning}
-            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-slate-300 disabled:to-slate-400 text-white font-black py-6 rounded-[32px] transition-all text-xl shadow-2xl shadow-primary/30 flex items-center justify-center gap-4 active:scale-95"
-          >
-            {isScanning ? (
-               <>
-                  <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Stitching Treasures...
-               </>
-            ) : (
-               <>
-                  <span className="material-symbols-outlined !text-3xl">magic_button</span>
-                  Run Deep Scan
-               </>
-            )}
-          </button>
-        </div>
-      )}
+        )}
 
-      {/* Scanning Progress Shimmer */}
-      {isScanning && (
-        <div className="bg-gradient-to-br from-[#0F172A] to-[#1E293B] border border-white/10 rounded-[48px] p-12 mb-12 shadow-2xl overflow-hidden relative">
-           <div className="absolute top-0 left-0 w-full h-1 bg-primary animate-scanLine opacity-50 shadow-[0_0_20px_#ff7b00]"></div>
-           <div className="flex flex-col md:flex-row items-center gap-8 mb-10 relative z-10">
-            <div className="size-20 border-8 border-primary border-t-transparent rounded-full animate-spin shadow-lg"></div>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+        {/* Left Column: Upload & Controls */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Upload Section */}
+          {detectedItems.length === 0 && (
+            <div className="bg-white border border-slate-200 rounded-md shadow-[0_8px_24px_rgba(18,28,50,0.08)] p-6">
+              <h2 className="text-lg font-bold text-[#121c32] mb-2">Upload photos</h2>
+              <p className="text-sm text-slate-600 mb-4">
+                Upload garage sale photos to analyze market value instantly.
+              </p>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="image-upload"
+              />
+              <label 
+                htmlFor="image-upload"
+                className="cursor-pointer"
+              >
+                <div className="border-2 border-dashed border-slate-200 rounded-md p-12 text-center bg-slate-50 transition-colors">
+                  <div className="size-16 bg-slate-100 rounded-md text-slate-400 flex items-center justify-center mb-4 mx-auto">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                  </div>
+                  <button className="bg-[#FF6B35] hover:bg-[#e85c2e] text-white font-semibold py-2.5 px-6 rounded-md shadow-lg transition-colors text-sm uppercase tracking-wide">
+                    Choose photos
+                  </button>
+                </div>
+              </label>
+            </div>
+          )}
+
+          {/* Preview Uploaded Images */}
+          {uploadedImages.length > 0 && detectedItems.length === 0 && (
             <div>
-              <p className="text-3xl font-black text-white mb-2">Stitch Vision Analyzing...</p>
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Cross-referencing neighborhood market data for 47 detected objects</p>
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  {uploadedImages.length} photo{uploadedImages.length > 1 ? 's' : ''} staged
+                </p>
+                <button 
+                  onClick={() => { setUploadedImages([]); setError(null); }} 
+                  className="text-xs font-bold text-red-500 uppercase tracking-widest hover:underline"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {uploadedImages.map((file, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-md overflow-hidden border border-slate-200 shadow-[0_8px_24px_rgba(18,28,50,0.08)]">
+                    <img 
+                      src={URL.createObjectURL(file)} 
+                      alt="Target"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleScan}
+                disabled={isScanning}
+                className="w-full bg-[#FF6B35] hover:bg-[#e85c2e] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-md shadow-xl transition-all flex items-center justify-center gap-3 uppercase tracking-[0.1em] text-sm"
+              >
+                {isScanning ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Analyzing photo...
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="11" cy="11" r="8"/>
+                      <path d="m21 21-4.3-4.3"/>
+                    </svg>
+                    Analyze photo
+                  </>
+                )}
+              </button>
             </div>
-          </div>
-          <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden relative border border-white/5">
-            <div className="bg-primary h-full rounded-full transition-all duration-700 shadow-[0_0_15px_#ff7b00]" style={{ width: '65%' }}></div>
-          </div>
+          )}
+
+          {/* Scanning Progress */}
+          {isScanning && (
+            <div className="bg-white border border-slate-200 rounded-md shadow-[0_10px_28px_rgba(18,28,50,0.06)] p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-5 h-5 border-2 border-[#FF6B35] border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm font-bold text-[#121c32] uppercase tracking-wide">Checking comparable listings...</p>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-[#FF6B35] h-full rounded-full transition-all duration-700" style={{ width: '65%' }}></div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Results Section */}
-      {detectedItems.length > 0 && !isScanning && (
-        <div className="animate-fadeInUp">
-          <div className="bg-white dark:bg-surface-dark border border-gray-100 dark:border-white/5 rounded-[48px] p-10 shadow-2xl overflow-hidden">
-            {/* Summary Banner */}
-            <div className="bg-slate-900 text-white rounded-[40px] p-10 mb-12 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary rounded-full blur-[150px] opacity-20 -translate-y-1/2 translate-x-1/2"></div>
-               <div className="text-center md:text-left relative z-10">
-                  <h2 className="text-4xl font-black mb-2">
-                    💎 Hidden Treasures Found!
-                  </h2>
-                  <p className="text-slate-400 font-bold">
-                    Stitch detected {detectedItems.length} high-value items worth listing separately
-                  </p>
-               </div>
-               <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-[32px] p-8 text-center min-w-[240px] relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Max Potential Value</p>
-                  <p className="text-5xl font-black text-primary">${totalValue}</p>
-               </div>
-            </div>
+        {/* Right Column: Summary & Results (Sticky) */}
+        <div className="lg:col-span-5">
+          <div className="lg:sticky lg:top-24 space-y-6">
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-               {/* Photo Preview with Bounding Boxes (Visual Representation) */}
-               <div className="relative rounded-[40px] overflow-hidden border-4 border-gray-50 dark:border-white/5 group shadow-xl">
-                  <img 
-                    src={uploadedImages[0] ? URL.createObjectURL(uploadedImages[0]) : "https://lh3.googleusercontent.com/aida-public/AB6AXuDxCZQ53CzohQr0hjwQlVR7q9Zo6Gwl8aCEw18BbTIH6VaeHRyWaNA9Y46I3IVmKQAJ8JRBrWTZ5AEBHuHhEXxd2w3gpLyT-mdH3-Ii_64xm59O3FxAEbyb9c-Z2akPEzk4Ug53mb5wOGUVCoXem6ZF6mVq2ddnNiSvKdFjorBe5SP7ZAsiJFwI_Kvkj6lRRE2QtQEYeiHbqkAowjlNn4GwTxlOuNYWSKgq7WRhvjbbdZYhawtJFNNviOAV8qW-DMPrOVxuVbVH"} 
-                    alt="Scanned garage sale"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                  {/* Fake Bounding Boxes Overlay */}
-                  {detectedItems.map(item => (
-                    <div 
-                      key={item.id}
-                      className="absolute border-4 border-primary rounded-2xl animate-pulse shadow-[0_0_15px_#ff7b00]"
-                      style={{
-                        left: `${item.bounding_box.x / 8}%`, 
-                        top: `${item.bounding_box.y / 6}%`,
-                        width: `${item.bounding_box.width / 6}%`,
-                        height: `${item.bounding_box.height / 4}%`
-                      }}
-                    >
-                       <div className="absolute -top-8 left-0 bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full whitespace-nowrap shadow-lg">
-                          ${item.estimated_value.min}+
-                       </div>
+            {/* Empty State */}
+            {!isScanning && detectedItems.length === 0 && (
+              <div className="border border-slate-200 rounded-md bg-slate-50 p-10 text-center space-y-4">
+                <div className="size-16 bg-white border border-slate-200 rounded-md flex items-center justify-center mx-auto shadow-sm">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-300">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                    <circle cx="12" cy="13" r="3"/>
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                  Upload and analyze a photo to see market value, condition grading, and resale potential.
+                </p>
+              </div>
+            )}
+
+            {/* Results Section */}
+            {detectedItems.length > 0 && !isScanning && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                
+                {/* Scan Summary Module */}
+                <div className="bg-white border border-slate-200 rounded-md shadow-[0_10px_28px_rgba(18,28,50,0.06)] overflow-hidden">
+                  <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Scan results</h2>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Market Value</p>
+                        <p className="text-4xl font-bold text-[#121c32] tracking-tight">${totalValue}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Match Score</p>
+                        <p className="text-xl font-bold text-[#FF6B35]">{Math.round(detectedItems[0].confidence * 100)}%</p>
+                      </div>
                     </div>
-                  ))}
-               </div>
+                  </div>
 
-               {/* Detected Items Detailed List */}
-               <div className="space-y-6 overflow-y-auto max-h-[700px] pr-2 scrollbar-hide">
+                  {/* Photo Well */}
+                  <div className="p-4 bg-white">
+                    <div className="aspect-square border border-slate-200 rounded-md overflow-hidden bg-slate-100">
+                      {uploadedImages[0] && (
+                        <img 
+                          src={URL.createObjectURL(uploadedImages[0])} 
+                          alt="Analyzed item"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Detailed Analysis */}
                   {detectedItems.map((item, idx) => (
-                    <div 
-                      key={idx}
-                      className="bg-slate-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-[32px] p-6 hover:shadow-lg transition-all"
-                    >
-                      <div className="flex flex-col sm:flex-row items-center gap-6">
-                        <div className="size-20 bg-white dark:bg-white/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-                           <span className="material-symbols-outlined !text-4xl">inventory_2</span>
+                    <div key={idx} className="p-6 pt-0 space-y-6">
+                      <div>
+                        <div className="flex items-center gap-3 mb-3">
+                          <h3 className="font-bold text-xl text-[#121c32] tracking-tight">{item.name}</h3>
+                          {(item as any).is_potential_steal && (
+                            <span className="text-[9px] font-black bg-[#FF6B35] text-white px-2 py-0.5 rounded-sm uppercase tracking-tighter">Arbitrage Opportunity</span>
+                          )}
                         </div>
-                        <div className="flex-1 text-center sm:text-left">
-                          <div className="flex flex-col sm:flex-row items-center gap-3 mb-2">
-                            <h3 className="font-black text-xl text-slate-900 dark:text-white">{item.name}</h3>
-                            <span className="text-[10px] font-black bg-green-500 text-white px-2 py-0.5 rounded-full uppercase tracking-tighter">
-                              {Math.round(item.confidence * 100)}% Match
-                            </span>
-                          </div>
-                          <p className="text-sm font-medium text-slate-500 flex items-center justify-center sm:justify-start gap-1">
-                             <span className="material-symbols-outlined !text-sm">near_me</span> {item.location}
+                        <p className="text-sm text-slate-600 leading-relaxed italic border-l-2 border-slate-200 pl-4">
+                          {(item as any).description}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-px bg-slate-200 border border-slate-200 rounded-md overflow-hidden">
+                        <div className="bg-white p-4">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Category</p>
+                          <p className="text-sm font-bold text-[#121c32]">{(item as any).category}</p>
+                        </div>
+                        <div className="bg-white p-4">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Condition</p>
+                          <p className="text-sm font-bold text-[#121c32]">{(item as any).condition}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Range</p>
+                          <p className="text-lg font-bold text-[#121c32] tracking-tight">
+                            ${item.estimated_value.min} – ${item.estimated_value.max}
                           </p>
                         </div>
-                        <div className="text-center sm:text-right">
-                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Avg</p>
-                           <p className="text-3xl font-black text-green-600">${item.estimated_value.max}</p>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Suggested Ask</p>
+                          <p className="text-xl font-black text-[#FF6B35] tracking-tight">${(item as any).suggested_price}</p>
                         </div>
                       </div>
-                      <div className="mt-6 flex gap-3">
-                         <button className="flex-1 py-3 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-colors">Compare Near Me</button>
-                         <button className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-transform">Quick Sell Now</button>
+
+                      {/* Feature Tags */}
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Markers</p>
+                        <div className="flex flex-wrap gap-2">
+                          {(item as any).features?.map((feature: string, i: number) => (
+                            <span key={i} className="text-[10px] font-bold text-slate-600 border border-slate-200 px-2.5 py-1 rounded-md bg-white tracking-wider uppercase">
+                              {feature}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action Stack */}
+                      <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
+                        <button className="w-full py-4 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-bold text-xs uppercase tracking-[0.2em] shadow-lg transition-colors">
+                          List on YardFront
+                        </button>
+                        <button className="w-full py-3.5 border border-slate-200 text-[#121c32] rounded-md font-bold text-xs uppercase tracking-[0.2em] hover:bg-slate-50 transition-colors">
+                          Compare Market Data
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setDetectedItems([]);
+                            setUploadedImages([]);
+                            setError(null);
+                          }}
+                          className="w-full text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-[#FF6B35] transition-colors py-2"
+                        >
+                          Scan New Item
+                        </button>
                       </div>
                     </div>
                   ))}
-                  
-                  <div className="mt-10 p-8 bg-orange-50 dark:bg-orange-900/10 rounded-[40px] border-2 border-dashed border-orange-200 dark:border-orange-500/20 text-center">
-                     <p className="text-sm font-bold text-orange-700 dark:text-orange-400 italic">
-                       "Neighbors are searching for {detectedItems[0].name} right now. List it for ${detectedItems[0].estimated_value.min} to sell it today."
-                     </p>
-                  </div>
-               </div>
-            </div>
 
-            {/* Final Actions */}
-            <div className="mt-16 pt-10 border-t border-gray-100 dark:border-white/5 flex flex-col md:flex-row gap-4">
-              <button 
-                onClick={() => {
-                  setDetectedItems([]);
-                  setUploadedImages([]);
-                }}
-                className="flex-1 py-5 bg-gray-100 dark:bg-white/5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-colors"
-              >
-                Scan Another Sale
-              </button>
-              <button className="flex-[2] py-5 bg-slate-900 dark:bg-white text-white dark:text-black rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl transition hover:-translate-y-1">
-                Add All To My Watchlist
-              </button>
-            </div>
+                  <button className="w-full py-4 bg-[#121c32] text-white rounded-md font-bold text-xs uppercase tracking-[0.2em] hover:bg-black transition-colors shadow-xl">
+                    Save to My Inventory
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
+      </div>
     </div>
   );
 };
