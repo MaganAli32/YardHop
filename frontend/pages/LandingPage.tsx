@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PRODUCTS } from '../data';
 import ProductCard from '../components/ProductCard';
 import Footer from '../components/Footer';
+import { usePersistence } from '../store/PersistenceContext';
 import { ChevronRight, Star, ArrowRight, Zap, Camera, TrendingUp, ShieldCheck, LayoutGrid } from 'lucide-react';
 
 // --- MAXIMALIST LAYER COMPONENTS ---
@@ -87,6 +88,27 @@ const InteractiveParticles = () => {
 };
 
 const LandingPage: React.FC = () => {
+  const { user, loading } = usePersistence();
+  const navigate = useNavigate();
+
+  // Helper to handle protected navigation
+  const handleProtectedNavigation = (path: string) => {
+    console.log('handleProtectedNavigation called:', { hasUser: !!user, loading, path });
+    
+    if (user) {
+      // User is logged in, navigate directly
+      console.log('User authenticated, navigating to:', path);
+      navigate(path);
+    } else if (!loading) {
+      // Not loading and no user - redirect to login
+      console.log('No user and not loading, redirecting to login');
+      navigate('/login', { state: { from: { pathname: path } } });
+    } else {
+      // Still loading - wait a bit then check again, or just redirect to login
+      console.log('Still loading auth state, redirecting to login anyway');
+      navigate('/login', { state: { from: { pathname: path } } });
+    }
+  };
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
@@ -140,13 +162,16 @@ const LandingPage: React.FC = () => {
           <div className="relative z-10 flex items-center h-full">
             <div className="max-w-lg px-6 lg:px-12 py-8 w-full">
               <h1 className="text-[clamp(1.9rem,4.2vw,3.4rem)] leading-[0.92] font-black tracking-tighter uppercase italic mb-6 font-display text-white drop-shadow-2xl">
-                The easiest way <br/>to buy & sell <br/>used furniture
+                Discover hidden gems <br/>right in your <br/>neighborhood
               </h1>
               <p className="text-base font-bold text-white/90 mb-6 uppercase italic max-w-sm font-display drop-shadow-lg">Your neighborhood marketplace for trusted local exchanges.</p>
-              <Link to="/search" className="inline-flex items-center gap-4 bg-[#FF6B35] text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] shadow-xl hover:-translate-y-1 transition italic font-display">
+              <button
+                onClick={() => handleProtectedNavigation('/search')}
+                className="inline-flex items-center gap-4 bg-[#FF6B35] text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] shadow-xl hover:-translate-y-1 transition italic font-display"
+              >
                 Browse Feed
                 <ArrowRight size={18} strokeWidth={4} />
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -165,9 +190,12 @@ const LandingPage: React.FC = () => {
               <h2 className="text-[clamp(1.5rem,2.6vw,2.2rem)] leading-[0.9] font-black uppercase italic mb-6 text-white font-display">
                 Ready to start <br/>selling?
               </h2>
-              <Link to="/sell-hub" className="border border-white/40 text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] hover:bg-white hover:text-[#FF6B35] transition italic font-display">
+              <button
+                onClick={() => handleProtectedNavigation('/sell-hub')}
+                className="border border-white/40 text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] hover:bg-white hover:text-[#FF6B35] transition italic font-display"
+              >
                 Learn More
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -180,25 +208,25 @@ const LandingPage: React.FC = () => {
         </svg>
       </div>
 
-      {/* 2. AI POWERED FEATURES */}
+      {/* 2. KEY FEATURES */}
       <section className="py-40 px-8 bg-[#121c32] relative">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row items-end justify-between mb-24 gap-8 scroll-reveal">
             <div>
               <div className="w-16 h-1.5 bg-[#FF6B35] mb-8" />
-              <h2 className="text-5xl font-black text-white tracking-tighter leading-none mb-6 uppercase italic font-display">AI Pricing Intelligence</h2>
-              <p className="text-xl font-bold text-white/40 uppercase tracking-widest text-xs italic font-display">Silicon Valley algorithms scaling neighborhood discovery.</p>
+              <h2 className="text-5xl font-black text-white tracking-tighter leading-none mb-6 uppercase italic font-display">Smart Pricing Tools</h2>
+              <p className="text-xl font-bold text-white/40 uppercase tracking-widest text-xs italic font-display">Data-driven insights for smarter neighborhood shopping.</p>
             </div>
             <div className="flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display">
               <Zap size={14} fill="currentColor" />
-              Neural Network Active
+              Market Intelligence Active
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { icon: TrendingUp, num: "01", title: "Market Arbitrage", desc: "Identify items listed 30% below national averages." },
-              { icon: Camera, num: "02", title: "Vision Recognition", desc: "Get MSRP data and descriptions from one photo." },
+              { icon: Camera, num: "02", title: "Photo Analysis", desc: "Get pricing data and descriptions from one photo." },
               { icon: ShieldCheck, num: "03", title: "Trust Protocol", desc: "Verified neighborhood profiles and safe zones." },
               { icon: LayoutGrid, num: "04", title: "Discovery Hub", desc: "High-fidelity neighborhood sale browser." }
             ].map((f, i) => (
@@ -249,12 +277,15 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-end mb-20 scroll-reveal">
             <h2 className="text-5xl font-black text-white tracking-tighter italic uppercase leading-none font-display">Recent Market Finds</h2>
-            <Link to="/search" className="group flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display">
+            <button
+              onClick={() => handleProtectedNavigation('/search')}
+              className="group flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display"
+            >
               <span>EXPLORE ALL</span>
               <div className="w-10 h-10 rounded-full border-2 border-current flex items-center justify-center group-hover:bg-[#FF6B35] group-hover:text-white group-hover:border-[#FF6B35] transition-all">
                 <ChevronRight size={18} strokeWidth={4} />
               </div>
-            </Link>
+            </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
             {PRODUCTS.slice(0, 4).map((p) => (

@@ -11,21 +11,24 @@ interface ProtectedRouteProps {
  * [CRITICAL] [SECURITY]
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, loading } = usePersistence();
+  const { user, authToken, loading } = usePersistence();
   const location = useLocation();
 
+  // Show loading while auth state is being determined
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-slate-600">Loading...</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
+  // Check both user and authToken - user profile might still be loading
+  // but if we have an authToken, the user is authenticated
+  if (!user && !authToken) {
     // Redirect to login with return path
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -34,5 +37,3 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 };
 
 export default ProtectedRoute;
-
-

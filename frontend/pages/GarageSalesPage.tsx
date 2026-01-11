@@ -55,7 +55,7 @@ const GarageSalesPage: React.FC = () => {
             }
           }
           
-          return 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop';
+          return FALLBACK_IMAGE;
         };
         
         // Process sales to ensure each has an image field

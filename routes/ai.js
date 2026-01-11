@@ -364,6 +364,75 @@ Just provide the description text, no JSON or formatting.`;
 });
 
 /**
+ * POST /api/ai/appraise
+ * Get market arbitrage analysis for a product (Stitch Appraisal)
+ */
+router.post('/appraise', optionalAuth, aiLimiter, async (req, res) => {
+  try {
+    const { title, price, description } = req.body;
+
+    if (!title || price === undefined) {
+      return res.status(400).json({ error: 'Title and price are required' });
+    }
+
+    if (!getGeminiApiKey()) {
+      // Fallback analysis if AI not available
+      return res.json({
+        appraisal: `Market Value Gap: Based on typical garage sale pricing, this item at $${price} appears to be priced ${price < 50 ? 'competitively' : price < 100 ? 'moderately' : 'at a premium'} for this category.\n\nRisk Points: Verify item condition matches description, check for any defects not mentioned, confirm seller reliability.\n\nStitch Score: ${price < 50 ? '75' : price < 100 ? '65' : '55'}/100`,
+        source: 'estimate',
+      });
+    }
+
+    const prompt = `Perform a neighborhood market arbitrage analysis for: "${title}" listed at $${price}. Context: ${description || 'No description provided'}. Return 3 clear bullet points: 1. Market Value Gap, 2. Specific risk points to check, 3. A Stitch Score out of 100.`;
+
+    const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${getGeminiApiKey()}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: 'You are Stitch AI, a cold-analytical but neighborhood-friendly market arbitrage expert.' }] },
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 512,
+        },
+      }),
+    });
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API error:', errorText);
+      throw new Error('AI appraisal failed');
+    }
+
+    const geminiData = await geminiResponse.json();
+    const appraisal = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!appraisal) {
+      throw new Error('No appraisal generated');
+    }
+
+    // Record AI scan usage if user is authenticated
+    if (req.user) {
+      await recordScan(req, 'appraise', { title });
+    }
+
+    res.json({
+      appraisal,
+      source: 'ai',
+      usage: req.scanUsage || null,
+    });
+  } catch (error) {
+    console.error('Appraisal error:', error);
+    res.status(500).json({
+      error: 'Appraisal Failed',
+      message: error.message || 'Failed to generate appraisal',
+    });
+  }
+});
+
+/**
  * POST /api/ai/detect-steals
  * Analyze multiple items to find deals
  */

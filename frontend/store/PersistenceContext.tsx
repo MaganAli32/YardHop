@@ -76,39 +76,50 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
     }
 
-    // Initialize Supabase Auth
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    // Set up auth state listener FIRST (before checking session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
+      if (session) {
+        setAuthToken(session.access_token);
+        // Use setTimeout to avoid potential race condition with Supabase
+        setTimeout(async () => {
+          await loadUserProfile(session.user.id);
+          setLoading(false);
+        }, 0);
+      } else {
+        setAuthToken(null);
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    // Then check for existing session
     const initAuth = async () => {
       try {
-        if (!supabase) {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
           setLoading(false);
           return;
         }
-
-        // Check for existing session
-        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (session) {
+          console.log('Existing session found:', session.user.email);
           setAuthToken(session.access_token);
           await loadUserProfile(session.user.id);
         }
-
+        
         setLoading(false);
       } catch (err) {
+        console.error('Init auth error:', err);
         setLoading(false);
-      }
-
-      // Listen for auth changes (only if supabase is available)
-      if (supabase) {
-        supabase.auth.onAuthStateChange(async (event, session) => {
-          if (session) {
-            setAuthToken(session.access_token);
-            await loadUserProfile(session.user.id);
-          } else {
-            setAuthToken(null);
-            setUser(null);
-          }
-          setLoading(false);
-        });
       }
     };
 
@@ -125,6 +136,11 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         localStorage.removeItem('yh_chats');
       }
     }
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

@@ -77,7 +77,11 @@ export const optionalAuth = async (req, res, next) => {
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       req.user = null;
-      req.supabase = getSupabaseClient();
+      try {
+        req.supabase = getSupabaseClient();
+      } catch (err) {
+        req.supabase = null;
+      }
       return next();
     }
 
@@ -88,7 +92,11 @@ export const optionalAuth = async (req, res, next) => {
 
     if (error || !user) {
       req.user = null;
-      req.supabase = getSupabaseClient();
+      try {
+        req.supabase = getSupabaseClient();
+      } catch (err) {
+        req.supabase = null;
+      }
       return next();
     }
 
@@ -100,7 +108,7 @@ export const optionalAuth = async (req, res, next) => {
     req.user = null;
     try {
       req.supabase = getSupabaseClient();
-    } catch {
+    } catch (err) {
       req.supabase = null;
     }
     next();

@@ -6,10 +6,15 @@
  */
 
 import express from 'express';
+import Stripe from 'stripe';
 import { requireAuth } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validation.js';
 
 const router = express.Router();
+
+// Initialize Stripe for payment verification
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY_TEST;
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, { apiVersion: '2024-12-18.acacia' }) : null;
 
 /**
  * GET /api/orders
@@ -122,14 +127,64 @@ router.post('/', requireAuth, validate(schemas.createOrder), async (req, res) =>
     const {
       seller_id,
       items,
-      delivery_method,
+      delivery_method = 'pickup',
       meetup_location,
       meetup_latitude,
       meetup_longitude,
       meetup_time,
       notes,
       shipping_address,
+      billing_address,
+      // Payment information
+      payment_intent_id,
+      payment_method_id,
+      stripe_customer_id,
     } = req.body;
+
+    // Validate payment was processed
+    if (!payment_intent_id) {
+      return res.status(400).json({ 
+        error: 'Payment Required',
+        message: 'Payment must be processed before creating order' 
+      });
+    }
+
+    // Verify payment intent with Stripe before creating order
+    // Payment verification is REQUIRED - orders cannot be created without successful payment
+    if (!stripe) {
+      return res.status(503).json({
+        error: 'Payment Service Unavailable',
+        message: 'Payment processing is not configured. Please set STRIPE_SECRET_KEY or STRIPE_SECRET_KEY_TEST in your environment variables.'
+      });
+    }
+
+    let paymentIntent = null;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+      
+      // Verify payment belongs to this user
+      if (paymentIntent.metadata.user_id !== req.user.id) {
+        return res.status(403).json({
+          error: 'Authorization Error',
+          message: 'Payment intent does not belong to this user'
+        });
+      }
+
+      // Verify payment succeeded
+      if (paymentIntent.status !== 'succeeded') {
+        return res.status(400).json({
+          error: 'Payment Not Completed',
+          message: `Payment status is ${paymentIntent.status}, expected succeeded`,
+          status: paymentIntent.status,
+        });
+      }
+    } catch (stripeError) {
+      console.error('Error verifying payment intent:', stripeError);
+      return res.status(400).json({
+        error: 'Payment Verification Failed',
+        message: stripeError.message || 'Failed to verify payment intent'
+      });
+    }
 
     if (seller_id === req.user.id) {
       return res.status(400).json({ error: 'Cannot create order with yourself' });
@@ -165,7 +220,7 @@ router.post('/', requireAuth, validate(schemas.createOrder), async (req, res) =>
 
       total += product.price * item.quantity;
       if (delivery_method === 'shipping' && product.shipping_price) {
-        shippingTotal += product.shipping_price;
+        shippingTotal += (product.shipping_price || 0);
       }
 
       orderItems.push({
@@ -175,23 +230,68 @@ router.post('/', requireAuth, validate(schemas.createOrder), async (req, res) =>
       });
     }
 
-    // Create order
+    // Calculate tax (8.25% local tax)
+    const taxRate = 0.0825;
+    const taxAmount = total * taxRate;
+    const finalTotal = total + shippingTotal + taxAmount;
+
+    // Verify payment amount matches order total (if we have payment intent)
+    if (stripe && paymentIntent) {
+      const paymentAmountInCents = paymentIntent.amount;
+      const expectedAmountInCents = Math.round(finalTotal * 100);
+      
+      // Allow small rounding differences (1 cent)
+      if (Math.abs(paymentAmountInCents - expectedAmountInCents) > 1) {
+        return res.status(400).json({
+          error: 'Payment Amount Mismatch',
+          message: `Payment amount ($${(paymentAmountInCents / 100).toFixed(2)}) does not match order total ($${finalTotal.toFixed(2)})`,
+        });
+      }
+    }
+
+    // Create order with payment information
+    const orderData = {
+      buyer_id: req.user.id,
+      seller_id,
+      status: 'pending',
+      total_amount: finalTotal,
+      shipping_amount: shippingTotal,
+      tax_amount: taxAmount,
+      delivery_method: delivery_method || 'pickup',
+      meetup_location,
+      meetup_latitude,
+      meetup_longitude,
+      meetup_time,
+      notes,
+      // Payment information
+      payment_intent_id,
+      payment_method_id: payment_method_id || null,
+      stripe_customer_id: stripe_customer_id || null,
+      payment_status: 'succeeded', // Payment already verified above
+    };
+
+    // Add addresses if provided (Supabase handles JSONB conversion automatically)
+    if (shipping_address) {
+      orderData.shipping_address = typeof shipping_address === 'string' 
+        ? JSON.parse(shipping_address) 
+        : shipping_address;
+    }
+    if (billing_address) {
+      orderData.billing_address = typeof billing_address === 'string' 
+        ? JSON.parse(billing_address) 
+        : billing_address;
+    }
+
+    // Add Stripe payment ID if we have payment intent
+    if (paymentIntent && paymentIntent.latest_charge) {
+      orderData.stripe_payment_id = typeof paymentIntent.latest_charge === 'string' 
+        ? paymentIntent.latest_charge 
+        : paymentIntent.latest_charge.id;
+    }
+
     const { data: order, error: orderError } = await req.supabase
       .from('orders')
-      .insert({
-        buyer_id: req.user.id,
-        seller_id,
-        status: 'pending',
-        total_amount: total,
-        shipping_amount: shippingTotal,
-        delivery_method,
-        meetup_location,
-        meetup_latitude,
-        meetup_longitude,
-        meetup_time,
-        notes,
-        shipping_address,
-      })
+      .insert(orderData)
       .select()
       .single();
 

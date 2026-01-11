@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignInPage, Testimonial } from '../components/ui/sign-in';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { usePersistence } from '../store/PersistenceContext';
 
 const sampleTestimonials: Testimonial[] = [
   {
@@ -22,11 +23,28 @@ const sampleTestimonials: Testimonial[] = [
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, authToken } = usePersistence();
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   // Get return path from location state (for post-login redirect)
   const from = (location.state as any)?.from?.pathname || '/search';
+
+  // Navigate when auth state updates after successful login
+  useEffect(() => {
+    if (loginSuccess && (user || authToken)) {
+      console.log('Auth state updated, navigating to:', from);
+      navigate(from, { replace: true });
+    }
+  }, [loginSuccess, user, authToken, from, navigate]);
+
+  // If already logged in, redirect
+  useEffect(() => {
+    if (user || authToken) {
+      navigate(from, { replace: true });
+    }
+  }, []);
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -58,11 +76,12 @@ const LoginPage: React.FC = () => {
       if (signInError) throw signInError;
 
       if (data.user) {
-        navigate(from, { replace: true });
+        console.log('Login successful, waiting for auth state update...');
+        setLoginSuccess(true);
+        // Don't navigate here - let the useEffect handle it when auth state updates
       }
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please check your credentials.');
-    } finally {
       setLoading(false);
     }
   };

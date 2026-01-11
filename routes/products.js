@@ -58,6 +58,10 @@ function addImageField(product) {
  */
 router.get('/', optionalAuth, standardLimiter, async (req, res) => {
   try {
+    if (!req.supabase) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     const {
       q,
       category,
@@ -124,7 +128,47 @@ router.get('/', optionalAuth, standardLimiter, async (req, res) => {
 
     const { data, error, count } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching products:', error);
+      throw error;
+    }
+
+    // If images are missing from nested query, fetch them directly
+    // This is a workaround for RLS issues with nested queries
+    if (data && data.length > 0) {
+      const productsWithoutImages = data.filter(p => !p.images || p.images.length === 0);
+      
+      if (productsWithoutImages.length > 0 && process.env.NODE_ENV === 'development') {
+        console.log(`⚠️ ${productsWithoutImages.length} products missing images from nested query`);
+      }
+      
+      // Fetch images directly for products that don't have them
+      for (const product of productsWithoutImages) {
+        try {
+          const { data: directImages } = await req.supabase
+            .from('product_images')
+            .select('id, url, is_primary, order_index')
+            .eq('product_id', product.id)
+            .order('is_primary', { ascending: false })
+            .order('order_index', { ascending: true });
+          
+          if (directImages && directImages.length > 0) {
+            product.images = directImages;
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`✅ Fetched ${directImages.length} images directly for product ${product.id}`);
+            }
+          }
+        } catch (imgErr) {
+          console.error(`Error fetching images for product ${product.id}:`, imgErr);
+        }
+      }
+    }
+
+    // Debug: Log first product's images to see if they're being fetched
+    if (data && data.length > 0 && process.env.NODE_ENV === 'development') {
+      console.log('First product images:', JSON.stringify(data[0]?.images, null, 2));
+      console.log('First product image field:', data[0]?.image);
+    }
 
     // Add image convenience field to each product
     const products = (data || []).map(addImageField);
@@ -150,6 +194,10 @@ router.get('/', optionalAuth, standardLimiter, async (req, res) => {
  */
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
+    if (!req.supabase) {
+      return res.status(500).json({ error: 'Database connection unavailable' });
+    }
+
     const { id } = req.params;
 
     const { data, error } = await req.supabase
@@ -167,6 +215,45 @@ router.get('/:id', optionalAuth, async (req, res) => {
         return res.status(404).json({ error: 'Product not found' });
       }
       throw error;
+    }
+
+    // Debug: Check if images were fetched
+    console.log(`📦 Product ${id} - Images from nested query:`, JSON.stringify(data?.images, null, 2));
+    
+    // If images array is empty, try fetching directly (workaround for nested query issues)
+    if (!data?.images || data.images.length === 0) {
+      console.log(`⚠️ Product ${id} - No images in nested query, fetching directly...`);
+      const { data: directImages, error: imgError } = await req.supabase
+        .from('product_images')
+        .select('id, url, is_primary, order_index')
+        .eq('product_id', id)
+        .order('is_primary', { ascending: false })
+        .order('order_index', { ascending: true });
+      
+      if (imgError) {
+        console.error(`❌ Product ${id} - Error fetching images directly:`, imgError);
+        console.error('   Error details:', JSON.stringify(imgError, null, 2));
+      } else {
+        console.log(`✅ Product ${id} - Found ${directImages?.length || 0} images via direct query`);
+        if (directImages && directImages.length > 0) {
+          console.log('   Image URLs:', directImages.map(img => img.url));
+          // Attach images if found
+          data.images = directImages;
+        } else {
+          console.log(`   ⚠️ Product ${id} - No images found in database`);
+          // Check if images exist at all for this product
+          const { count, error: countError } = await req.supabase
+            .from('product_images')
+            .select('*', { count: 'exact', head: true })
+            .eq('product_id', id);
+          
+          if (countError) {
+            console.error(`   ❌ Error counting images:`, countError);
+          } else {
+            console.log(`   Database check: ${count || 0} images exist for product ${id}`);
+          }
+        }
+      }
     }
 
     // Increment view count
@@ -218,14 +305,27 @@ router.post('/', requireAuth, validate(schemas.createProduct), async (req, res) 
         order_index: index,
       }));
 
-      const { error: imgError } = await req.supabase.from('product_images').insert(images);
+      const { data: insertedImages, error: imgError } = await req.supabase
+        .from('product_images')
+        .insert(images)
+        .select();
+      
       if (imgError) {
-        console.warn('Error inserting product images:', imgError.message);
+        console.error('❌ Error inserting product images:', imgError);
+        console.error('   Image URLs:', image_urls);
+        console.error('   Product ID:', product.id);
+        console.error('   Full error:', JSON.stringify(imgError, null, 2));
+        // Don't fail the request, but log the error for debugging
+      } else {
+        console.log(`✅ Successfully inserted ${insertedImages?.length || 0} images for product ${product.id}`);
+        if (insertedImages && insertedImages.length > 0) {
+          console.log('   Image URLs:', insertedImages.map(img => img.url));
+        }
       }
     }
 
     // Fetch complete product with relations
-    const { data: completeProduct } = await req.supabase
+    const { data: completeProduct, error: fetchError } = await req.supabase
       .from('products')
       .select(`
         *,
@@ -234,6 +334,18 @@ router.post('/', requireAuth, validate(schemas.createProduct), async (req, res) 
       `)
       .eq('id', product.id)
       .single();
+
+    if (fetchError) {
+      console.error('Error fetching created product:', fetchError);
+      // Still return the product even if fetch fails
+      const productWithImage = addImageField(product);
+      return res.status(201).json(productWithImage);
+    }
+
+    // Debug: Log images to verify they're being fetched
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Product images after creation:', JSON.stringify(completeProduct?.images, null, 2));
+    }
 
     // Add image convenience field
     const productWithImage = addImageField(completeProduct);

@@ -59,23 +59,107 @@ ADD COLUMN IF NOT EXISTS images TEXT[] DEFAULT '{}';
 -- 3. FIX FAVORITES TABLE - Ensure it exists and is properly structured
 -- =============================================================================
 
--- Create favorites table if it doesn't exist
+-- Create favorites table if it doesn't exist (basic structure)
 CREATE TABLE IF NOT EXISTS favorites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  garage_sale_id UUID REFERENCES garage_sales(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  -- Ensure at least one of product_id or garage_sale_id is set
-  CONSTRAINT favorites_has_target CHECK (
-    (product_id IS NOT NULL) OR (garage_sale_id IS NOT NULL)
-  ),
-  -- Prevent duplicate favorites
-  CONSTRAINT unique_user_product UNIQUE (user_id, product_id),
-  CONSTRAINT unique_user_garage_sale UNIQUE (user_id, garage_sale_id)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create index for faster lookups
+-- Add garage_sale_id column if it doesn't exist
+ALTER TABLE favorites
+ADD COLUMN IF NOT EXISTS garage_sale_id UUID REFERENCES garage_sales(id) ON DELETE CASCADE;
+
+-- Make product_id nullable if it's currently NOT NULL (needed for "either/or" constraint)
+DO $$
+BEGIN
+  -- Check if product_id column exists and is NOT NULL
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'favorites' 
+    AND column_name = 'product_id'
+    AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE favorites ALTER COLUMN product_id DROP NOT NULL;
+  END IF;
+END $$;
+
+-- Drop existing constraints if they exist (to avoid conflicts)
+-- First, drop any constraints that might exist with auto-generated names
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  -- Drop the favorites_has_target constraint if it exists
+  ALTER TABLE favorites DROP CONSTRAINT IF EXISTS favorites_has_target;
+  
+  -- Drop unique_user_product constraint (could be named different ways)
+  ALTER TABLE favorites DROP CONSTRAINT IF EXISTS unique_user_product;
+  ALTER TABLE favorites DROP CONSTRAINT IF EXISTS favorites_user_id_product_id_key;
+  
+  -- Drop unique_user_garage_sale constraint
+  ALTER TABLE favorites DROP CONSTRAINT IF EXISTS unique_user_garage_sale;
+  
+  -- Find and drop any other unique constraints on (user_id, product_id)
+  FOR r IN 
+    SELECT conname 
+    FROM pg_constraint 
+    WHERE conrelid = 'favorites'::regclass 
+    AND contype = 'u'
+    AND array_length(conkey, 1) = 2
+    AND conkey::text LIKE '%user_id%' AND conkey::text LIKE '%product_id%'
+  LOOP
+    EXECUTE 'ALTER TABLE favorites DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname);
+  END LOOP;
+END $$;
+
+-- Add unique constraint for products (allows NULLs for product_id when garage_sale_id is set)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'unique_user_product' 
+    AND conrelid = 'favorites'::regclass
+  ) THEN
+    -- Use partial unique index for products (only when product_id is not null)
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_user_product_idx 
+    ON favorites(user_id, product_id) 
+    WHERE product_id IS NOT NULL;
+  END IF;
+END $$;
+
+-- Add unique constraint for garage sales (only when garage_sale_id is not null)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'unique_user_garage_sale' 
+    AND conrelid = 'favorites'::regclass
+  ) THEN
+    -- Use partial unique index for garage sales (only when garage_sale_id is not null)
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_user_garage_sale_idx 
+    ON favorites(user_id, garage_sale_id) 
+    WHERE garage_sale_id IS NOT NULL;
+  END IF;
+END $$;
+
+-- Add the constraint for at least one target (after garage_sale_id column exists)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'favorites_has_target' 
+    AND conrelid = 'favorites'::regclass
+  ) THEN
+    ALTER TABLE favorites
+    ADD CONSTRAINT favorites_has_target CHECK (
+      (product_id IS NOT NULL) OR (garage_sale_id IS NOT NULL)
+    );
+  END IF;
+END $$;
+
+-- Create indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_product_id ON favorites(product_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_garage_sale_id ON favorites(garage_sale_id);
@@ -265,5 +349,7 @@ BEGIN
   
   RAISE NOTICE 'All database fixes applied successfully!';
 END $$;
+
+
 
 

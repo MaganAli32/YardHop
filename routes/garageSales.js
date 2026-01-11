@@ -145,6 +145,13 @@ router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Validate UUID format (basic check - UUIDs are 36 chars with hyphens)
+    // This prevents PostgreSQL errors when invalid IDs like "s1" are used
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return res.status(404).json({ error: 'Garage sale not found' });
+    }
+
     const { data, error } = await req.supabase
       .from('garage_sales')
       .select(`
@@ -162,6 +169,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
     if (error) {
       if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Garage sale not found' });
+      }
+      // Handle UUID format errors from PostgreSQL
+      if (error.message && error.message.includes('invalid input syntax for type uuid')) {
         return res.status(404).json({ error: 'Garage sale not found' });
       }
       throw error;

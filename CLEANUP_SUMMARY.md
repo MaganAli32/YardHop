@@ -85,3 +85,5 @@ curl -X POST http://localhost:3000/api/ai/suggest-price \
 The project structure is now clean with no duplicate server files causing confusion.
 
 
+
+

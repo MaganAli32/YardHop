@@ -40,9 +40,12 @@ export interface Product {
   title: string;
   price: number;
   originalPrice?: number;
+  original_price?: number;
   market_average?: number;
   isSteal?: boolean;
+  is_steal?: boolean;
   stealPercentage?: number;
+  steal_percentage?: number;
   image: string;
   location: string;
   distance?: string;
@@ -50,11 +53,22 @@ export interface Product {
   reviewCount?: number;
   sellerName?: string;
   sellerAvatar?: string;
+  seller?: {
+    id: string;
+    name: string;
+    avatar_url?: string;
+    bio?: string;
+    created_at?: string;
+    verified?: boolean;
+    rating_average?: number;
+    rating_count?: number;
+  };
   tags?: string[];
   description?: string;
-  images?: string[];
+  images?: string[] | Array<{ id?: string; url: string; is_primary?: boolean; order_index?: number }>;
   specs?: Record<string, string>;
   isFeatured?: boolean;
+  is_featured?: boolean;
   isVerified?: boolean;
   price_percentage?: number;
   quantity?: number;

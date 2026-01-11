@@ -25,6 +25,8 @@ import {
   AlertCircle,
   ArrowRight,
   Info,
+  CheckCircle2,
+  Star,
 } from 'lucide-react';
 
 // --- CONSTANTS ---
@@ -99,12 +101,13 @@ const Img = ({
 
 
 const StitchSaleIntelligence = ({ sale }: { sale: GarageSale }) => {
-  const [stage, setStage] = useState<'locked' | 'loading' | 'ready'>('locked');
-  const [report, setReport] = useState<string>('');
+  const [stage, setStage] = useState<'locked' | 'initializing' | 'ready'>('locked');
+  const [report, setReport] = useState<string | null>(null);
 
-  const runAnalysis = async () => {
-    setStage('loading');
-    const prompt = `Analyze this garage sale event:
+  const handleInitialize = async () => {
+    setStage('initializing');
+    try {
+      const prompt = `Analyze this garage sale event:
 Title: ${sale.title}
 Date: ${sale.date}
 Time: ${sale.time}
@@ -116,57 +119,131 @@ Return:
 - Top 3 categories to prioritize
 
 Make it concise and use bold labels.`;
-    const res = await callGemini(prompt);
-    setReport(res);
-    setStage('ready');
+      const res = await callGemini(prompt);
+      setReport(res);
+      setStage('ready');
+    } catch {
+      setStage('locked');
+    }
   };
 
   return (
-    <div className="bg-[#121c32] rounded-2xl overflow-hidden border border-slate-800 p-6 shadow-xl">
-      <div className="flex items-center justify-between mb-5">
+    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-[0_8px_24px_rgba(18,28,50,0.08)]">
+      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-2">
-          <Cpu size={16} className="text-[#FF6B35]" />
-          <span className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
-            Stitch Intelligence
-          </span>
+          <div className="bg-[#121c32] p-1.5 rounded-md text-white">
+            <Activity size={14} />
+          </div>
+          <span className="text-[11px] font-semibold text-[#121c32]">Stitch Appraisal</span>
         </div>
-        <div
-          className={`w-1.5 h-1.5 rounded-full ${
-            stage === 'ready'
-              ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]'
-              : 'bg-[#FF6B35] animate-pulse'
-          }`}
-        />
       </div>
 
-      {stage === 'locked' && (
-        <div className="space-y-4">
-          <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-            Unlock a quick plan: best time to arrive + what to hunt first.
-          </p>
-          <button
-            onClick={runAnalysis}
-            className="w-full py-3 bg-white hover:bg-[#FF6B35] text-[#121c32] hover:text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2"
-          >
-            <Lock size={12} /> Unlock Diagnostic
-          </button>
-        </div>
-      )}
+      <div className="p-5">
+        {stage === 'locked' && (
+          <div className="space-y-3">
+            <p className="text-[12px] text-slate-600 leading-relaxed font-medium">Get an item-specific buy score and negotiation anchors based on local market data.</p>
+            <button 
+              onClick={handleInitialize} 
+              className="w-full py-2.5 bg-[#121c32] text-white rounded-md font-semibold text-sm tracking-tight hover:bg-[#0f1728] transition-colors flex items-center justify-center gap-2"
+            >
+              <Cpu size={14} /> Run appraisal
+            </button>
+          </div>
+        )}
 
-      {stage === 'loading' && (
-        <div className="py-8 flex flex-col items-center gap-3">
-          <RefreshCw className="animate-spin text-[#FF6B35]" size={24} />
-          <span className="text-[9px] text-white/40 uppercase tracking-widest font-black">
-            Analyzing…
-          </span>
-        </div>
-      )}
+        {stage === 'initializing' && (
+          <div className="py-4 flex flex-col items-center gap-2">
+            <RefreshCw className="animate-spin text-[#FF6B35]" size={18} />
+            <p className="text-[11px] font-semibold text-slate-500">Checking comparable listings</p>
+          </div>
+        )}
 
-      {stage === 'ready' && (
-        <div className="text-[11px] text-slate-200 leading-relaxed font-mono whitespace-pre-wrap bg-black/40 p-4 rounded-xl border border-white/5 max-h-[300px] overflow-y-auto">
-          {report}
+        {stage === 'ready' && (
+          <div className="space-y-4">
+            <div className="text-[12px] text-slate-700 space-y-2 whitespace-pre-wrap leading-relaxed">
+              {report}
+            </div>
+            <button 
+              onClick={() => { setStage('locked'); setReport(null); }} 
+              className="text-[10px] font-semibold text-slate-400 hover:text-[#121c32] transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const HostBox = ({ sale }: { sale: GarageSale & { host?: any } }) => {
+  // Extract host data - try multiple sources (host object or root-level properties)
+  const host = sale.host || (sale as any).host;
+  
+  // Extract host information with proper fallbacks
+  const hostName = host?.name || (sale as any).hostName || 'Verified Neighbor';
+  const hostAvatar = host?.avatar_url || (sale as any).hostAvatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120';
+  const rating = host?.rating_average !== undefined && host?.rating_average !== null 
+    ? host.rating_average 
+    : ((sale as any).hostRating !== undefined && (sale as any).hostRating !== null 
+      ? (sale as any).hostRating 
+      : 5.0);
+  const reviewCount = host?.rating_count !== undefined && host?.rating_count !== null 
+    ? host.rating_count 
+    : ((sale as any).hostReviewCount !== undefined && (sale as any).hostReviewCount !== null
+      ? (sale as any).hostReviewCount
+      : 0);
+  const isVerified = host?.verified === true || ((sale as any).hostVerified === true);
+  
+  // Format location for display - try multiple sources (location is on the sale, not the host)
+  const locationText = sale.address || (sale as any).location || (sale as any).display_text || host?.location || 'Location not available';
+  let displayLocation = locationText;
+  try {
+    if (locationText && typeof locationText === 'string' && locationText.includes(',')) {
+      const parts = locationText.split(',');
+      displayLocation = parts.length > 1 ? `${parts[0].trim()}, ${parts[1].trim()}` : parts[0];
+    }
+  } catch (e) {
+    displayLocation = locationText;
+  }
+  
+  return (
+    <div className="p-4 border border-slate-200 rounded-lg space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+          <Img 
+            src={hostAvatar} 
+            alt={hostName} 
+            className="w-full h-full object-cover" 
+          />
         </div>
-      )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h4 className="font-bold text-[#121c32] text-sm truncate">{hostName}</h4>
+            {isVerified && <CheckCircle2 size={14} className="text-blue-500" />}
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="flex">
+              {[1, 2, 3, 4, 5].map(i => (
+                <Star key={i} size={8} className={i <= Math.round(rating) ? "fill-[#121c32] text-[#121c32]" : "text-slate-300"} />
+              ))}
+            </div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+              {reviewCount > 0 ? `${reviewCount} reviews` : 'New seller'}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+        <div>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Response Time</p>
+          <p className="text-[11px] font-bold text-[#121c32]">&lt; 1 hour</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Location</p>
+          <p className="text-[11px] font-bold text-[#121c32] truncate" title={locationText}>{displayLocation}</p>
+        </div>
+      </div>
     </div>
   );
 };
@@ -245,7 +322,25 @@ const YardSaleDetailPage: React.FC = () => {
             return timeStr.slice(0, 5); // HH:MM format
           };
           
-          const saleData: GarageSale = {
+          // Extract host data - can be nested or flat
+          let hostData = data.host || (data as any).host;
+          
+          // If host_id exists but host data is missing, try to get it from host_id
+          if (!hostData && data.host_id) {
+            // Store host_id for potential later fetch if needed
+            (data as any).hostId = data.host_id;
+          }
+          
+          // Normalize host data - ensure it's an object if it exists
+          if (hostData && typeof hostData === 'object' && Object.keys(hostData).length > 0) {
+            // Host data exists and is valid
+            hostData = hostData;
+          } else if (hostData === null || hostData === undefined || (typeof hostData === 'object' && Object.keys(hostData).length === 0)) {
+            // Host data is null, undefined, or empty object - set to null
+            hostData = null;
+          }
+          
+          const saleData: GarageSale & { host?: any } = {
             id: data.id,
             title: data.title,
             description: data.description || '',
@@ -253,14 +348,44 @@ const YardSaleDetailPage: React.FC = () => {
             time: data.start_time ? formatTime(data.start_time) : (data.time || ''),
             image: imageUrl || FALLBACK_IMAGE,
             tags: data.tags || [],
-          };
+            address: data.address || (data as any).location,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            location_privacy: data.location_privacy,
+            // Include host data from API response (can be null)
+            host: hostData,
+            // Store host_id separately for reference
+            host_id: data.host_id,
+          } as any;
           
-          console.log('YardSaleDetailPage - Image extraction:', {
+          // Also store host data in root level for backwards compatibility
+          if (hostData) {
+            (saleData as any).hostName = hostData.name || null;
+            (saleData as any).hostAvatar = hostData.avatar_url || null;
+            (saleData as any).hostRating = hostData.rating_average ?? null;
+            (saleData as any).hostReviewCount = hostData.rating_count ?? null;
+            (saleData as any).hostVerified = hostData.verified === true;
+          } else {
+            // No host data - use fallbacks
+            (saleData as any).hostName = null;
+            (saleData as any).hostAvatar = null;
+            (saleData as any).hostRating = null;
+            (saleData as any).hostReviewCount = null;
+            (saleData as any).hostVerified = false;
+          }
+          
+          console.log('YardSaleDetailPage - Data extraction:', {
+            saleId: data.id,
+            hostId: data.host_id,
             hasImageField: !!data.image,
-            imageFieldValue: data.image,
             hasImagesArray: Array.isArray(data.images),
-            imagesArrayLength: Array.isArray(data.images) ? data.images.length : 0,
-            extractedImage: imageUrl
+            extractedImage: imageUrl,
+            rawHostData: data.host,
+            extractedHostData: hostData,
+            hostName: hostData?.name,
+            hostAvatar: hostData?.avatar_url,
+            hostVerified: hostData?.verified,
+            fullDataKeys: Object.keys(data)
           });
           
           setSaleInfo(saleData);
@@ -516,26 +641,9 @@ const YardSaleDetailPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
-              The Host
-            </h4>
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden">
-                <User size={30} className="text-slate-300" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-base font-black text-[#121c32] tracking-tighter uppercase leading-none">
-                  {(saleInfo as any).hostName || 'Verified Neighbor'}
-                </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">
-                  {(saleInfo as any).hostLabel || 'Trusted Host'}
-                </p>
-              </div>
-            </div>
-            <button className="w-full py-4 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#FF6B35] transition-colors">
-              View Profile
-            </button>
+          <div className="space-y-4 pt-2">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Host Information</h3>
+            <HostBox sale={saleInfo as GarageSale & { host?: any }} />
           </div>
 
           <StitchSaleIntelligence sale={saleInfo} />

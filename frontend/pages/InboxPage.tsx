@@ -158,7 +158,7 @@ const InboxPage: React.FC = () => {
                    </div>
                    <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-1">
-                         <h4 className="font-black truncate text-sm">{chat.participants[1]}</h4>
+                         <h4 className="font-black truncate text-sm">{chat.other_participant?.name || 'Unknown User'}</h4>
                          <span className="text-[9px] font-bold text-slate-400 uppercase">{chat.lastTimestamp || 'New'}</span>
                       </div>
                       <p className="text-[10px] font-black text-primary uppercase tracking-tighter mb-1 truncate">{chat.productTitle}</p>

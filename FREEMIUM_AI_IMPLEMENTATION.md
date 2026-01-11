@@ -204,3 +204,5 @@ When ready to add payments:
 The freemium AI scanning feature is now fully implemented and ready for testing. Run the database migration and start testing with different subscription tiers!
 
 
+
+

@@ -17,6 +17,12 @@ ON CONFLICT (id) DO NOTHING;
 -- AVATARS BUCKET POLICIES
 -- ============================================================
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Avatar images are publicly accessible" ON storage.objects;
+DROP POLICY IF EXISTS "Users can upload own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own avatar" ON storage.objects;
+
 -- Anyone can view avatars
 CREATE POLICY "Avatar images are publicly accessible"
   ON storage.objects FOR SELECT
@@ -52,6 +58,12 @@ CREATE POLICY "Users can delete own avatar"
 -- ============================================================
 -- LISTING IMAGES BUCKET POLICIES
 -- ============================================================
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Listing images are publicly accessible" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload listing images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own listing images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own listing images" ON storage.objects;
 
 -- Anyone can view listing images
 CREATE POLICY "Listing images are publicly accessible"
@@ -89,6 +101,12 @@ CREATE POLICY "Users can delete own listing images"
 -- GARAGE SALE IMAGES BUCKET POLICIES
 -- ============================================================
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Garage sale images are publicly accessible" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload garage sale images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own garage sale images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own garage sale images" ON storage.objects;
+
 -- Anyone can view garage sale images
 CREATE POLICY "Garage sale images are publicly accessible"
   ON storage.objects FOR SELECT
@@ -125,6 +143,12 @@ CREATE POLICY "Users can delete own garage sale images"
 -- COMMUNITY IMAGES BUCKET POLICIES
 -- ============================================================
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Community images are publicly accessible" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload community images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own community images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own community images" ON storage.objects;
+
 -- Anyone can view community images
 CREATE POLICY "Community images are publicly accessible"
   ON storage.objects FOR SELECT
@@ -160,6 +184,11 @@ CREATE POLICY "Users can delete own community images"
 -- ============================================================
 -- MESSAGE ATTACHMENTS BUCKET POLICIES (Private)
 -- ============================================================
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Conversation participants can view attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Users can upload message attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own message attachments" ON storage.objects;
 
 -- Only conversation participants can view attachments
 CREATE POLICY "Conversation participants can view attachments"

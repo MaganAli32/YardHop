@@ -78,10 +78,29 @@ export const SignInPage: React.FC<SignInPageProps> = ({
             <p className="animate-element animate-delay-200 text-slate-500 dark:text-slate-400">{description}</p>
 
             <form className="space-y-5" onSubmit={onSignIn}>
+              {/* Show name and username fields only for signup */}
+              {buttonText?.includes('Create') && (
+                <>
+                  <div className="animate-element animate-delay-250">
+                    <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">Full Name</label>
+                    <GlassInputWrapper>
+                      <input name="name" type="text" placeholder="Enter your full name" className="w-full bg-transparent text-sm p-4 rounded-lg focus:outline-none text-slate-900 dark:text-white placeholder:text-slate-400" required />
+                    </GlassInputWrapper>
+                  </div>
+
+                  <div className="animate-element animate-delay-275">
+                    <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">Username</label>
+                    <GlassInputWrapper>
+                      <input name="username" type="text" placeholder="Choose a username" className="w-full bg-transparent text-sm p-4 rounded-lg focus:outline-none text-slate-900 dark:text-white placeholder:text-slate-400" required />
+                    </GlassInputWrapper>
+                  </div>
+                </>
+              )}
+
               <div className="animate-element animate-delay-300">
                 <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">Email Address</label>
                 <GlassInputWrapper>
-                  <input name="email" type="email" placeholder="Enter your email address" className="w-full bg-transparent text-sm p-4 rounded-lg focus:outline-none text-slate-900 dark:text-white placeholder:text-slate-400" />
+                  <input name="email" type="email" placeholder="Enter your email address" className="w-full bg-transparent text-sm p-4 rounded-lg focus:outline-none text-slate-900 dark:text-white placeholder:text-slate-400" required />
                 </GlassInputWrapper>
               </div>
 
@@ -89,7 +108,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                 <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">Password</label>
                 <GlassInputWrapper>
                   <div className="relative">
-                    <input name="password" type={showPassword ? 'text' : 'password'} placeholder="Enter your password" className="w-full bg-transparent text-sm p-4 pr-12 rounded-lg focus:outline-none text-slate-900 dark:text-white placeholder:text-slate-400" />
+                    <input name="password" type={showPassword ? 'text' : 'password'} placeholder={buttonText?.includes('Create') ? "Create a password (min 8 characters)" : "Enter your password"} className="w-full bg-transparent text-sm p-4 pr-12 rounded-lg focus:outline-none text-slate-900 dark:text-white placeholder:text-slate-400" required minLength={buttonText?.includes('Create') ? 8 : undefined} />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors">
                       <span className="material-symbols-outlined text-[20px]">
                         {showPassword ? 'visibility_off' : 'visibility'}
@@ -101,10 +120,12 @@ export const SignInPage: React.FC<SignInPageProps> = ({
 
               <div className="animate-element animate-delay-500 flex items-center justify-between text-sm">
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" name="rememberMe" className="custom-checkbox" />
+                  <input type="checkbox" name="rememberMe" className="custom-checkbox" defaultChecked={true} />
                   <span className="text-slate-700 dark:text-slate-300">Keep me signed in</span>
                 </label>
-                <a href="#" onClick={(e) => { e.preventDefault(); onResetPassword?.(); }} className="hover:underline text-primary transition-colors">Reset password</a>
+                {!buttonText?.includes('Create') && (
+                  <a href="#" onClick={(e) => { e.preventDefault(); onResetPassword?.(); }} className="hover:underline text-primary transition-colors">Reset password</a>
+                )}
               </div>
 
               <button type="submit" className="animate-element animate-delay-600 w-full rounded-lg bg-primary py-3 font-medium text-white hover:bg-[#D45A04] transition-colors shadow-md transform active:scale-95">

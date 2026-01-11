@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { Product } from '../types';
+import { usePersistence } from '../store/PersistenceContext';
 
 // Fallback image when no image is available
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop';
@@ -11,7 +12,27 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+  const { user, loading } = usePersistence();
+  const navigate = useNavigate();
   const [imgError, setImgError] = useState(false);
+
+  const handleProductClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const productPath = `/product/${product.id}`;
+    
+    console.log('ProductCard clicked:', { hasUser: !!user, loading, productPath });
+    
+    if (user) {
+      // User is logged in, navigate directly
+      console.log('User authenticated, navigating to:', productPath);
+      navigate(productPath);
+    } else {
+      // No user or still loading - redirect to login
+      console.log('No user, redirecting to login from:', productPath);
+      navigate('/login', { state: { from: { pathname: productPath } } });
+    }
+  };
 
   // Map Product type to display format
   const displayName = product.title || (product as any).name || 'Untitled Item';
@@ -61,9 +82,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const displayImage = imgError || !imageUrl ? FALLBACK_IMAGE : imageUrl;
 
   return (
-    <Link 
-      to={`/product/${product.id}`}
-      className="group bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-lg hover:border-orange-300 transition-all duration-300 block"
+    <div
+      onClick={handleProductClick}
+      className="group bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-lg hover:border-orange-300 transition-all duration-300 block cursor-pointer"
     >
       {/* Image Container */}
       <div className="aspect-square overflow-hidden relative bg-slate-100">
@@ -89,7 +110,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <span className="truncate">{displayLocation}</span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
 

@@ -9,22 +9,31 @@ import { usePersistence } from '../store/PersistenceContext';
 const AuthCallbackHandler: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Use persistence context - it's safe since we're inside PersistenceProvider in App.tsx
   const { user, loading } = usePersistence();
 
   useEffect(() => {
     // Wait for auth state to load
     if (loading) return;
 
-    // If user is authenticated and on login/signup page, redirect to search
-    if (user && (location.pathname === '/login' || location.pathname === '/signup')) {
-      navigate('/search', { replace: true });
+    // If user is authenticated and on login/signup page, redirect
+    // But let LoginPage handle its own redirect logic to respect 'from' path
+    // Only redirect if we're on signup page (not login, as login handles its own redirect)
+    if (user && location.pathname === '/signup') {
+      const from = (location.state as any)?.from?.pathname || '/search';
+      navigate(from, { replace: true });
     }
-  }, [user, loading, location.pathname, navigate]);
+    // Don't redirect from login page - let LoginPage handle it
+    // This allows LoginPage to respect the 'from' path properly
+  }, [user, loading, location.pathname, location.state, navigate]);
 
   return null;
 };
 
 export default AuthCallbackHandler;
+
+
 
 
 

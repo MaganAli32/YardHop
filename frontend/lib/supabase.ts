@@ -25,7 +25,16 @@ let supabase: ReturnType<typeof createClient> | null = null;
 
 if (supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https://placeholder.supabase.co') {
   try {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Create Supabase client with session persistence enabled
+    // Sessions are persisted in localStorage by default
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      },
+    });
   } catch (error) {
     console.warn('Failed to initialize Supabase client:', error);
   }

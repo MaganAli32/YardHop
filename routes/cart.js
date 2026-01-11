@@ -25,7 +25,7 @@ router.get('/', requireAuth, async (req, res) => {
         created_at,
         product:products(
           id, title, description, price, original_price, condition, 
-          location, status, quantity as available_quantity,
+          location, status, quantity, seller_id,
           shipping_available, shipping_price,
           images:product_images(id, url, is_primary),
           seller:profiles!seller_id(id, name, avatar_url)
@@ -88,19 +88,54 @@ router.post('/', requireAuth, validate(schemas.addToCart), async (req, res) => {
       return res.status(400).json({ error: 'Cannot add your own product to cart' });
     }
 
-    // Check if already in cart
-    const { data: existing } = await req.supabase
+    // Handle quantity: treat NULL or 0 as 1 (unique items)
+    // Most marketplace items are unique (quantity = 1), so we default to 1 if not set
+    // If quantity is explicitly 0, the item is sold out
+    const availableQuantity = (product.quantity != null && product.quantity > 0) ? product.quantity : 1;
+    
+    // If product quantity is explicitly 0, item is sold out
+    if (product.quantity === 0) {
+      return res.status(400).json({ error: 'This item is sold out' });
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Cart] Product ${product_id} quantity check:`, {
+        productQuantity: product.quantity,
+        availableQuantity,
+        requestedQuantity: quantity
+      });
+    }
+
+    // Check if already in cart (use maybeSingle to avoid error if not found)
+    const { data: existing, error: existingError } = await req.supabase
       .from('cart_items')
       .select('id, quantity')
       .eq('user_id', req.user.id)
       .eq('product_id', product_id)
-      .single();
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error checking existing cart item:', existingError);
+      throw existingError;
+    }
 
     if (existing) {
       // Update quantity
       const newQuantity = existing.quantity + quantity;
-      if (newQuantity > product.quantity) {
-        return res.status(400).json({ error: 'Requested quantity not available' });
+      if (newQuantity > availableQuantity) {
+        // If trying to add more when already at max, provide helpful message
+        if (existing.quantity >= availableQuantity) {
+          return res.status(400).json({ 
+            error: availableQuantity === 1 
+              ? 'This item is already in your cart. Only 1 available.' 
+              : `You already have ${existing.quantity} of this item in your cart. Only ${availableQuantity} available.` 
+          });
+        }
+        return res.status(400).json({ 
+          error: availableQuantity === 1 
+            ? 'This item is already in your cart (only 1 available)' 
+            : `Requested quantity not available. Only ${availableQuantity} in stock.` 
+        });
       }
 
       const { data, error } = await req.supabase
@@ -118,8 +153,12 @@ router.post('/', requireAuth, validate(schemas.addToCart), async (req, res) => {
     }
 
     // Add new cart item
-    if (quantity > product.quantity) {
-      return res.status(400).json({ error: 'Requested quantity not available' });
+    if (quantity > availableQuantity) {
+      return res.status(400).json({ 
+        error: availableQuantity === 1 
+          ? 'Only 1 of this item is available' 
+          : `Requested quantity not available. Only ${availableQuantity} in stock.` 
+      });
     }
 
     const { data, error } = await req.supabase
@@ -167,12 +206,23 @@ router.put('/:itemId', requireAuth, validate(schemas.updateCartItem), async (req
     // Check availability
     const { data: product } = await req.supabase
       .from('products')
-      .select('quantity')
+      .select('quantity, status')
       .eq('id', cartItem.product_id)
       .single();
 
-    if (quantity > product.quantity) {
-      return res.status(400).json({ error: 'Requested quantity not available' });
+    if (!product || product.status !== 'active') {
+      return res.status(400).json({ error: 'Product is not available' });
+    }
+
+    // Handle quantity: treat NULL or 0 as 1 (unique items)
+    const availableQuantity = product.quantity && product.quantity > 0 ? product.quantity : 1;
+
+    if (quantity > availableQuantity) {
+      return res.status(400).json({ 
+        error: availableQuantity === 1 
+          ? 'Only 1 of this item is available' 
+          : `Requested quantity not available. Only ${availableQuantity} in stock.` 
+      });
     }
 
     const { data, error } = await req.supabase

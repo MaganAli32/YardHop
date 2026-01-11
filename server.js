@@ -31,6 +31,7 @@ import reviewRoutes from './routes/reviews.js';
 import aiRoutes from './routes/ai.js';
 import uploadRoutes from './routes/upload.js';
 import searchRoutes from './routes/search.js';
+import paymentRoutes from './routes/payments.js';
 
 // Load environment variables
 dotenv.config();
@@ -78,9 +79,9 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.tailwindcss.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.tailwindcss.com", "https://unpkg.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://use.typekit.net"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.tailwindcss.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.tailwindcss.com", "https://unpkg.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:", "https://*.supabase.co"],
       connectSrc: ["'self'", "http://localhost:*", "http://127.0.0.1:*", "ws://localhost:*", "ws://127.0.0.1:*", supabaseUrl, "https://*.supabase.co", "wss://*.supabase.co", "https://generativelanguage.googleapis.com"],
     },
@@ -119,7 +120,62 @@ if (NODE_ENV === 'production') {
   app.use(morgan('dev'));
 }
 
-// Body parsing
+// IMPORTANT: Stripe webhook needs raw body for signature verification
+// Handle webhook route BEFORE body parsing to preserve raw body for signature verification
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const Stripe = (await import('stripe')).default;
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY_TEST;
+    const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, { apiVersion: '2024-12-18.acacia' }) : null;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!stripe || !webhookSecret) {
+      console.error('Stripe webhook secret not configured');
+      return res.status(503).json({ error: 'Webhook not configured' });
+    }
+
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle the event
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        console.log('PaymentIntent succeeded:', paymentIntent.id);
+        // Update order payment status in database
+        // This will be handled by updating the order after frontend confirmation
+        break;
+
+      case 'payment_intent.payment_failed':
+        const failedPayment = event.data.object;
+        console.log('PaymentIntent failed:', failedPayment.id);
+        // Update order payment status to failed
+        break;
+
+      case 'charge.refunded':
+        const refund = event.data.object;
+        console.log('Charge refunded:', refund.id);
+        break;
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Body parsing for all other routes
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -170,11 +226,19 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/messages', messageRoutes);
+
+// Legacy alias for conversations - proxy requests to messages routes
+// The messages router has routes like /conversations, so mounting at /api/conversations
+// won't work directly. Instead, we'll handle this in the messages router or 
+// create a simple proxy. For now, let's just mount messages router which will 
+// handle /api/messages/conversations correctly
+
 app.use('/api/community', communityRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // ============================================================
 // STATIC FILE SERVING (Frontend)
@@ -192,11 +256,20 @@ app.use(express.static(join(__dirname, 'dist'), {
 // ERROR HANDLING
 // ============================================================
 
-// 404 handler for API routes
-app.use('/api/*', (req, res) => {
+// 404 handler for API routes (must be after all API routes)
+// This catches any unmatched API routes
+app.use('/api', (req, res, next) => {
+  // If we reach here, no route matched
+  // Check if response was already sent (shouldn't happen, but safety check)
+  if (res.headersSent) {
+    return next();
+  }
   res.status(404).json({
     error: 'Not Found',
-    message: `API route ${req.method} ${req.path} not found`,
+    message: `API route ${req.method} ${req.originalUrl || req.url || req.path} not found`,
+    path: req.path,
+    url: req.url,
+    originalUrl: req.originalUrl,
   });
 });
 

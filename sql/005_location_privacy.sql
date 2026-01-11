@@ -18,6 +18,20 @@ ALTER TABLE products
   ADD COLUMN IF NOT EXISTS display_longitude DECIMAL(11,8),
   ADD COLUMN IF NOT EXISTS privacy_radius_meters INTEGER;
 
+-- Ensure all columns referenced in the view exist (might be missing if table was created differently)
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS shipping_available BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS shipping_price DECIMAL(10,2),
+  ADD COLUMN IF NOT EXISTS market_average DECIMAL(10,2),
+  ADD COLUMN IF NOT EXISTS is_steal BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS steal_percentage INTEGER,
+  ADD COLUMN IF NOT EXISTS garage_sale_id UUID,
+  ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS original_price DECIMAL(10,2),
+  ADD COLUMN IF NOT EXISTS category TEXT,
+  ADD COLUMN IF NOT EXISTS tags TEXT[];
+
 -- ============================================================
 -- HELPER FUNCTION: Apply privacy offset
 -- ============================================================
@@ -338,5 +352,7 @@ GRANT EXECUTE ON FUNCTION find_items_within_radius TO anon, authenticated;
 -- Uncomment to update existing records with default privacy settings:
 -- UPDATE garage_sales SET location_privacy = 'neighborhood' WHERE location_privacy IS NULL;
 -- UPDATE products SET location_privacy = 'neighborhood' WHERE location_privacy IS NULL;
+
+
 
 

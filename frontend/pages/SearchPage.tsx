@@ -5,7 +5,7 @@ import ProductCard from '../components/ProductCard';
 import { usePersistence } from '../store/PersistenceContext';
 import { productsApi, salesApi } from '../lib/api';
 import { Product, GarageSale } from '../types';
-import { FALLBACK_IMAGE } from '../data';
+import { FALLBACK_IMAGE, PRODUCTS, SALES } from '../data';
 
 const CATEGORIES = [
   { name: 'All', icon: (
@@ -87,7 +87,7 @@ const SearchPage: React.FC = () => {
       setError('');
       try {
         const params: any = {
-          sortBy: 'newest',
+          sort_by: 'newest',
         };
 
         if (selectedCategory !== 'All') {
@@ -95,18 +95,37 @@ const SearchPage: React.FC = () => {
         }
 
         if (coords) {
-          params.lat = coords.lat;
-          params.lng = coords.lng;
+          params.latitude = coords.lat;
+          params.longitude = coords.lng;
           params.radius = distanceRange;
         }
 
         const data = await productsApi.list(params);
+        console.log('Products API response:', data);
         // API returns { products: [], pagination: {} }
-        setProducts(data?.products || []);
+        const apiProducts = data?.products || [];
+        
+        if (apiProducts && apiProducts.length > 0) {
+          console.log(`Loaded ${apiProducts.length} products from API`);
+          setProducts(apiProducts);
+        } else {
+          // If API returns empty but no error, might just be no products in database
+          // Use mock data as fallback for testing (remove in production)
+          console.warn('No products returned from API, using mock data for testing');
+          setProducts(PRODUCTS);
+        }
       } catch (err: any) {
         console.error('Failed to fetch products:', err);
-        setError(err.message || 'Failed to load products');
-        setProducts([]);
+        // Check if it's a connection error vs actual API error
+        if (err?.message?.includes('Cannot connect') || err?.message?.includes('Failed to fetch')) {
+          // Backend might be down - use mock data as fallback
+          console.warn('Backend unavailable, using mock data for testing');
+          setError('Backend connection failed. Showing demo data.');
+          setProducts(PRODUCTS);
+        } else {
+          setError(err.message || 'Failed to load products');
+          setProducts([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -134,9 +153,10 @@ const SearchPage: React.FC = () => {
         }
 
         const data = await salesApi.list(params);
+        console.log('Sales API response:', data);
         // API returns { sales: [], pagination: {} }
         // Ensure each sale has an image field, extract from images array if needed
-        const salesWithImages = (data?.sales || []).map((sale: any) => {
+        const apiSales = (data?.sales || []).map((sale: any) => {
           let imageUrl = sale.image;
           // If no image field, try to extract from images array
           if (!imageUrl && sale.images && Array.isArray(sale.images) && sale.images.length > 0) {
@@ -149,11 +169,27 @@ const SearchPage: React.FC = () => {
           }
           return { ...sale, image: imageUrl };
         });
-        setSales(salesWithImages);
+        
+        if (apiSales && apiSales.length > 0) {
+          console.log(`Loaded ${apiSales.length} sales from API`);
+          setSales(apiSales);
+        } else {
+          // Use mock data as fallback for testing
+          console.warn('No sales returned from API, using mock data for testing');
+          setSales(SALES);
+        }
       } catch (err: any) {
         console.error('Failed to fetch garage sales:', err);
-        setError(err.message || 'Failed to load garage sales');
-        setSales([]);
+        // Check if it's a connection error vs actual API error
+        if (err?.message?.includes('Cannot connect') || err?.message?.includes('Failed to fetch')) {
+          // Backend might be down - use mock data as fallback
+          console.warn('Backend unavailable, using mock data for testing');
+          setError('Backend connection failed. Showing demo data.');
+          setSales(SALES);
+        } else {
+          setError(err.message || 'Failed to load garage sales');
+          setSales(SALES); // Still show mock data on error
+        }
       } finally {
         setLoading(false);
       }
@@ -349,11 +385,46 @@ const SearchPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {filteredItems.map(product => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
+                <>
+                  {loading ? (
+                    <div className="text-center py-20">
+                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent mb-4"></div>
+                      <p className="text-slate-500 font-medium">Loading treasures...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="text-center py-20 bg-red-50 rounded-xl border border-red-200">
+                      <p className="text-red-600 font-medium mb-4">{error}</p>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="text-sm text-red-600 hover:text-red-700 underline"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : filteredItems.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <p className="text-slate-400 font-medium italic mb-4">
+                        {products.length === 0 
+                          ? 'No products found. Be the first to list something!'
+                          : 'No products match your filters. Try adjusting your search.'}
+                      </p>
+                      {products.length === 0 && (
+                        <Link
+                          to="/create"
+                          className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-lg transition"
+                        >
+                          Create First Listing
+                        </Link>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {filteredItems.map(product => (
+                        <ProductCard key={product.id} product={product} />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

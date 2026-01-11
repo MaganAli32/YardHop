@@ -5,22 +5,27 @@
  * ============================================================
  */
 
+import { supabase } from './supabase';
+
 // Get API base URL from environment or default to localhost
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api';
 
 // Helper to get auth token from Supabase session
-const getAuthToken = (): string | null => {
+const getAuthToken = async (): Promise<string | null> => {
   try {
-    // Try to get from localStorage where Supabase stores it
-    const storageKey = Object.keys(localStorage).find(key => 
-      key.startsWith('sb-') && key.endsWith('-auth-token')
-    );
-    if (storageKey) {
-      const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      return data.access_token || null;
+    if (!supabase) return null;
+    
+    // Get current session from Supabase
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('Error getting session for API call:', error);
+      return null;
     }
-    return null;
-  } catch {
+    
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('Error in getAuthToken:', error);
     return null;
   }
 };
@@ -30,7 +35,7 @@ async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getAuthToken();
+  const token = await getAuthToken();
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -50,6 +55,44 @@ async function apiFetch<T>(
     });
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - token might be expired
+      if (response.status === 401) {
+        // Try to refresh the session
+        if (supabase) {
+          try {
+            const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !session) {
+              // Session refresh failed - user needs to log in again
+              // Don't clear session here - let the auth state change handler do it
+              console.warn('Session expired and refresh failed');
+            } else {
+              // Retry the request with new token
+              const newHeaders = {
+                ...headers,
+                'Authorization': `Bearer ${session.access_token}`,
+              };
+              const retryResponse = await fetch(url, {
+                ...options,
+                headers: newHeaders,
+              });
+              
+              if (!retryResponse.ok) {
+                const errorData = await retryResponse.json().catch(() => ({}));
+                throw new Error(errorData.message || errorData.error || `API Error: ${retryResponse.status}`);
+              }
+              
+              return retryResponse.json();
+            }
+          } catch (refreshErr) {
+            console.error('Error refreshing session:', refreshErr);
+          }
+        }
+        
+        // If refresh didn't work or not available, throw the original 401
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Authentication required. Please log in again.');
+      }
+      
       const errorData = await response.json().catch(() => ({}));
       const error = new Error(errorData.message || errorData.error || `API Error: ${response.status}`);
       // Attach error data to error object for access to code, usage, etc.
@@ -61,7 +104,7 @@ async function apiFetch<T>(
     return response.json();
   } catch (error: any) {
     // Network error - backend might not be running
-    if (error.message === 'Failed to fetch') {
+    if (error.message === 'Failed to fetch' || error.message.includes('Failed to fetch')) {
       throw new Error('Cannot connect to server. Make sure the backend is running on port 3000.');
     }
     throw error;
@@ -264,6 +307,23 @@ export const aiApi = {
     }),
 
   /**
+   * Get market arbitrage analysis for a product (Stitch Appraisal)
+   */
+  appraise: (data: {
+    title: string;
+    price: number;
+    description?: string;
+  }) =>
+    apiFetch<{
+      appraisal: string;
+      source: 'ai' | 'estimate';
+      usage?: any;
+    }>('/ai/appraise', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
    * Detect steals from a list of items
    */
   detectSteals: (items: Array<{
@@ -338,6 +398,12 @@ export const cartApi = {
   get: () =>
     apiFetch<{ items: any[]; summary: any }>('/cart'),
 
+  // Alias for backward compatibility - returns array of items
+  list: async (authToken?: string | null) => {
+    const data = await apiFetch<{ items: any[]; summary: any }>('/cart');
+    return data?.items || [];
+  },
+
   add: (product_id: string, quantity = 1) =>
     apiFetch<any>('/cart', {
       method: 'POST',
@@ -355,6 +421,35 @@ export const cartApi = {
 
   clear: () =>
     apiFetch<{ message: string }>('/cart', { method: 'DELETE' }),
+};
+
+// ============================================================
+// PAYMENTS API (Stripe Integration)
+// ============================================================
+export const paymentsApi = {
+  /**
+   * Create a payment intent for an order
+   */
+  createIntent: (amount: number, currency = 'usd', metadata?: Record<string, string>) =>
+    apiFetch<{ clientSecret: string; paymentIntentId: string }>('/payments/create-intent', {
+      method: 'POST',
+      body: JSON.stringify({ amount, currency, metadata }),
+    }),
+
+  /**
+   * Confirm a payment intent after successful payment
+   */
+  confirm: (paymentIntentId: string) =>
+    apiFetch<{
+      success: boolean;
+      paymentIntentId: string;
+      status: string;
+      amount: number;
+      currency: string;
+    }>('/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ paymentIntentId }),
+    }),
 };
 
 // ============================================================
@@ -411,6 +506,12 @@ export const messagesApi = {
       body: JSON.stringify(data),
     }),
 
+  getOrCreateConversation: (product_id: string) =>
+    apiFetch<{ conversation_id: string }>('/messages/conversations/get-or-create', {
+      method: 'POST',
+      body: JSON.stringify({ product_id }),
+    }),
+
   getUnreadCount: () =>
     apiFetch<{ unread_count: number }>('/messages/unread-count'),
 
@@ -441,6 +542,11 @@ export const conversationsApi = {
       conversation_id: conversationId,
       content,
     });
+  },
+
+  getOrCreate: async (product_id: string, authToken?: string | null) => {
+    const result = await messagesApi.getOrCreateConversation(product_id);
+    return result.conversation_id;
   },
 };
 
@@ -537,7 +643,7 @@ export const uploadApi = {
     formData.append('image', file);
     formData.append('bucket', bucket);
 
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -562,7 +668,7 @@ export const uploadApi = {
     files.forEach(file => formData.append('images', file));
     formData.append('bucket', bucket);
 
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -586,7 +692,7 @@ export const uploadApi = {
     const formData = new FormData();
     formData.append('avatar', file);
 
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;

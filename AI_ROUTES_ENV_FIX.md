@@ -68,3 +68,5 @@ curl -X POST http://localhost:3000/api/ai/suggest-price \
 The endpoint should now correctly read `GEMINI_API_KEY` from the environment at runtime.
 
 
+
+

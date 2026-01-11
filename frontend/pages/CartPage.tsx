@@ -38,7 +38,7 @@ const CartPage: React.FC = () => {
         setCartItems(data || []);
       } catch (err: any) {
         // Check if backend is unavailable (silently handle this case)
-        if (err?.isBackendUnavailable) {
+        if (err?.message?.includes('Cannot connect to server')) {
           // Backend API not available - silently use empty array
           setCartItems([]);
           // Don't show error message for unavailable backend
@@ -109,8 +109,12 @@ const CartPage: React.FC = () => {
     );
   }
 
+  // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const total = subtotal;
+  const totalShipping = 0; // Free local pickup/dropoff for neighborhood marketplace
+  const taxRate = 0.0825; // 8.25% local tax
+  const tax = subtotal * taxRate;
+  const total = subtotal + totalShipping + tax;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -259,6 +263,11 @@ const CartPage: React.FC = () => {
                   <div className="flex justify-between text-sm font-medium">
                     <span className="text-slate-400">Neighborhood Shipping</span>
                     <span className="font-bold text-white">${totalShipping.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="text-slate-400">Local Tax (8.25%)</span>
+                    <span className="font-bold text-white">${tax.toFixed(2)}</span>
                   </div>
                   
                   <div className="pt-6 border-t border-white/10">

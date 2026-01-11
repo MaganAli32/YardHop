@@ -8,8 +8,6 @@ import GarageSalesPage from './pages/GarageSalesPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import YardSaleDetailPage from './pages/YardSaleDetailPage';
 import FavoritesPage from './pages/FavoritesPage';
-import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage';
 import OrdersPage from './pages/OrdersPage';
 import CreateListingPage from './pages/CreateListingPage';
 import CreateGarageSalePage from './pages/CreateGarageSalePage';
@@ -108,28 +106,20 @@ const App: React.FC = () => {
               <Route path="/" element={<LandingPage />} />
               {/* Redirect /feed to the new unified /search hub */}
               <Route path="/feed" element={<Navigate to="/search" replace />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/sell-hub" element={<SellHubPage />} />
-              <Route path="/sales" element={<GarageSalesPage />} />
-              <Route path="/sales/:id" element={<YardSaleDetailPage />} />
-              <Route path="/product/:id" element={<ProductDetailPage />} />
               
               {/* Protected Routes - Require Authentication */}
+              <Route path="/search" element={
+                <ProtectedRoute>
+                  <SearchPage />
+                </ProtectedRoute>
+              } />
               <Route path="/favorites" element={
                 <ProtectedRoute>
                   <FavoritesPage />
                 </ProtectedRoute>
               } />
-              <Route path="/cart" element={
-                <ProtectedRoute>
-                  <CartPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/checkout" element={
-                <ProtectedRoute>
-                  <CheckoutPage />
-                </ProtectedRoute>
-              } />
+              <Route path="/cart" element={<Navigate to="/inbox" replace />} />
+              <Route path="/checkout" element={<Navigate to="/inbox" replace />} />
               <Route path="/orders" element={
                 <ProtectedRoute>
                   <OrdersPage />
@@ -167,6 +157,18 @@ const App: React.FC = () => {
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/live-advisor" element={<StitchLivePage />} />
+              <Route path="/sell-hub" element={
+                <ProtectedRoute>
+                  <SellHubPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/product/:id" element={
+                <ProtectedRoute>
+                  <ProductDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/sales" element={<GarageSalesPage />} />
+              <Route path="/sales/:id" element={<YardSaleDetailPage />} />
             </Routes>
           </Layout>
         </Router>

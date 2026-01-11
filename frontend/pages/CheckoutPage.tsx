@@ -1,8 +1,31 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
-import { cartApi, ordersApi } from '../lib/api';
+import { cartApi, ordersApi, paymentsApi } from '../lib/api';
+import { Elements } from '@stripe/react-stripe-js';
+import PaymentForm, { PaymentFormHandle } from '../components/PaymentForm';
+import type { StripeElementsOptions } from '@stripe/stripe-js';
+
+// Lazy load Stripe - only initialize when needed
+let stripePromise: Promise<any> | null = null;
+
+const getStripePromise = () => {
+  if (stripePromise) return stripePromise;
+  
+  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
+  
+  if (!stripePublishableKey) {
+    return Promise.resolve(null);
+  }
+  
+  // Lazy import loadStripe only when needed
+  stripePromise = import('@stripe/stripe-js').then((module) => {
+    return module.loadStripe(stripePublishableKey);
+  });
+  
+  return stripePromise;
+};
 
 interface CartItem {
   id: string;
@@ -65,15 +88,125 @@ const CheckoutPage: React.FC = () => {
   });
 
   const [paymentInfo, setPaymentInfo] = useState({
-    cardNumber: '',
     cardName: '',
-    expiryDate: '',
-    cvv: '',
     billingAddressSame: true
   });
 
+  // Payment state
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentReady, setPaymentReady] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [stripeLoaded, setStripeLoaded] = useState<any>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const paymentFormRef = useRef<PaymentFormHandle>(null);
+
+  // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const total = subtotal;
+  const totalShipping = 0; // Free local pickup/dropoff for neighborhood marketplace
+  const taxRate = 0.0825; // 8.25% local tax
+  const tax = subtotal * taxRate;
+  const total = subtotal + totalShipping + tax;
+
+  // Lazy load Stripe when user reaches payment step
+  useEffect(() => {
+    if (step === 'payment' && !stripeLoaded && !stripeLoading) {
+      setStripeLoading(true);
+      getStripePromise()
+        .then((stripe) => {
+          setStripeLoaded(stripe);
+          setStripeLoading(false);
+        })
+        .catch((err) => {
+          console.error('Failed to load Stripe:', err);
+          setStripeLoading(false);
+          setError('Failed to load payment processor. Please refresh the page.');
+        });
+    }
+  }, [step, stripeLoaded, stripeLoading]);
+
+  // Create payment intent when Stripe is loaded and user is on payment step
+  useEffect(() => {
+    if (step === 'payment' && !clientSecret && stripeLoaded && authToken) {
+      createPaymentIntent();
+    }
+  }, [step, clientSecret, stripeLoaded, authToken]);
+
+  const createPaymentIntent = async () => {
+    try {
+      setError('');
+      const result = await paymentsApi.createIntent(total, 'usd', {
+        order_type: 'checkout',
+        cart_items_count: cartItems.length.toString(),
+      });
+      setClientSecret(result.clientSecret);
+      setPaymentIntentId(result.paymentIntentId);
+    } catch (err: any) {
+      console.error('Failed to create payment intent:', err);
+      setError(err.message || 'Failed to initialize payment. Please try again.');
+    }
+  };
+
+  // Handle payment confirmation when moving to review step
+  const handleConfirmPayment = async () => {
+    if (!paymentIntentId || !paymentFormRef.current) {
+      setError('Payment not initialized. Please try again.');
+      return false;
+    }
+
+    if (!stripeLoaded) {
+      setError('Payment processor not loaded. Please refresh the page.');
+      return false;
+    }
+
+    if (!paymentReady) {
+      setError('Please complete all payment fields');
+      return false;
+    }
+
+    if (!paymentInfo.cardName.trim()) {
+      setError('Please enter cardholder name');
+      return false;
+    }
+
+    setProcessingPayment(true);
+    setError('');
+
+    try {
+      // Prepare billing address
+      const billingAddress = paymentInfo.billingAddressSame ? {
+        address: shippingInfo.address,
+        city: shippingInfo.city,
+        state: shippingInfo.state,
+        zipCode: shippingInfo.zipCode,
+        country: shippingInfo.country,
+      } : undefined;
+
+      // Confirm payment with Stripe (via PaymentForm)
+      const result = await paymentFormRef.current.confirmPayment(billingAddress);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Payment failed');
+      }
+
+      // Confirm with backend
+      const paymentResult = await paymentsApi.confirm(paymentIntentId);
+      
+      if (!paymentResult.success) {
+        throw new Error('Payment confirmation failed');
+      }
+
+      setPaymentConfirmed(true);
+      setProcessingPayment(false);
+      return true;
+    } catch (err: any) {
+      console.error('Payment confirmation error:', err);
+      setError(err.message || 'Payment failed. Please try again.');
+      setProcessingPayment(false);
+      return false;
+    }
+  };
 
   const handlePlaceOrder = async () => {
     if (!authToken) {
@@ -81,19 +214,59 @@ const CheckoutPage: React.FC = () => {
       return;
     }
 
+    if (!paymentIntentId || !paymentConfirmed) {
+      setError('Please complete payment before placing order');
+      return;
+    }
+
+    setProcessingPayment(true);
+    setError('');
+
     try {
-      const totalAmount = total;
+
+      // Get seller_id from first item (all items should be from same seller)
+      const firstProduct = cartItems[0]?.product;
+      const sellerId = (firstProduct as any)?.seller_id;
+      
+      if (!sellerId) {
+        throw new Error('Unable to determine seller. Please try again.');
+      }
+
+      // Prepare order data with payment information
       const meetupLocation = `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.state} ${shippingInfo.zipCode}`;
-      const meetupTime = new Date().toISOString(); // In real app, user would select a time
+      const meetupTime = new Date().toISOString();
       const notes = `Shipping to: ${shippingInfo.fullName}, ${shippingInfo.phone}`;
 
+      // Format shipping address as JSONB object
+      const shippingAddress = {
+        fullName: shippingInfo.fullName,
+        email: shippingInfo.email,
+        phone: shippingInfo.phone,
+        address: shippingInfo.address,
+        city: shippingInfo.city,
+        state: shippingInfo.state,
+        zipCode: shippingInfo.zipCode,
+        country: shippingInfo.country,
+      };
+
+      // Create order with payment information
       await ordersApi.create({
-        items: cartItems,
-        totalAmount,
-        meetupLocation,
-        meetupTime,
+        seller_id: sellerId,
+        items: cartItems.map(item => ({
+          product_id: item.productId || item.product.id,
+          quantity: item.quantity,
+        })),
+        delivery_method: 'pickup',
+        meetup_location: meetupLocation,
+        meetup_time: meetupTime,
         notes,
-      }, authToken);
+        shipping_address: shippingAddress,
+        billing_address: paymentInfo.billingAddressSame ? shippingAddress : null,
+        // Payment information
+        payment_intent_id: paymentIntentId,
+        payment_method_id: null, // Will be set by Stripe
+        stripe_customer_id: null, // Can be created if needed
+      });
 
       setOrderPlaced(true);
       setTimeout(() => {
@@ -101,7 +274,8 @@ const CheckoutPage: React.FC = () => {
       }, 3000);
     } catch (err: any) {
       console.error('Failed to place order:', err);
-      setError(err.message || 'Failed to place order');
+      setError(err.message || 'Failed to place order. Please try again.');
+      setProcessingPayment(false);
     }
   };
 
@@ -316,90 +490,111 @@ const CheckoutPage: React.FC = () => {
                   Payment Method
                 </h2>
                 
-                <form className="space-y-8">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card Number</label>
-                    <div className="relative">
-                       <span className="material-symbols-outlined absolute left-6 top-1/2 -translate-y-1/2 text-slate-300">credit_card</span>
-                       <input 
-                         type="text"
-                         value={paymentInfo.cardNumber}
-                         onChange={(e) => setPaymentInfo({...paymentInfo, cardNumber: e.target.value})}
-                         placeholder="0000 0000 0000 0000"
-                         maxLength={19}
-                         className="w-full px-16 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-primary/10 transition-all"
-                       />
+                {error && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
+                    <p className="text-sm text-red-600 font-medium">{error}</p>
+                  </div>
+                )}
+
+                {stripeLoading ? (
+                  <div className="space-y-4">
+                    <div className="p-6 bg-slate-50 rounded-2xl">
+                      <p className="text-sm text-slate-600 font-medium text-center">
+                        Loading payment processor...
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setStep('shipping')}
+                        className="flex-1 py-5 bg-slate-50 hover:bg-slate-100 text-slate-500 font-black rounded-2xl transition-all uppercase tracking-widest text-[10px]"
+                      >
+                        Back
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cardholder Name</label>
-                    <input 
-                      type="text"
-                      value={paymentInfo.cardName}
-                      onChange={(e) => setPaymentInfo({...paymentInfo, cardName: e.target.value})}
-                      placeholder="Name on Card"
-                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-primary/10 transition-all"
+                ) : !stripeLoaded ? (
+                  <div className="space-y-4">
+                    <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-2xl">
+                      <p className="text-sm text-yellow-800 font-medium">
+                        Payment processor not configured. Please set VITE_STRIPE_PUBLISHABLE_KEY in your environment variables.
+                      </p>
+                      <p className="text-xs text-yellow-700 mt-2">
+                        Note: Payment integration is optional. You can still test other features without it.
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setStep('shipping')}
+                        className="flex-1 py-5 bg-slate-50 hover:bg-slate-100 text-slate-500 font-black rounded-2xl transition-all uppercase tracking-widest text-[10px]"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                ) : !clientSecret ? (
+                  <div className="space-y-4">
+                    <div className="p-6 bg-slate-50 rounded-2xl">
+                      <p className="text-sm text-slate-600 font-medium text-center">
+                        Initializing payment...
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setStep('shipping')}
+                        className="flex-1 py-5 bg-slate-50 hover:bg-slate-100 text-slate-500 font-black rounded-2xl transition-all uppercase tracking-widest text-[10px]"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <Elements
+                    stripe={stripeLoaded}
+                    options={{
+                      clientSecret,
+                      appearance: {
+                        theme: 'stripe',
+                      },
+                    }}
+                  >
+                    <PaymentForm
+                      ref={paymentFormRef}
+                      clientSecret={clientSecret}
+                      cardName={paymentInfo.cardName}
+                      onCardNameChange={(name) => setPaymentInfo({ ...paymentInfo, cardName: name })}
+                      billingAddressSame={paymentInfo.billingAddressSame}
+                      onBillingAddressSameChange={(same) => setPaymentInfo({ ...paymentInfo, billingAddressSame: same })}
+                      onPaymentReady={setPaymentReady}
+                      error={error}
                     />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Expiry</label>
-                      <input 
-                        type="text"
-                        value={paymentInfo.expiryDate}
-                        onChange={(e) => setPaymentInfo({...paymentInfo, expiryDate: e.target.value})}
-                        placeholder="MM/YY"
-                        maxLength={5}
-                        className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-primary/10 transition-all"
-                      />
-                    </div>
                     
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">CVV</label>
-                      <input 
-                        type="text"
-                        value={paymentInfo.cvv}
-                        onChange={(e) => setPaymentInfo({...paymentInfo, cvv: e.target.value})}
-                        placeholder="123"
-                        maxLength={4}
-                        className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-primary/10 transition-all"
-                      />
+                    <div className="flex gap-4 mt-8">
+                      <button
+                        type="button"
+                        onClick={() => setStep('shipping')}
+                        className="flex-1 py-5 bg-slate-50 hover:bg-slate-100 text-slate-500 font-black rounded-2xl transition-all uppercase tracking-widest text-[10px]"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const success = await handleConfirmPayment();
+                          if (success) {
+                            setStep('review');
+                          }
+                        }}
+                        disabled={!paymentReady || processingPayment}
+                        className="flex-[2] bg-primary hover:bg-orange-600 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-primary/20 active:scale-95 uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {processingPayment ? 'Processing...' : 'Review Order'}
+                      </button>
                     </div>
-                  </div>
-                  
-                  <div className="pt-6 border-t border-slate-50">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                      <input 
-                        type="checkbox"
-                        checked={paymentInfo.billingAddressSame}
-                        onChange={(e) => setPaymentInfo({...paymentInfo, billingAddressSame: e.target.checked})}
-                        className="size-5 rounded-lg border-slate-200 text-primary focus:ring-primary"
-                      />
-                      <span className="text-sm font-medium text-slate-500 group-hover:text-slate-900 transition-colors">
-                        Billing address same as shipping
-                      </span>
-                    </label>
-                  </div>
-                  
-                  <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setStep('shipping')}
-                      className="flex-1 py-5 bg-slate-50 hover:bg-slate-100 text-slate-500 font-black rounded-2xl transition-all uppercase tracking-widest text-[10px]"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStep('review')}
-                      className="flex-[2] bg-primary hover:bg-orange-600 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-primary/20 active:scale-95 uppercase tracking-widest text-sm"
-                    >
-                      Review Order
-                    </button>
-                  </div>
-                </form>
+                  </Elements>
+                )}
               </div>
             )}
             
@@ -431,8 +626,17 @@ const CheckoutPage: React.FC = () => {
                            <span className="material-symbols-outlined !text-xl">credit_card</span>
                         </div>
                         <div className="text-sm font-bold">
-                          <p className="text-slate-900">Ending in {paymentInfo.cardNumber.slice(-4) || '0000'}</p>
-                          <p className="text-slate-400 text-[10px] uppercase tracking-widest">Expires {paymentInfo.expiryDate || '00/00'}</p>
+                          {paymentConfirmed ? (
+                            <>
+                              <p className="text-slate-900">Payment Confirmed</p>
+                              <p className="text-green-600 text-[10px] uppercase tracking-widest">✓ Secure Payment Processed</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-slate-900">Card on file</p>
+                              <p className="text-slate-400 text-[10px] uppercase tracking-widest">Payment will be processed</p>
+                            </>
+                          )}
                         </div>
                       </div>
                    </div>

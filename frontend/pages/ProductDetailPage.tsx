@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
-import { productsApi } from '../lib/api';
+import { productsApi, aiApi, favoritesApi, conversationsApi } from '../lib/api';
 import { PRODUCTS, FALLBACK_IMAGE } from '../data';
 import ProductCard from '../components/ProductCard';
 import { Product } from '../types';
@@ -23,6 +23,7 @@ import {
   Share2,
   CheckCircle2,
   Info,
+  Check,
 } from 'lucide-react';
 
 // --- CONSTANTS ---
@@ -30,45 +31,8 @@ const APP_ID = 'yardfront-preview';
 const DEFAULT_LAT = 33.4936; // Temecula, CA
 const DEFAULT_LNG = -117.1484;
 
-// --- GEMINI API INTEGRATION ---
-const GEMINI_API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY || '';
-
-async function callGemini(prompt: string, systemInstruction = "You are Stitch AI, a helpful neighborhood marketplace expert.") {
-  if (!GEMINI_API_KEY) {
-    return "AI diagnostic unavailable. API key not configured.";
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] }
-  };
-
-  const maxRetries = 5;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (response.ok) {
-        const result = await response.json();
-        return result.candidates?.[0]?.content?.parts?.[0]?.text || "No intelligence provided.";
-      }
-      if (response.status === 429 || response.status >= 500) {
-        const delay = Math.pow(2, i) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      throw new Error(`API Error: ${response.status}`);
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      const delay = Math.pow(2, i) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
+// --- AI API INTEGRATION ---
+// Using backend API instead of direct Gemini calls for better security
 
 // --- UI HELPERS ---
 const Img = ({ src, alt, className }: { src?: string; alt: string; className?: string }) => {
@@ -97,19 +61,41 @@ const DitherOverlay = () => (
 
 
 const StitchIntelligenceTerminal = ({ product }: { product: Product }) => {
-  const [stage, setStage] = useState<'locked' | 'initializing' | 'ready'>('locked');
+  const [stage, setStage] = useState<'locked' | 'initializing' | 'ready' | 'error'>('locked');
   const [report, setReport] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleInitialize = async () => {
     setStage('initializing');
+    setError(null);
+
     try {
-      const prompt = `Perform a neighborhood market arbitrage analysis for: "${product.title}" listed at $${product.price}. Context: ${product.description || 'No description provided'}. Return 3 clear bullet points: 1. Market Value Gap, 2. Specific risk points to check, 3. A Stitch Score out of 100.`;
-      const res = await callGemini(prompt, "You are Stitch AI, a cold-analytical but neighborhood-friendly market arbitrage expert.");
-      setReport(res);
+      const result = await aiApi.appraise({
+        title: product.title,
+        price: product.price,
+        description: product.description,
+      });
+      
+      if (!result.appraisal) {
+        setError('Failed to get appraisal. Please try again.');
+        setStage('error');
+        return;
+      }
+      
+      setReport(result.appraisal);
       setStage('ready');
-    } catch {
-      setStage('locked');
+    } catch (err: any) {
+      console.error('Stitch appraisal error:', err);
+      const errorMessage = err?.message || err?.error || 'Failed to run appraisal. Please check your connection and try again.';
+      setError(errorMessage);
+      setStage('error');
     }
+  };
+
+  const handleReset = () => {
+    setStage('locked');
+    setReport(null);
+    setError(null);
   };
 
   return (
@@ -143,13 +129,36 @@ const StitchIntelligenceTerminal = ({ product }: { product: Product }) => {
           </div>
         )}
 
+        {stage === 'error' && (
+          <div className="space-y-4">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-[11px] font-semibold text-red-700 mb-1">Appraisal Failed</p>
+              <p className="text-[11px] text-red-600 leading-relaxed">{error}</p>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleInitialize} 
+                className="flex-1 py-2 bg-[#121c32] text-white rounded-md font-semibold text-xs tracking-tight hover:bg-[#0f1728] transition-colors"
+              >
+                Try Again
+              </button>
+              <button 
+                onClick={handleReset} 
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-md font-semibold text-xs hover:bg-slate-50 transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+
         {stage === 'ready' && (
           <div className="space-y-4">
             <div className="text-[12px] text-slate-700 space-y-2 whitespace-pre-wrap leading-relaxed">
               {report}
             </div>
             <button 
-              onClick={() => { setStage('locked'); setReport(null); }} 
+              onClick={handleReset} 
               className="text-[10px] font-semibold text-slate-400 hover:text-[#121c32] transition-colors"
             >
               Reset
@@ -170,11 +179,31 @@ const SpecRow = ({ label, value, highlight = false }: { label: string; value: st
 );
 
 const SellerBox = ({ product }: { product: Product }) => {
-  const sellerName = product.sellerName || 'Verified Neighbor';
-  const sellerAvatar = product.sellerAvatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120';
-  const rating = product.rating || 5.0;
-  const reviewCount = product.reviewCount || 0;
-  const isVerified = product.isVerified !== false;
+  // Use seller object from API if available, otherwise fallback to old fields
+  const seller = product.seller;
+  const sellerName = seller?.name || product.sellerName || 'Verified Neighbor';
+  const sellerAvatar = seller?.avatar_url || product.sellerAvatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120';
+  const rating = seller?.rating_average || product.rating || 5.0;
+  const reviewCount = seller?.rating_count || product.reviewCount || 0;
+  const isVerified = seller?.verified !== false && (product.isVerified !== false);
+  
+  // Format location for display (extract city/state if available)
+  const locationText = product.location || 'Location not available';
+  let displayLocation = locationText;
+  try {
+    // Try to extract city/state from coordinates or location string
+    if (product.latitude && product.longitude) {
+      // For now, just show the location string, could enhance with geocoding
+      displayLocation = locationText;
+    } else if (locationText.includes(',')) {
+      // If it's "City, State" format, extract city
+      const parts = locationText.split(',');
+      displayLocation = parts.length > 1 ? `${parts[0].trim()}, ${parts[1].trim()}` : parts[0];
+    }
+  } catch (e) {
+    // Keep original if parsing fails
+    displayLocation = locationText;
+  }
   
   return (
     <div className="p-4 border border-slate-200 rounded-lg space-y-3">
@@ -182,7 +211,7 @@ const SellerBox = ({ product }: { product: Product }) => {
         <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
           <Img 
             src={sellerAvatar} 
-            alt="Seller" 
+            alt={sellerName} 
             className="w-full h-full object-cover" 
           />
         </div>
@@ -210,7 +239,7 @@ const SellerBox = ({ product }: { product: Product }) => {
         </div>
         <div className="text-right">
           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Location</p>
-          <p className="text-[11px] font-bold text-[#121c32]">{product.location || 'Temecula, CA'}</p>
+          <p className="text-[11px] font-bold text-[#121c32] truncate" title={locationText}>{displayLocation}</p>
         </div>
       </div>
     </div>
@@ -221,13 +250,15 @@ const SellerBox = ({ product }: { product: Product }) => {
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getOrCreateChat } = usePersistence();
+  const { authToken } = usePersistence();
   
   const [product, setProduct] = useState<Product | null>(null);
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string>(FALLBACK_IMAGE);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [checkingFavorite, setCheckingFavorite] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -251,6 +282,15 @@ const ProductDetailPage: React.FC = () => {
           setError('Product not found');
           setLoading(false);
           return;
+        }
+
+        // Debug: Log seller data to verify it's being received
+        if (process.env.NODE_ENV === 'development') {
+          console.log('ProductDetailPage - Seller data:', {
+            hasSeller: !!data.seller,
+            sellerName: data.seller?.name || data.sellerName,
+            sellerAvatar: data.seller?.avatar_url || data.sellerAvatar,
+          });
         }
 
         setProduct(data);
@@ -389,10 +429,95 @@ const ProductDetailPage: React.FC = () => {
     fetchProduct();
   }, [id]);
 
-  const handleStartMessage = () => {
-    if (!product) return;
-    const chat = getOrCreateChat(product);
-    navigate(`/inbox?chatId=${chat.id}`);
+  // Check if product is favorited when product loads
+  useEffect(() => {
+    const checkFavorite = async () => {
+      if (!id || !authToken) {
+        setIsFavorited(false);
+        return;
+      }
+
+      setCheckingFavorite(true);
+      try {
+        const result = await favoritesApi.check(id);
+        setIsFavorited(result.is_favorited || false);
+      } catch (err) {
+        console.error('Failed to check favorite status:', err);
+        setIsFavorited(false);
+      } finally {
+        setCheckingFavorite(false);
+      }
+    };
+
+    checkFavorite();
+  }, [id, authToken]);
+
+  const handleStartMessage = async () => {
+    if (!product || !authToken) {
+      navigate('/login', { state: { from: { pathname: `/product/${product?.id}` } } });
+      return;
+    }
+
+    try {
+      // Get or create conversation via API
+      const conversationId = await conversationsApi.getOrCreate(product.id, authToken);
+      navigate(`/inbox?chatId=${conversationId}`);
+    } catch (err: any) {
+      console.error('Failed to create conversation:', err);
+      setError(err.message || 'Failed to start conversation. Please try again.');
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!product || !authToken) {
+      navigate('/login', { state: { from: { pathname: `/product/${product?.id}` } } });
+      return;
+    }
+
+    try {
+      if (isFavorited) {
+        await favoritesApi.remove(product.id);
+        setIsFavorited(false);
+      } else {
+        await favoritesApi.add(product.id);
+        setIsFavorited(true);
+      }
+    } catch (err: any) {
+      console.error('Failed to toggle favorite:', err);
+      setError(err.message || 'Failed to update favorite. Please try again.');
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: product?.title || 'Check out this item',
+      text: product?.description || '',
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(window.location.href);
+        setError('Link copied to clipboard!');
+        setTimeout(() => setError(''), 2000);
+      }
+    } catch (err: any) {
+      // User cancelled share or error occurred
+      if (err.name !== 'AbortError') {
+        console.error('Failed to share:', err);
+        // Try clipboard fallback
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          setError('Link copied to clipboard!');
+          setTimeout(() => setError(''), 2000);
+        } catch (clipboardErr) {
+          setError('Failed to share. Please copy the URL manually.');
+        }
+      }
+    }
   };
 
   if (loading) {
@@ -564,17 +689,35 @@ const ProductDetailPage: React.FC = () => {
 
               {/* ACTIONS */}
               <div className="space-y-3 pt-2">
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-xs text-red-600 font-medium">{error}</p>
+                  </div>
+                )}
+                
                 <button 
                   onClick={handleStartMessage}
-                  className="w-full py-3.5 bg-[#FF6B35] text-white rounded-md font-semibold text-sm tracking-tight hover:bg-[#e85c2e] transition-colors shadow-[0_10px_22px_rgba(255,107,53,0.22)] flex items-center justify-center gap-2"
+                  className="w-full py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm tracking-tight transition-all shadow-xl shadow-[0_10px_22px_rgba(255,107,53,0.22)] flex items-center justify-center gap-2"
                 >
-                  <MessageCircle size={16} /> Contact seller
+                  <MessageCircle size={16} /> Contact Seller
                 </button>
+                
                 <div className="flex gap-3">
-                  <button className="flex-1 py-3 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                    <Heart size={14} /> Watch
+                  <button 
+                    onClick={handleToggleFavorite}
+                    disabled={checkingFavorite}
+                    className={`flex-1 py-3 border rounded-md font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
+                      isFavorited
+                        ? 'border-[#FF6B35] bg-[#FF6B35]/5 text-[#FF6B35]'
+                        : 'border-slate-200 text-[#121c32] hover:bg-slate-50'
+                    }`}
+                  >
+                    <Heart size={14} fill={isFavorited ? '#FF6B35' : 'none'} /> {isFavorited ? 'Saved' : 'Save'}
                   </button>
-                  <button className="flex-1 py-3 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                  <button 
+                    onClick={handleShare}
+                    className="flex-1 py-3 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                  >
                     <Share2 size={14} /> Share
                   </button>
                 </div>

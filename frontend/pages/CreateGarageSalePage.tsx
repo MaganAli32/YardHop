@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { salesApi, uploadApi } from '../lib/api';
-import { fileToBase64, blobUrlToFile } from '../lib/fileUtils';
+import { blobUrlToFile } from '../lib/fileUtils';
 import { LocationPrivacySelector } from '../components/maps';
 import {
   ChevronRight,
@@ -75,15 +75,14 @@ const CreateGarageSalePage: React.FC = () => {
       
       for (const photoUrl of photos) {
         const uploadId = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+        // Convert blob URL to File object
         const file = await blobUrlToFile(photoUrl, `sale-${uploadId}.jpg`);
-        const base64 = await fileToBase64(file);
         
+        // uploadApi.uploadImage expects (file: File, bucket: string)
         const result = await uploadApi.uploadImage(
-          base64, 
-          'garage-sale-images', 
-          `sale-${uploadId}.jpg`, 
-          authToken
-        ) as { url: string };
+          file, 
+          'garage-sale-images'
+        );
         
         imageUrls.push(result.url);
       }

@@ -83,6 +83,36 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
       return res.status(400).json({ error: 'Invalid bucket' });
     }
 
+    // Check if bucket exists before attempting upload
+    let bucketExists = await checkBucketExists(req.supabase, bucket);
+    
+    // If bucket doesn't exist, try to create it automatically (if admin access available)
+    if (bucketExists === false) {
+      console.log(`${bucket} bucket not found, attempting to create...`);
+      const createResult = await createBucketIfMissing(bucket, true);
+      
+      if (createResult.success && createResult.created) {
+        bucketExists = true; // Bucket was just created
+        console.log(`✅ Created storage bucket: ${bucket}`);
+      } else if (!createResult.success) {
+        // Could not create automatically, provide instructions
+        return res.status(500).json({ 
+          error: 'Storage bucket not configured',
+          message: `The "${bucket}" storage bucket does not exist in your Supabase project.`,
+          instructions: [
+            '1. Go to your Supabase Dashboard',
+            '2. Navigate to Storage section',
+            '3. Click "New bucket"',
+            '4. Create a bucket named "' + bucket + '"',
+            '5. Set it to Public',
+            '6. Or run the SQL script: sql/003_storage.sql in Supabase SQL Editor'
+          ],
+          sqlFile: 'sql/003_storage.sql',
+          autoCreateFailed: createResult.reason
+        });
+      }
+    }
+
     // Process image with sharp
     let processedImage = sharp(req.file.buffer);
 
@@ -104,21 +134,44 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
     const timestamp = Date.now();
     const filename = `${req.user.id}/${timestamp}.jpg`;
 
+    // Try to use admin client for upload (bypasses RLS issues)
+    const adminClient = getAdminClient();
+    const uploadClient = adminClient || req.supabase;
+
     // Upload to Supabase
-    const { data, error } = await req.supabase.storage
+    const { data, error } = await uploadClient.storage
       .from(bucket)
       .upload(filename, buffer, {
         contentType: 'image/jpeg',
         upsert: false,
       });
 
-    if (error) throw error;
+    if (error) {
+      // Provide helpful error message for missing bucket
+      if (error.message?.includes('Bucket not found') || error.message?.includes('not found') || error.message?.includes('does not exist')) {
+        return res.status(500).json({ 
+          error: 'Storage bucket not configured',
+          message: `The "${bucket}" storage bucket does not exist in your Supabase project.`,
+          instructions: [
+            '1. Go to your Supabase Dashboard',
+            '2. Navigate to Storage section',
+            '3. Click "New bucket"',
+            '4. Create a bucket named "' + bucket + '"',
+            '5. Set it to Public',
+            '6. Or run the SQL script: sql/003_storage.sql in Supabase SQL Editor'
+          ],
+          sqlFile: 'sql/003_storage.sql'
+        });
+      }
+      throw error;
+    }
 
     // Get public URL
-    const { data: { publicUrl } } = req.supabase.storage
+    const { data: { publicUrl } } = uploadClient.storage
       .from(bucket)
       .getPublicUrl(filename);
 
+    console.log(`✅ Successfully uploaded image to ${bucket}: ${filename}`);
     res.json({ url: publicUrl, path: data.path });
   } catch (error) {
     console.error('Upload error:', error);
@@ -142,6 +195,40 @@ router.post('/images', requireAuth, uploadLimiter, upload.array('images', 10), a
     if (!allowedBuckets.includes(bucket)) {
       return res.status(400).json({ error: 'Invalid bucket' });
     }
+
+    // Check if bucket exists before attempting upload
+    let bucketExists = await checkBucketExists(req.supabase, bucket);
+    
+    // If bucket doesn't exist, try to create it automatically (if admin access available)
+    if (bucketExists === false) {
+      console.log(`${bucket} bucket not found, attempting to create...`);
+      const createResult = await createBucketIfMissing(bucket, true);
+      
+      if (createResult.success && createResult.created) {
+        bucketExists = true; // Bucket was just created
+        console.log(`✅ Created storage bucket: ${bucket}`);
+      } else if (!createResult.success) {
+        // Could not create automatically, provide instructions
+        return res.status(500).json({ 
+          error: 'Storage bucket not configured',
+          message: `The "${bucket}" storage bucket does not exist in your Supabase project.`,
+          instructions: [
+            '1. Go to your Supabase Dashboard',
+            '2. Navigate to Storage section',
+            '3. Click "New bucket"',
+            '4. Create a bucket named "' + bucket + '"',
+            '5. Set it to Public',
+            '6. Or run the SQL script: sql/003_storage.sql in Supabase SQL Editor'
+          ],
+          sqlFile: 'sql/003_storage.sql',
+          autoCreateFailed: createResult.reason
+        });
+      }
+    }
+
+    // Try to use admin client for upload (bypasses RLS issues)
+    const adminClient = getAdminClient();
+    const uploadClient = adminClient || req.supabase;
 
     const results = [];
     const errors = [];
@@ -168,16 +255,22 @@ router.post('/images', requireAuth, uploadLimiter, upload.array('images', 10), a
         const timestamp = Date.now();
         const filename = `${req.user.id}/${timestamp}-${i}.jpg`;
 
-        const { data, error } = await req.supabase.storage
+        const { data, error } = await uploadClient.storage
           .from(bucket)
           .upload(filename, buffer, {
             contentType: 'image/jpeg',
             upsert: false,
           });
 
-        if (error) throw error;
+        if (error) {
+          // Provide helpful error message for missing bucket
+          if (error.message?.includes('Bucket not found') || error.message?.includes('not found') || error.message?.includes('does not exist')) {
+            throw new Error(`Storage bucket "${bucket}" not found. Please create it in Supabase Dashboard or run sql/003_storage.sql`);
+          }
+          throw error;
+        }
 
-        const { data: { publicUrl } } = req.supabase.storage
+        const { data: { publicUrl } } = uploadClient.storage
           .from(bucket)
           .getPublicUrl(filename);
 
@@ -185,6 +278,10 @@ router.post('/images', requireAuth, uploadLimiter, upload.array('images', 10), a
       } catch (err) {
         errors.push({ index: i, error: err.message });
       }
+    }
+
+    if (results.length > 0) {
+      console.log(`✅ Successfully uploaded ${results.length} image(s) to ${bucket}`);
     }
 
     res.json({

@@ -1,7 +1,26 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { usePersistence } from '../store/PersistenceContext';
 
-const Footer: React.FC = () => (
+const Footer: React.FC = () => {
+  const { user, loading } = usePersistence();
+  const navigate = useNavigate();
+
+  // Helper to handle protected navigation
+  const handleProtectedNavigation = (path: string) => {
+    console.log('Footer handleProtectedNavigation:', { hasUser: !!user, loading, path });
+    
+    if (user) {
+      // User is logged in, navigate directly
+      navigate(path);
+    } else {
+      // No user or still loading - redirect to login
+      console.log('No user, redirecting to login from:', path);
+      navigate('/login', { state: { from: { pathname: path } } });
+    }
+  };
+
+  return (
   <footer className="mt-auto w-full bg-[#020617] text-slate-400 border-t border-white/5 relative overflow-hidden">
     <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[#FF6B35]/50 to-transparent" />
     <div className="mx-auto max-w-7xl px-8 py-24 relative z-10">
@@ -22,7 +41,12 @@ const Footer: React.FC = () => (
           <ul className="space-y-5 text-xs font-bold uppercase tracking-widest text-slate-600 font-display">
             {['Browse Feed', 'Active Sales', 'Treasure Scanner', 'Start Selling'].map(item => (
               <li key={item}>
-                <Link className="hover:text-[#FF6B35] transition-colors" to="/search">{item}</Link>
+                <button
+                  onClick={() => handleProtectedNavigation('/search')}
+                  className="hover:text-[#FF6B35] transition-colors cursor-pointer"
+                >
+                  {item}
+                </button>
               </li>
             ))}
           </ul>
@@ -34,10 +58,24 @@ const Footer: React.FC = () => (
               { label: 'How It Works', path: '/how-it-works' },
               { label: 'Neighborhood Board', path: '/community' },
               { label: 'Live Advisor', path: '/live-advisor' },
-              { label: 'Exchange Zones', path: '/search' }
+              { label: 'Exchange Zones', path: '/search', protected: true }
             ].map(item => (
               <li key={item.label}>
-                <Link className="hover:text-[#FF6B35] transition-colors" to={item.path}>{item.label}</Link>
+                {item.protected ? (
+                  <button
+                    onClick={() => handleProtectedNavigation(item.path)}
+                    className="hover:text-[#FF6B35] transition-colors cursor-pointer"
+                  >
+                    {item.label}
+                  </button>
+                ) : (
+                  <Link 
+                    className="hover:text-[#FF6B35] transition-colors" 
+                    to={item.path}
+                  >
+                    {item.label}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
@@ -47,7 +85,12 @@ const Footer: React.FC = () => (
           <ul className="space-y-5 text-xs font-bold uppercase tracking-widest text-slate-600 font-display">
             {['My Dashboard', 'Order History', 'Saved Items', 'Inbox'].map(item => (
               <li key={item}>
-                <Link className="hover:text-[#FF6B35] transition-colors" to="/profile">{item}</Link>
+                <button
+                  onClick={() => handleProtectedNavigation('/profile')}
+                  className="hover:text-[#FF6B35] transition-colors cursor-pointer"
+                >
+                  {item}
+                </button>
               </li>
             ))}
           </ul>
@@ -62,6 +105,7 @@ const Footer: React.FC = () => (
       </div>
     </div>
   </footer>
-);
+  );
+};
 
 export default Footer;

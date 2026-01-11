@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
-import { Search, MapPin, ChevronRight, Star, User, ShoppingBag } from 'lucide-react';
+import { Search, MapPin, ChevronRight, Star, User, MessageCircle } from 'lucide-react';
 
 const Header: React.FC = () => {
-  const { user, signOut } = usePersistence();
+  const { user, signOut, loading } = usePersistence();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState('Temecula, CA');
@@ -12,8 +12,32 @@ const Header: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(location)}`);
+      const targetPath = `/search?q=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(location)}`;
+      if (!user && !loading) {
+        navigate('/login', { state: { from: { pathname: targetPath } } });
+      } else {
+        navigate(targetPath);
+      }
     }
+  };
+
+  // Helper to handle protected navigation
+  const handleProtectedNavigation = (path: string) => {
+    console.log('Header handleProtectedNavigation:', { hasUser: !!user, loading, path });
+    
+    if (user) {
+      // User is logged in, navigate directly
+      navigate(path);
+    } else {
+      // No user or still loading - redirect to login
+      console.log('No user, redirecting to login from:', path);
+      navigate('/login', { state: { from: { pathname: path } } });
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
   };
 
   return (
@@ -62,28 +86,40 @@ const Header: React.FC = () => {
           </form>
 
           <div className="flex items-center gap-6">
-            <Link 
-              to="/sell-hub" 
+            <button
+              onClick={() => handleProtectedNavigation('/sell-hub')}
               className="bg-[#FF6B35] hover:bg-[#ff8452] text-white px-6 py-3 rounded-md text-[10px] font-black uppercase tracking-[0.2em] hidden lg:block transition-all hover:-translate-y-1 italic font-display"
             >
               Start Selling
-            </Link>
+            </button>
             <div className="hidden lg:block w-px h-6 bg-slate-200" />
             <div className="flex items-center gap-4">
-              <Link to="/favorites" className="p-2 text-slate-400 hover:text-[#FF6B35] transition-all">
+              <button
+                onClick={() => handleProtectedNavigation('/favorites')}
+                className="p-2 text-slate-400 hover:text-[#FF6B35] transition-all"
+                title="Favorites"
+              >
                 <Star size={20} strokeWidth={2.5}/>
-              </Link>
-              <Link to="/profile" className="p-2 text-slate-400 hover:text-[#FF6B35] transition-all">
+              </button>
+              <button
+                onClick={() => handleProtectedNavigation('/profile')}
+                className="p-2 text-slate-400 hover:text-[#FF6B35] transition-all"
+                title="Profile"
+              >
                 <User size={20} strokeWidth={2.5}/>
-              </Link>
-              <Link to="/cart" className="p-2 text-slate-400 hover:text-[#FF6B35] transition-all">
-                <ShoppingBag size={20} strokeWidth={2.5}/>
-              </Link>
+              </button>
+              <button
+                onClick={() => handleProtectedNavigation('/inbox')}
+                className="p-2 text-slate-400 hover:text-[#FF6B35] transition-all"
+                title="Messages"
+              >
+                <MessageCircle size={20} strokeWidth={2.5}/>
+              </button>
             </div>
             <div className="w-px h-6 bg-slate-200" />
             {user ? (
               <button 
-                onClick={signOut} 
+                onClick={handleSignOut} 
                 className="text-sm font-black text-slate-600 hover:text-[#FF6B35] transition-colors font-display"
               >
                 LOG OUT
