@@ -301,11 +301,14 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================================
-// START SERVER
+// START SERVER (only if not in Vercel/serverless environment)
 // ============================================================
 
-const server = app.listen(PORT, () => {
-  console.log(`
+// Only start the server if not in Vercel's serverless environment
+// Vercel will handle the serverless function invocation
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+  const server = app.listen(PORT, () => {
+    console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🏠 YardFront Backend Server                               ║
@@ -316,24 +319,25 @@ const server = app.listen(PORT, () => {
 ║   🌍 Environment: ${NODE_ENV}                              ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-  `);
-});
-
-// Graceful Shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
+    `);
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
+  // Graceful Shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
   });
-});
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT signal received: closing HTTP server');
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+  });
+}
 
 export default app;
