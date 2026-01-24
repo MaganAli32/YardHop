@@ -127,6 +127,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_compute_garage_sale_display_location ON garage_sales;
 CREATE TRIGGER trigger_compute_garage_sale_display_location
   BEFORE INSERT OR UPDATE OF latitude, longitude, location_privacy ON garage_sales
   FOR EACH ROW
@@ -158,6 +159,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_compute_product_display_location ON products;
 CREATE TRIGGER trigger_compute_product_display_location
   BEFORE INSERT OR UPDATE OF latitude, longitude, location_privacy ON products
   FOR EACH ROW
@@ -258,7 +260,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================
 -- HELPER FUNCTION: Find items within radius
 -- ============================================================
-CREATE OR REPLACE FUNCTION find_items_within_radius(
+-- Drop old version if it exists (from 001_schema.sql) since this has a different signature
+DROP FUNCTION IF EXISTS find_items_within_radius(DECIMAL, DECIMAL, DECIMAL);
+CREATE FUNCTION find_items_within_radius(
   center_lat DECIMAL,
   center_lng DECIMAL,
   radius_miles DECIMAL DEFAULT 10

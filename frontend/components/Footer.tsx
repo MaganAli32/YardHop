@@ -99,8 +99,8 @@ const Footer: React.FC = () => {
       <div className="mt-24 pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
         <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] font-display">© 2026 YardFront, Inc. Designed for neighborhood trust.</p>
         <div className="flex gap-12 text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] font-display">
-          <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-          <a href="#" className="hover:text-white transition-colors">Terms of Use</a>
+          <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+          <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms of Use</Link>
         </div>
       </div>
     </div>

@@ -25,16 +25,20 @@ CREATE INDEX IF NOT EXISTS idx_ai_usage_user_month ON ai_usage (user_id, created
 -- RLS policies for ai_usage
 ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own AI usage" ON ai_usage;
 CREATE POLICY "Users can view own AI usage"
   ON ai_usage FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own AI usage" ON ai_usage;
 CREATE POLICY "Users can insert own AI usage"
   ON ai_usage FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Service role can insert AI usage" ON ai_usage;
 CREATE POLICY "Service role can insert AI usage"
   ON ai_usage FOR INSERT
+  TO service_role
   WITH CHECK (true);
 
 -- Function to get monthly scan count

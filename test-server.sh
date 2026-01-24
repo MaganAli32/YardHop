@@ -17,8 +17,8 @@ fi
 echo ""
 
 # Test 2: Health endpoint
-echo "2️⃣  Testing /health endpoint..."
-HEALTH=$(curl -s http://localhost:3000/health)
+echo "2️⃣  Testing /api/health endpoint..."
+HEALTH=$(curl -s http://localhost:3000/api/health)
 if [ $? -eq 0 ] && echo "$HEALTH" | grep -q "status"; then
   echo "   ✅ Health check passed"
   echo "   Response: $HEALTH"
@@ -56,7 +56,7 @@ echo "✅ All tests passed! Server is running correctly."
 echo ""
 echo "🌐 Try accessing:"
 echo "   - Frontend: http://localhost:3000"
-echo "   - Health: http://localhost:3000/health"
+echo "   - Health: http://localhost:3000/api/health"
 echo "   - API: http://localhost:3000/api/products"
 echo ""
 echo "💡 If browser still can't connect:"

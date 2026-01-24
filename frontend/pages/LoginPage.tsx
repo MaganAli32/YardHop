@@ -27,6 +27,10 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   // Get return path from location state (for post-login redirect)
   const from = (location.state as any)?.from?.pathname || '/search';
@@ -135,30 +139,43 @@ const LoginPage: React.FC = () => {
     navigate('/signup');
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
     if (!isSupabaseConfigured || !supabase) {
-      alert('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      setError('Authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
       return;
     }
 
-    const email = prompt('Enter your email address to reset password:');
-    if (email) {
-      try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}${window.location.pathname}#/reset-password`,
-        });
-        if (error) throw error;
-        alert('Password reset email sent! Check your inbox.');
-      } catch (err: any) {
-        alert(err.message || 'Failed to send reset email.');
-      }
+    if (!resetEmail.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setResetLoading(true);
+    setError('');
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}${window.location.pathname}#/reset-password`,
+      });
+      if (error) throw error;
+      setResetSuccess(true);
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetEmail('');
+        setResetSuccess(false);
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email.');
+      setResetLoading(false);
     }
   };
 
   return (
     <>
-      {error && (
-        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50">
+      {error && !showResetModal && (
+        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50 shadow-lg">
           {error}
         </div>
       )}
@@ -170,9 +187,79 @@ const LoginPage: React.FC = () => {
         onSignIn={handleSignIn}
         onGoogleSignIn={handleGoogleSignIn}
         onCreateAccount={handleCreateAccount}
-        onResetPassword={handleResetPassword}
+        onResetPassword={() => setShowResetModal(true)}
         buttonText={loading ? "Signing In..." : "Sign In"}
       />
+      
+      {/* Password Reset Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !resetLoading && setShowResetModal(false)}>
+          <div className="bg-white dark:bg-surface-dark rounded-lg p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-black mb-4 text-slate-900 dark:text-white">Reset Password</h3>
+            {resetSuccess ? (
+              <div className="space-y-4">
+                <p className="text-green-600 dark:text-green-400 font-medium">
+                  Password reset email sent! Check your inbox for instructions.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setResetEmail('');
+                    setResetSuccess(false);
+                  }}
+                  className="w-full bg-primary text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div>
+                  <label htmlFor="reset-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="w-full border border-gray-300 dark:border-white/10 rounded-lg px-4 py-2 bg-white dark:bg-black/20 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                    disabled={resetLoading}
+                  />
+                </div>
+                {error && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                  </div>
+                )}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResetModal(false);
+                      setResetEmail('');
+                      setError('');
+                    }}
+                    disabled={resetLoading}
+                    className="px-4 py-2 text-slate-600 dark:text-slate-400 font-medium hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resetLoading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };

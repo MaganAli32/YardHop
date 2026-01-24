@@ -89,19 +89,22 @@ const InboxPage: React.FC = () => {
     setStitchAdvice(null);
 
     try {
-      const conversation = messages.map(m => `${m.senderName}: ${m.text}`).join('\n');
-      const prompt = `You are the YardFront Stitch Assistant. Analyze this negotiation for "${activeChat.productTitle || 'this item'}" listed at $${activeChat.productPrice || 0}.
-        Conversation:
-        ${conversation}
-        
-        Provide a short, helpful insight for the buyer (${user.name || 'the user'}). Should they negotiate? Is it a good deal? What's a good counter-offer? Keep it neighborhood-friendly and concise.`;
+      const conversationContext = messages.map(m => 
+        `${m.senderId === user.id ? 'Me' : 'Seller'}: ${m.text}`
+      ).join('\n');
 
-      // Note: Stitch consultation feature can be implemented via AI API endpoint
-      // For now, we'll show a simple message
-      setStitchAdvice("Stitch says: This looks like a fair community price! Consider negotiating if you feel it's slightly high.");
-    } catch (err) {
-      console.error(err);
-      setStitchAdvice("Stitch is sleeping right now, but usually says: Trust your neighbor!");
+      // Call actual AI endpoint
+      const response = await aiApi.consultNegotiation({
+        product_title: activeChat.productTitle || 'this item',
+        product_price: activeChat.productPrice || 0,
+        conversation: conversationContext || 'No conversation yet.',
+        user_role: 'buyer', // Determine from context if needed
+      });
+
+      setStitchAdvice(response.advice || "Stitch says: This looks like a fair community price! Trust your instincts.");
+    } catch (err: any) {
+      console.error('Stitch consultation failed:', err);
+      setStitchAdvice("Stitch is temporarily unavailable. Trust your instincts and negotiate if you feel it's reasonable!");
     } finally {
       setIsStitchThinking(false);
     }

@@ -1,6 +1,7 @@
 -- ============================================================
--- YARDHOP DATABASE SCHEMA
+-- YARDHOP DATABASE SCHEMA (IDEMPOTENT VERSION)
 -- Complete PostgreSQL schema for Supabase
+-- Safe to run multiple times - won't error if tables exist
 -- ============================================================
 
 -- Enable required extensions
@@ -11,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "earthdistance";
 -- ============================================================
 -- 1. PROFILES (extends Supabase Auth)
 -- ============================================================
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
@@ -41,11 +42,14 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.raw_user_meta_data->>'avatar_url'
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Drop trigger if exists, then recreate
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
@@ -53,7 +57,7 @@ CREATE TRIGGER on_auth_user_created
 -- ============================================================
 -- 2. PRODUCTS/LISTINGS
 -- ============================================================
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
@@ -83,7 +87,7 @@ CREATE TABLE products (
 -- ============================================================
 -- 3. PRODUCT IMAGES
 -- ============================================================
-CREATE TABLE product_images (
+CREATE TABLE IF NOT EXISTS product_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL,
   url TEXT NOT NULL,
@@ -95,7 +99,7 @@ CREATE TABLE product_images (
 -- ============================================================
 -- 4. GARAGE SALES
 -- ============================================================
-CREATE TABLE garage_sales (
+CREATE TABLE IF NOT EXISTS garage_sales (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   host_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
@@ -116,14 +120,22 @@ CREATE TABLE garage_sales (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Add foreign key to products after garage_sales exists
-ALTER TABLE products ADD CONSTRAINT fk_products_garage_sale 
-  FOREIGN KEY (garage_sale_id) REFERENCES garage_sales(id) ON DELETE SET NULL;
+-- Add foreign key to products after garage_sales exists (only if constraint doesn't exist)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'fk_products_garage_sale'
+  ) THEN
+    ALTER TABLE products ADD CONSTRAINT fk_products_garage_sale 
+      FOREIGN KEY (garage_sale_id) REFERENCES garage_sales(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- ============================================================
 -- 5. GARAGE SALE IMAGES
 -- ============================================================
-CREATE TABLE garage_sale_images (
+CREATE TABLE IF NOT EXISTS garage_sale_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   garage_sale_id UUID REFERENCES garage_sales(id) ON DELETE CASCADE NOT NULL,
   url TEXT NOT NULL,
@@ -135,7 +147,7 @@ CREATE TABLE garage_sale_images (
 -- ============================================================
 -- 6. FAVORITES
 -- ============================================================
-CREATE TABLE favorites (
+CREATE TABLE IF NOT EXISTS favorites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   product_id UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL,
@@ -146,7 +158,7 @@ CREATE TABLE favorites (
 -- ============================================================
 -- 7. CART ITEMS
 -- ============================================================
-CREATE TABLE cart_items (
+CREATE TABLE IF NOT EXISTS cart_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   product_id UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL,
@@ -158,7 +170,7 @@ CREATE TABLE cart_items (
 -- ============================================================
 -- 8. ORDERS
 -- ============================================================
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   buyer_id UUID REFERENCES profiles(id) NOT NULL,
   seller_id UUID REFERENCES profiles(id) NOT NULL,
@@ -180,7 +192,7 @@ CREATE TABLE orders (
 -- ============================================================
 -- 9. ORDER ITEMS
 -- ============================================================
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID REFERENCES orders(id) ON DELETE CASCADE NOT NULL,
   product_id UUID REFERENCES products(id) NOT NULL,
@@ -192,7 +204,7 @@ CREATE TABLE order_items (
 -- ============================================================
 -- 10. CONVERSATIONS
 -- ============================================================
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -202,7 +214,7 @@ CREATE TABLE conversations (
 -- ============================================================
 -- 11. CONVERSATION PARTICIPANTS
 -- ============================================================
-CREATE TABLE conversation_participants (
+CREATE TABLE IF NOT EXISTS conversation_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
@@ -214,7 +226,7 @@ CREATE TABLE conversation_participants (
 -- ============================================================
 -- 12. MESSAGES
 -- ============================================================
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
   sender_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
@@ -226,7 +238,7 @@ CREATE TABLE messages (
 -- ============================================================
 -- 13. COMMUNITY POSTS
 -- ============================================================
-CREATE TABLE community_posts (
+CREATE TABLE IF NOT EXISTS community_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   author_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   type TEXT CHECK (type IN ('Free', 'Announcement', 'Event', 'Question', 'Lost & Found')) NOT NULL,
@@ -244,7 +256,7 @@ CREATE TABLE community_posts (
 -- ============================================================
 -- 14. COMMUNITY POST IMAGES
 -- ============================================================
-CREATE TABLE community_post_images (
+CREATE TABLE IF NOT EXISTS community_post_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES community_posts(id) ON DELETE CASCADE NOT NULL,
   url TEXT NOT NULL,
@@ -255,7 +267,7 @@ CREATE TABLE community_post_images (
 -- ============================================================
 -- 15. POST LIKES
 -- ============================================================
-CREATE TABLE post_likes (
+CREATE TABLE IF NOT EXISTS post_likes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES community_posts(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
@@ -266,7 +278,7 @@ CREATE TABLE post_likes (
 -- ============================================================
 -- 16. POST COMMENTS
 -- ============================================================
-CREATE TABLE post_comments (
+CREATE TABLE IF NOT EXISTS post_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID REFERENCES community_posts(id) ON DELETE CASCADE NOT NULL,
   author_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
@@ -277,7 +289,7 @@ CREATE TABLE post_comments (
 -- ============================================================
 -- 17. REVIEWS
 -- ============================================================
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reviewer_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   reviewee_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
@@ -290,7 +302,7 @@ CREATE TABLE reviews (
 -- ============================================================
 -- 18. PRICE ANALYSES (AI History)
 -- ============================================================
-CREATE TABLE price_analyses (
+CREATE TABLE IF NOT EXISTS price_analyses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   image_url TEXT,
@@ -307,7 +319,7 @@ CREATE TABLE price_analyses (
 -- ============================================================
 -- 19. SAVED SEARCHES
 -- ============================================================
-CREATE TABLE saved_searches (
+CREATE TABLE IF NOT EXISTS saved_searches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
@@ -320,7 +332,7 @@ CREATE TABLE saved_searches (
 -- ============================================================
 -- 20. RECENT SEARCHES
 -- ============================================================
-CREATE TABLE recent_searches (
+CREATE TABLE IF NOT EXISTS recent_searches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   query TEXT NOT NULL,
@@ -332,47 +344,111 @@ CREATE TABLE recent_searches (
 -- INDEXES FOR PERFORMANCE
 -- ============================================================
 
--- Location-based queries
-CREATE INDEX idx_products_location ON products USING gist (
-  ll_to_earth(latitude, longitude)
-) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+-- Add missing latitude/longitude columns if tables exist without them
+DO $$
+BEGIN
+  -- Add to profiles if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'latitude') THEN
+      ALTER TABLE profiles ADD COLUMN latitude DECIMAL(10,8);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'longitude') THEN
+      ALTER TABLE profiles ADD COLUMN longitude DECIMAL(11,8);
+    END IF;
+  END IF;
 
-CREATE INDEX idx_garage_sales_location ON garage_sales USING gist (
-  ll_to_earth(latitude, longitude)
-) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+  -- Add to products if missing (should already exist from CREATE TABLE, but just in case)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'products') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'latitude') THEN
+      ALTER TABLE products ADD COLUMN latitude DECIMAL(10,8);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'longitude') THEN
+      ALTER TABLE products ADD COLUMN longitude DECIMAL(11,8);
+    END IF;
+  END IF;
 
-CREATE INDEX idx_profiles_location ON profiles USING gist (
-  ll_to_earth(latitude, longitude)
-) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+  -- Add to garage_sales if missing (should already exist from CREATE TABLE, but just in case)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'garage_sales') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'garage_sales' AND column_name = 'latitude') THEN
+      ALTER TABLE garage_sales ADD COLUMN latitude DECIMAL(10,8);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'garage_sales' AND column_name = 'longitude') THEN
+      ALTER TABLE garage_sales ADD COLUMN longitude DECIMAL(11,8);
+    END IF;
+  END IF;
+END $$;
+
+-- Location-based queries (only create if columns exist)
+DO $$
+BEGIN
+  -- Products location index
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'products' AND column_name = 'latitude'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'products' AND column_name = 'longitude'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_products_location ON products USING gist (
+      ll_to_earth(latitude, longitude)
+    ) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+  END IF;
+
+  -- Garage sales location index
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'garage_sales' AND column_name = 'latitude'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'garage_sales' AND column_name = 'longitude'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_garage_sales_location ON garage_sales USING gist (
+      ll_to_earth(latitude, longitude)
+    ) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+  END IF;
+
+  -- Profiles location index
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'profiles' AND column_name = 'latitude'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'profiles' AND column_name = 'longitude'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_profiles_location ON profiles USING gist (
+      ll_to_earth(latitude, longitude)
+    ) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+  END IF;
+END $$;
 
 -- Common filters
-CREATE INDEX idx_products_status ON products(status);
-CREATE INDEX idx_products_seller ON products(seller_id);
-CREATE INDEX idx_products_category ON products(category);
-CREATE INDEX idx_products_is_steal ON products(is_steal) WHERE is_steal = TRUE;
-CREATE INDEX idx_products_created ON products(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+CREATE INDEX IF NOT EXISTS idx_products_seller ON products(seller_id);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_is_steal ON products(is_steal) WHERE is_steal = TRUE;
+CREATE INDEX IF NOT EXISTS idx_products_created ON products(created_at DESC);
 
-CREATE INDEX idx_garage_sales_date ON garage_sales(start_date);
-CREATE INDEX idx_garage_sales_status ON garage_sales(status);
-CREATE INDEX idx_garage_sales_host ON garage_sales(host_id);
+CREATE INDEX IF NOT EXISTS idx_garage_sales_date ON garage_sales(start_date);
+CREATE INDEX IF NOT EXISTS idx_garage_sales_status ON garage_sales(status);
+CREATE INDEX IF NOT EXISTS idx_garage_sales_host ON garage_sales(host_id);
 
-CREATE INDEX idx_messages_conversation ON messages(conversation_id);
-CREATE INDEX idx_messages_created ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
 
-CREATE INDEX idx_favorites_user ON favorites(user_id);
-CREATE INDEX idx_cart_items_user ON cart_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_user ON cart_items(user_id);
 
-CREATE INDEX idx_orders_buyer ON orders(buyer_id);
-CREATE INDEX idx_orders_seller ON orders(seller_id);
-CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_buyer ON orders(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_seller ON orders(seller_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
-CREATE INDEX idx_community_posts_type ON community_posts(type);
-CREATE INDEX idx_community_posts_author ON community_posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_community_posts_type ON community_posts(type);
+CREATE INDEX IF NOT EXISTS idx_community_posts_author ON community_posts(author_id);
 
-CREATE INDEX idx_reviews_reviewee ON reviews(reviewee_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewee ON reviews(reviewee_id);
 
-CREATE INDEX idx_recent_searches_user ON recent_searches(user_id);
-CREATE INDEX idx_recent_searches_created ON recent_searches(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recent_searches_user ON recent_searches(user_id);
+CREATE INDEX IF NOT EXISTS idx_recent_searches_created ON recent_searches(created_at DESC);
 
 -- ============================================================
 -- HELPER FUNCTIONS
@@ -395,7 +471,9 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Find items within radius
-CREATE OR REPLACE FUNCTION find_items_within_radius(
+-- Drop function first if it exists (to handle return type changes)
+DROP FUNCTION IF EXISTS find_items_within_radius(DECIMAL, DECIMAL, DECIMAL);
+CREATE FUNCTION find_items_within_radius(
   user_lat DECIMAL,
   user_lon DECIMAL,
   radius_miles DECIMAL
@@ -443,6 +521,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Drop trigger if exists, then recreate
+DROP TRIGGER IF EXISTS on_review_created ON reviews;
 CREATE TRIGGER on_review_created
   AFTER INSERT OR UPDATE ON reviews
   FOR EACH ROW EXECUTE FUNCTION update_user_rating();
@@ -456,26 +536,34 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Drop triggers if they exist, then recreate
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at
   BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_garage_sales_updated_at ON garage_sales;
 CREATE TRIGGER update_garage_sales_updated_at
   BEFORE UPDATE ON garage_sales
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
 CREATE TRIGGER update_orders_updated_at
   BEFORE UPDATE ON orders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_conversations_updated_at ON conversations;
 CREATE TRIGGER update_conversations_updated_at
   BEFORE UPDATE ON conversations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_community_posts_updated_at ON community_posts;
 CREATE TRIGGER update_community_posts_updated_at
   BEFORE UPDATE ON community_posts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+

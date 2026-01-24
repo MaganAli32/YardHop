@@ -369,6 +369,24 @@ export const aiApi = {
       resetsAt: string;
       upgrades: Record<string, { price: number; scans: number | string }>;
     }>('/ai/usage'),
+
+  /**
+   * Get AI negotiation consultation advice (Stitch Consultation)
+   */
+  consultNegotiation: (data: {
+    product_title: string;
+    product_price: number;
+    conversation: string;
+    user_role?: string;
+  }) =>
+    apiFetch<{
+      advice: string;
+      source: 'ai' | 'fallback';
+      usage?: any;
+    }>('/ai/consult-negotiation', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // ============================================================

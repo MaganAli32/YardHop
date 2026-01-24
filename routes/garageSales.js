@@ -62,13 +62,14 @@ router.get('/', optionalAuth, standardLimiter, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Query without rating_average to avoid errors if column doesn't exist
+    // Note: Products are not included in list view to avoid relationship ambiguity
+    // Products are loaded separately in the detail view where they're actually needed
     let query = req.supabase
       .from('garage_sales')
       .select(`
         *,
         host:profiles!host_id(id, name, avatar_url),
-        images:garage_sale_images(id, url, is_primary, order_index),
-        products:products(id, title, price, is_steal)
+        images:garage_sale_images(id, url, is_primary, order_index)
       `, { count: 'exact' })
       .in('status', status ? [status] : ['upcoming', 'active']);
 
@@ -158,7 +159,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
         *,
         host:profiles!host_id(id, name, avatar_url, bio, created_at),
         images:garage_sale_images(id, url, is_primary, order_index),
-        products:products(
+        products:products!garage_sale_id(
           id, title, description, price, original_price, market_average, 
           is_steal, steal_percentage, condition, category,
           images:product_images(id, url, is_primary, order_index)
@@ -451,7 +452,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
       .select(`
         *,
         images:garage_sale_images(id, url, is_primary, order_index),
-        products:products(count)
+        products:products!garage_sale_id(count)
       `)
       .eq('host_id', userId)
       .order('start_date', { ascending: false });

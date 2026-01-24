@@ -564,6 +564,92 @@ router.get('/usage', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/ai/consult-negotiation
+ * Get AI negotiation advice for a conversation (Stitch Consultation)
+ */
+router.post('/consult-negotiation', requireAuth, aiLimiter, async (req, res) => {
+  try {
+    const { product_title, product_price, conversation, user_role } = req.body;
+
+    if (!product_title || product_price === undefined) {
+      return res.status(400).json({ error: 'Product title and price are required' });
+    }
+
+    if (!getGeminiApiKey()) {
+      // Fallback advice if AI not available
+      return res.json({
+        advice: "This looks like a fair community price! Consider negotiating if you feel it's slightly high, but trust your instincts.",
+        source: 'fallback',
+      });
+    }
+
+    const prompt = `You are the YardHop Stitch Assistant, a friendly neighborhood marketplace advisor.
+
+Product: "${product_title}" listed at $${product_price}
+User Role: ${user_role || 'buyer'}
+Conversation so far:
+${conversation || 'No conversation yet.'}
+
+Provide brief, actionable advice (2-3 sentences max):
+- Is this a fair price?
+- Should they negotiate?
+- What's a reasonable counter-offer if applicable?
+
+Keep it friendly and neighborhood-appropriate. Be concise and helpful.`;
+
+    const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${getGeminiApiKey()}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 256,
+        },
+      }),
+    });
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API error:', errorText);
+      // Return fallback advice instead of failing
+      return res.json({
+        advice: "Looks like a fair neighborhood deal! Trust your instincts and negotiate if you feel it's reasonable.",
+        source: 'fallback',
+      });
+    }
+
+    const geminiData = await geminiResponse.json();
+    const advice = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!advice) {
+      return res.json({
+        advice: "Looks like a fair neighborhood deal! Trust your instincts.",
+        source: 'fallback',
+      });
+    }
+
+    // Record AI scan usage
+    await recordScan(req, 'consult-negotiation', { title: product_title });
+
+    res.json({
+      advice,
+      source: 'ai',
+      usage: req.scanUsage,
+    });
+  } catch (error) {
+    console.error('Consultation error:', error);
+    // Return fallback advice instead of failing
+    res.json({
+      advice: "Stitch is temporarily unavailable. Trust your instincts and negotiate if you feel it's reasonable!",
+      source: 'fallback',
+    });
+  }
+});
+
+/**
  * GET /api/ai/history
  * Get user's AI analysis history
  */

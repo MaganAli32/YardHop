@@ -17,7 +17,7 @@ const HowItWorksPage: React.FC = () => {
       icon: "photo_camera",
       color: "text-orange-500",
       bg: "bg-orange-50",
-      img: "https://images.unsplash.com/photo-1556740714-a8395b3bf30f?w=800&auto=format&fit=crop&q=60"
+      img: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1200&h=900&fit=crop&auto=format&q=85"
     },
     {
       num: "02",
@@ -27,7 +27,7 @@ const HowItWorksPage: React.FC = () => {
       icon: "forum",
       color: "text-blue-500",
       bg: "bg-blue-50",
-      img: "https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?w=800&auto=format&fit=crop&q=60"
+      img: "https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&h=900&fit=crop&auto=format&q=85"
     },
     {
       num: "03",
@@ -37,7 +37,7 @@ const HowItWorksPage: React.FC = () => {
       icon: "handshake",
       color: "text-green-500",
       bg: "bg-green-50",
-      img: "https://images.unsplash.com/photo-1526614180625-e6b402ea91da?w=800&auto=format&fit=crop&q=60"
+      img: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1200&h=900&fit=crop&auto=format&q=85"
     }
   ];
 
@@ -100,7 +100,17 @@ const HowItWorksPage: React.FC = () => {
                <div className={`${idx % 2 !== 0 ? 'lg:order-1' : ''} relative group`}>
                   <div className={`absolute -inset-4 rounded-[48px] ${step.bg} blur-2xl opacity-50 group-hover:opacity-100 transition-opacity`}></div>
                   <div className="relative aspect-[4/3] rounded-[40px] overflow-hidden shadow-2xl border-8 border-white group-hover:scale-[1.02] transition-transform duration-700">
-                     <img src={step.img} alt={step.title} className="w-full h-full object-cover" />
+                     <img 
+                       src={step.img} 
+                       alt={step.title} 
+                       className="w-full h-full object-cover"
+                       loading="lazy"
+                       onError={(e) => {
+                         // Fallback to a placeholder if image fails to load
+                         const target = e.target as HTMLImageElement;
+                         target.src = `https://via.placeholder.com/800x600/f3f4f6/9ca3af?text=${encodeURIComponent(step.title)}`;
+                       }}
+                     />
                   </div>
                   
                   {/* Floating Micro-UI Component */}

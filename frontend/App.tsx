@@ -8,6 +8,8 @@ import GarageSalesPage from './pages/GarageSalesPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import YardSaleDetailPage from './pages/YardSaleDetailPage';
 import FavoritesPage from './pages/FavoritesPage';
+import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
 import OrdersPage from './pages/OrdersPage';
 import CreateListingPage from './pages/CreateListingPage';
 import CreateGarageSalePage from './pages/CreateGarageSalePage';
@@ -20,10 +22,13 @@ import InboxPage from './pages/InboxPage';
 import GarageSaleScannerPage from './pages/GarageSaleScannerPage';
 import StitchLivePage from './pages/StitchLivePage';
 import SellHubPage from './pages/SellHubPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 import { PersistenceProvider } from './store/PersistenceContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import AuthCallbackHandler from './components/AuthCallbackHandler';
+import CookieConsent from './components/CookieConsent';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -48,6 +53,7 @@ const Layout: React.FC<{children: React.ReactNode}> = ({ children }) => {
       </main>
       {/* Footer is rendered inside LandingPage, so don't show it here for landing page */}
       {!isAuthPage && !isInbox && !isLive && !isLandingPage && <Footer />}
+      <CookieConsent />
     </div>
   );
 }
@@ -118,8 +124,16 @@ const App: React.FC = () => {
                   <FavoritesPage />
                 </ProtectedRoute>
               } />
-              <Route path="/cart" element={<Navigate to="/inbox" replace />} />
-              <Route path="/checkout" element={<Navigate to="/inbox" replace />} />
+              <Route path="/cart" element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/checkout" element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              } />
               <Route path="/orders" element={
                 <ProtectedRoute>
                   <OrdersPage />
@@ -157,6 +171,8 @@ const App: React.FC = () => {
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/live-advisor" element={<StitchLivePage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-service" element={<TermsOfServicePage />} />
               <Route path="/sell-hub" element={
                 <ProtectedRoute>
                   <SellHubPage />
