@@ -1,11 +1,4 @@
 {
-  "version": 2,
-  "buildCommand": "npm install && cd frontend && npm install && npm run build",
-  "functions": {
-    "api/index.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
@@ -13,4 +6,3 @@
     }
   ]
 }
-
