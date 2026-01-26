@@ -1,14 +1,5 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "frontend/dist",
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/(.*)", "dest": "/api/index.js" }
   ]
 }
