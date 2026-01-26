@@ -1,5 +1,7 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "dest": "/api/index.js" }
-  ]
+  "functions": {
+    "api/my-function.py": {
+      "runtime": "@vercel/python@4.3.0" 
+    }
+  }
 }
