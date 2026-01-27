@@ -7,10 +7,10 @@
 
 import { supabase } from './supabase';
 
-// Get API base URL from environment or default to relative path for production
-// For local development, set VITE_API_BASE=http://localhost:3000/api in .env
-// For Vercel/production, use relative path /api (same domain)
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+// API base URL - use relative path for universal compatibility
+// This works on desktop, mobile, production (Vercel), and all browsers
+// Vercel rewrites /api/* to /api/index.js (serverless function)
+const API_BASE = '/api';
 
 // Helper to get auth token from Supabase session
 const getAuthToken = async (): Promise<string | null> => {
