@@ -12,6 +12,7 @@ import {
   Navigation,
   RefreshCw,
 } from 'lucide-react';
+import { reverseGeocode } from '../../lib/geocoding';
 
 // =============================================================================
 // TYPES
@@ -85,7 +86,7 @@ async function getHighAccuracyLocation(): Promise<{ lat: number; lng: number }> 
 const LocationPrivacySelector: React.FC<LocationPrivacySelectorProps> = ({
   onLocationChange,
   initialPrivacy = 'neighborhood',
-  cityName = 'Temecula, CA',
+  cityName,
 }) => {
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
@@ -121,11 +122,15 @@ const LocationPrivacySelector: React.FC<LocationPrivacySelectorProps> = ({
       setLatitude(pos.lat);
       setLongitude(pos.lng);
       
-      // Set a placeholder address (in production, use reverse geocoding)
-      const placeholderAddress = `${cityName} (${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)})`;
-      setAddress(placeholderAddress);
-      
-      notifyChange(placeholderAddress, pos.lat, pos.lng, privacy);
+      try {
+        const actualAddress = await reverseGeocode(pos.lat, pos.lng);
+        setAddress(actualAddress);
+        notifyChange(actualAddress, pos.lat, pos.lng, privacy);
+      } catch (geocodeError) {
+        const coordsAddress = `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
+        setAddress(coordsAddress);
+        notifyChange(coordsAddress, pos.lat, pos.lng, privacy);
+      }
     } catch (err: any) {
       setError(
         err.code === 1

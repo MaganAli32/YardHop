@@ -59,7 +59,7 @@ const ProfilePage: React.FC = () => {
         
         // Fetch user's products using the user-specific endpoint (only active/reserved items)
         try {
-          const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api';
+          const API_BASE = import.meta.env.VITE_API_BASE || '/api';
           const productsResponse = await fetch(`${API_BASE}/products/user/${userId}?status=active`, {
             headers: {
               'Authorization': `Bearer ${authToken}`,
@@ -84,7 +84,7 @@ const ProfilePage: React.FC = () => {
 
         // Fetch user's garage sales using the user-specific endpoint
         try {
-          const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api';
+          const API_BASE = import.meta.env.VITE_API_BASE || '/api';
           const salesResponse = await fetch(`${API_BASE}/sales/user/${userId}`, {
             headers: {
               'Authorization': `Bearer ${authToken}`,

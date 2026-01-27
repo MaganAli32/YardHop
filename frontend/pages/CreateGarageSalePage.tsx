@@ -284,7 +284,7 @@ const PhotoUploader: React.FC<{
 
                   <LocationPrivacySelector
                     address={eventData.address}
-                    cityName={eventData.city ? `${eventData.city}, ${eventData.state}` : 'Temecula, CA'}
+                    cityName={eventData.city ? `${eventData.city}, ${eventData.state}` : undefined}
                     onLocationChange={(data) => {
                       setLocationData(data);
                       if (data?.address) {

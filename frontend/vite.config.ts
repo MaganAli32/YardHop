@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
         }
       },
       build: {
-        outDir: path.resolve(__dirname, '../dist'), // Output to root dist folder
+        outDir: 'dist', // Output to frontend/dist (relative to frontend root)
         emptyOutDir: true,
       }
     };

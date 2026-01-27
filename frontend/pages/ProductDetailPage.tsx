@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { productsApi, aiApi, favoritesApi, conversationsApi } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { PRODUCTS, FALLBACK_IMAGE } from '../data';
 import ProductCard from '../components/ProductCard';
 import { Product } from '../types';
@@ -28,8 +29,6 @@ import {
 
 // --- CONSTANTS ---
 const APP_ID = 'yardfront-preview';
-const DEFAULT_LAT = 33.4936; // Temecula, CA
-const DEFAULT_LNG = -117.1484;
 
 // --- AI API INTEGRATION ---
 // Using backend API instead of direct Gemini calls for better security
@@ -259,6 +258,7 @@ const ProductDetailPage: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string>(FALLBACK_IMAGE);
   const [isFavorited, setIsFavorited] = useState(false);
   const [checkingFavorite, setCheckingFavorite] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -429,6 +429,17 @@ const ProductDetailPage: React.FC = () => {
     fetchProduct();
   }, [id]);
 
+  // Load current user id for "own listing" checks (hide Contact Seller on own products)
+  useEffect(() => {
+    if (!authToken || !supabase) {
+      setCurrentUserId(null);
+      return;
+    }
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setCurrentUserId(user?.id ?? null);
+    });
+  }, [authToken]);
+
   // Check if product is favorited when product loads
   useEffect(() => {
     const checkFavorite = async () => {
@@ -588,9 +599,10 @@ const ProductDetailPage: React.FC = () => {
     ? Math.round(((product.originalPrice || product.market_average || 0) - product.price) / (product.originalPrice || product.market_average || 1) * 100) 
     : null;
 
-  const lat = product.latitude || (product as any).lat || DEFAULT_LAT;
-  const lng = product.longitude || (product as any).lng || DEFAULT_LNG;
+  const lat = product.latitude ?? (product as any).lat ?? null;
+  const lng = product.longitude ?? (product as any).lng ?? null;
   const privacy = (product.location_privacy || 'neighborhood') as 'exact' | 'neighborhood' | 'city';
+  const isOwnListing = currentUserId != null && (product.seller?.id === currentUserId || (product as any).seller_id === currentUserId);
 
   return (
     <div className="min-h-screen bg-white text-[#121c32] pt-10 pb-20 relative font-sans antialiased selection:bg-[#FF6B35] selection:text-white">
@@ -675,7 +687,7 @@ const ProductDetailPage: React.FC = () => {
 
                   <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
                     <span className="text-[11px] font-semibold text-slate-500">Neighborhood pickup</span>
-                    <span className="text-[11px] font-bold text-[#121c32]">{product.location || 'Temecula, CA'}</span>
+                    <span className="text-[11px] font-bold text-[#121c32]">{product.location || 'Location not specified'}</span>
                   </div>
                 </div>
 
@@ -683,7 +695,7 @@ const ProductDetailPage: React.FC = () => {
               <div className="space-y-0 pb-2">
                 <SpecRow label="Condition" value={product.specs?.Condition || "Used - Excellent"} />
                 <SpecRow label="Category" value={product.tags?.join(', ') || 'N/A'} />
-                <SpecRow label="Item Location" value={product.location || 'N/A'} />
+                <SpecRow label="Item Location" value={product.location || 'Location not specified'} />
                 <SpecRow label="Listing ID" value={`YF-${id}-${APP_ID.slice(0, 4)}`} />
               </div>
 
@@ -695,12 +707,18 @@ const ProductDetailPage: React.FC = () => {
                   </div>
                 )}
                 
-                <button 
-                  onClick={handleStartMessage}
-                  className="w-full py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm tracking-tight transition-all shadow-xl shadow-[0_10px_22px_rgba(255,107,53,0.22)] flex items-center justify-center gap-2"
-                >
-                  <MessageCircle size={16} /> Contact Seller
-                </button>
+                {isOwnListing ? (
+                  <div className="py-3.5 px-4 bg-slate-100 border border-slate-200 rounded-md text-center">
+                    <p className="text-sm font-medium text-slate-500">This is your listing. You can edit it from your profile.</p>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={handleStartMessage}
+                    className="w-full py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm tracking-tight transition-all shadow-xl shadow-[0_10px_22px_rgba(255,107,53,0.22)] flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle size={16} /> Contact Seller
+                  </button>
+                )}
                 
                 <div className="flex gap-3">
                   <button 
@@ -765,14 +783,20 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               </div>
               
-              <DiscoveryMap
-                lat={lat}
-                lng={lng}
-                privacy={privacy}
-                height="200px"
-                showUserLocation={true}
-                interactive={true}
-              />
+              {lat != null && lng != null ? (
+                <DiscoveryMap
+                  lat={lat}
+                  lng={lng}
+                  privacy={privacy}
+                  height="200px"
+                  showUserLocation={true}
+                  interactive={true}
+                />
+              ) : (
+                <div className="h-[200px] flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg">
+                  <p className="text-sm font-medium text-slate-500">Location not specified</p>
+                </div>
+              )}
               
               <p className="text-[11px] text-slate-400 font-medium">
                 For your safety, meeting in public areas or "Safe Trade Spots" at local police stations is highly recommended. 
