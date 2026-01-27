@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { Search, MapPin, ChevronRight, Star, User, MessageCircle, Menu, X } from 'lucide-react';
@@ -23,10 +24,40 @@ const Header: React.FC = () => {
   useEffect(() => {
     if (mobileMenuOpen) {
       document.body.style.overflow = 'hidden';
+      console.log('🔒 Body scroll locked, menu should be visible');
     } else {
       document.body.style.overflow = '';
+      console.log('🔓 Body scroll unlocked, menu closed');
     }
     return () => { document.body.style.overflow = ''; };
+  }, [mobileMenuOpen]);
+
+  // Debug: Log when menu state changes
+  useEffect(() => {
+    console.log('📱 Mobile menu state changed:', mobileMenuOpen);
+    console.log('📱 Window width:', window.innerWidth);
+    console.log('📱 Should show menu:', mobileMenuOpen && window.innerWidth < 768);
+    
+    // Check if menu element exists in DOM
+    if (mobileMenuOpen) {
+      setTimeout(() => {
+        const menuElement = document.querySelector('[aria-label="Mobile navigation"]');
+        console.log('📱 Menu element in DOM:', !!menuElement);
+        if (menuElement) {
+          const styles = window.getComputedStyle(menuElement);
+          console.log('📱 Menu computed styles:', {
+            display: styles.display,
+            visibility: styles.visibility,
+            opacity: styles.opacity,
+            zIndex: styles.zIndex,
+            position: styles.position,
+            top: styles.top
+          });
+        } else {
+          console.error('❌ Menu element NOT found in DOM!');
+        }
+      }, 100);
+    }
   }, [mobileMenuOpen]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -169,7 +200,13 @@ const Header: React.FC = () => {
           {/* Mobile: hamburger */}
           <button
             type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => {
+              console.log('🍔 Mobile menu clicked, current state:', mobileMenuOpen);
+              const newState = !mobileMenuOpen;
+              setMobileMenuOpen(newState);
+              console.log('🍔 Mobile menu new state:', newState);
+              console.log('🍔 Menu should be rendering:', newState);
+            }}
             className="md:hidden p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-600 hover:text-[#FF6B35] transition-colors rounded-md -mr-1"
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileMenuOpen}
@@ -178,14 +215,25 @@ const Header: React.FC = () => {
           </button>
         </div>
 
-        {/* Mobile menu overlay */}
-        {mobileMenuOpen && (
-          <div
-            className="md:hidden fixed inset-x-0 top-[73px] bottom-0 bg-white z-50 overflow-y-auto border-t border-slate-200 shadow-lg"
-            aria-modal="true"
-            role="dialog"
-            aria-label="Mobile navigation"
-          >
+        {/* Mobile menu overlay - rendered via portal to avoid stacking context issues */}
+        {mobileMenuOpen && typeof document !== 'undefined' && createPortal(
+          <>
+            {/* Debug indicator - remove after fixing */}
+            <div className="md:hidden fixed top-[65px] left-0 right-0 bg-[#FF6B35] text-white text-xs font-bold py-1 px-4 z-[200] text-center">
+              🐛 MOBILE MENU OPEN - If you see this, menu is rendering! (z-index: 200)
+            </div>
+            <div
+              className="md:hidden fixed inset-x-0 top-[73px] bottom-0 bg-white z-[200] overflow-y-auto border-t border-slate-200 shadow-lg"
+              style={{ 
+                display: 'block',
+                visibility: 'visible',
+                opacity: 1,
+                zIndex: 200
+              }}
+              aria-modal="true"
+              role="dialog"
+              aria-label="Mobile navigation"
+            >
             <nav className="flex flex-col p-4 sm:p-6 space-y-3">
               <form onSubmit={handleSearch} className="space-y-3 pb-4 border-b border-slate-200">
                 <div className="relative">
@@ -275,6 +323,8 @@ const Header: React.FC = () => {
               </div>
             </nav>
           </div>
+          </>,
+          document.body
         )}
       </header>
     </>
