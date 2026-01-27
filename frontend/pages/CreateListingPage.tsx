@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { usePersistence } from '../store/PersistenceContext';
 import { productsApi, aiApi, uploadApi } from '../lib/api';
 import { getFileFromBlobUrl, revokePhotoUrls } from '../lib/fileUtils';
@@ -235,20 +236,30 @@ const CreateListingPage: React.FC = () => {
                     placeholder="Enter item name"
                     value={formData.title}
                     onChange={e => setFormData({...formData, title: e.target.value})}
-                    className="w-full border border-slate-300 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors"
+                    className="w-full border border-slate-300 rounded-md px-4 py-2.5 text-base focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors"
                   />
                 </div>
 
+                {isAnalyzing && (
+                  <div className="flex items-center gap-3 p-4 bg-[#FF6B35]/5 border border-[#FF6B35]/20 rounded-md mb-4" role="status" aria-live="polite">
+                    <RefreshCw className="animate-spin text-[#FF6B35]" size={20} aria-hidden />
+                    <span className="text-sm font-medium text-slate-700">Analyzing price...</span>
+                  </div>
+                )}
                 <div className="flex gap-4 pt-4">
                   <button
                     onClick={handlePriceCheck}
                     disabled={isAnalyzing || !formData.title || photos.length === 0}
                     className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-900 font-semibold py-2.5 px-4 rounded-md transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                   >
-                    {isAnalyzing && (
-                      <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
+                    {isAnalyzing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-slate-500" aria-hidden />
+                        Analyzing...
+                      </>
+                    ) : (
+                      'Check price'
                     )}
-                    Check price
                   </button>
                   <button
                     onClick={() => setStep(2)}
@@ -301,7 +312,7 @@ const CreateListingPage: React.FC = () => {
                       placeholder="0.00"
                       value={formData.price}
                       onChange={e => setFormData({...formData, price: e.target.value})}
-                      className="w-full max-w-xs border border-slate-300 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:border-slate-900"
+                      className="w-full max-w-xs border border-slate-300 rounded-md px-4 py-2.5 text-base focus:outline-none focus:border-slate-900"
                     />
                   </div>
                 </section>
@@ -358,7 +369,7 @@ const CreateListingPage: React.FC = () => {
                     placeholder="Describe item features, flaws, or reasons for selling..."
                     value={formData.description}
                     onChange={e => setFormData({...formData, description: e.target.value})}
-                    className="w-full border border-slate-300 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:border-slate-900 resize-none"
+                    className="w-full border border-slate-300 rounded-md px-4 py-2.5 text-base focus:outline-none focus:border-slate-900 resize-none"
                   />
                 </section>
 
@@ -373,12 +384,17 @@ const CreateListingPage: React.FC = () => {
                   <button 
                     onClick={handlePublish}
                     disabled={isPublishing || !formData.price}
-                    className="bg-slate-900 text-white font-semibold py-3 px-12 rounded-md hover:bg-slate-800 transition shadow-sm text-sm disabled:opacity-50 flex items-center gap-2"
+                    className="bg-slate-900 text-white font-semibold py-3 px-12 rounded-md hover:bg-slate-800 transition shadow-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    aria-busy={isPublishing}
                   >
-                    {isPublishing && (
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    {isPublishing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" aria-hidden />
+                        <span>Uploading images...</span>
+                      </>
+                    ) : (
+                      'Publish listing'
                     )}
-                    {isPublishing ? 'Publishing...' : 'Publish listing'}
                   </button>
                 </div>
               </div>

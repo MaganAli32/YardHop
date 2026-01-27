@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { usePersistence } from '../store/PersistenceContext';
 import { favoritesApi } from '../lib/api';
 import { Product } from '../types';
@@ -70,8 +71,11 @@ const FavoritesPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center py-20">Loading favorites...</div>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center">
+          <RefreshCw className="animate-spin text-[#FF6B35]" size={32} aria-hidden />
+          <span className="mt-3 text-slate-600 font-medium">Loading favorites...</span>
+        </div>
       </div>
     );
   }

@@ -217,7 +217,7 @@ const PhotoUploader: React.FC<{
                   <input
                     type="text"
                     placeholder="e.g. Block Sale"
-                    className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 focus:ring-1 focus:ring-primary focus:border-primary transition-all text-sm outline-none"
+                    className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 focus:ring-1 focus:ring-primary focus:border-primary transition-all text-base outline-none"
                     value={eventData.name}
                     onChange={(e) => setEventData({ ...eventData, name: e.target.value })}
                   />
@@ -228,7 +228,7 @@ const PhotoUploader: React.FC<{
                   <textarea
                     rows={4}
                     placeholder="Describe items for sale..."
-                    className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-none text-sm outline-none"
+                    className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-none text-base outline-none"
                     value={eventData.description}
                     onChange={(e) => setEventData({ ...eventData, description: e.target.value })}
                   />
@@ -239,7 +239,7 @@ const PhotoUploader: React.FC<{
                     <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Date *</label>
                     <input
                       type="date"
-                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-base outline-none"
                       value={eventData.date}
                       onChange={(e) => setEventData({ ...eventData, date: e.target.value })}
                     />
@@ -248,7 +248,7 @@ const PhotoUploader: React.FC<{
                     <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Start Time *</label>
                     <input
                       type="time"
-                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-base outline-none"
                       value={eventData.startTime}
                       onChange={(e) => setEventData({ ...eventData, startTime: e.target.value })}
                     />
@@ -257,7 +257,7 @@ const PhotoUploader: React.FC<{
                     <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">End Time *</label>
                     <input
                       type="time"
-                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-base outline-none"
                       value={eventData.endTime}
                       onChange={(e) => setEventData({ ...eventData, endTime: e.target.value })}
                     />
@@ -269,14 +269,14 @@ const PhotoUploader: React.FC<{
                     <input
                       type="text"
                       placeholder="City"
-                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-base outline-none"
                       value={eventData.city}
                       onChange={(e) => setEventData({ ...eventData, city: e.target.value })}
                     />
                     <input
                       type="text"
                       placeholder="State"
-                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-sm outline-none"
+                      className="w-full border border-gray-300 rounded-md px-4 py-2.5 font-medium text-gray-900 text-base outline-none"
                       value={eventData.state}
                       onChange={(e) => setEventData({ ...eventData, state: e.target.value })}
                     />
@@ -386,10 +386,13 @@ const PhotoUploader: React.FC<{
               type="button"
               onClick={handleContinue}
               disabled={loading}
-              className="flex-1 bg-slate-900 text-white px-8 py-3 rounded-md font-bold text-xs uppercase tracking-wider hover:bg-black transition-all flex items-center justify-center gap-3 disabled:bg-gray-400"
+              className="flex-1 bg-slate-900 text-white px-8 py-3 rounded-md font-bold text-xs uppercase tracking-wider hover:bg-black transition-all flex items-center justify-center gap-3 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <div className="size-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                <>
+                  <div className="size-4 border-2 border-white/20 border-t-white rounded-full animate-spin" aria-hidden />
+                  <span>{step === 3 ? 'Uploading images...' : 'Saving...'}</span>
+                </>
               ) : (
                 <>
                   {step === 3 ? 'Publish event' : 'Save and Continue'}

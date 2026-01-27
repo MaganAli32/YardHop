@@ -708,13 +708,13 @@ const ProductDetailPage: React.FC = () => {
                 )}
                 
                 {isOwnListing ? (
-                  <div className="py-3.5 px-4 bg-slate-100 border border-slate-200 rounded-md text-center">
+                  <div className="py-3.5 px-4 bg-slate-100 border border-slate-200 rounded-md text-center min-h-[44px] flex items-center justify-center">
                     <p className="text-sm font-medium text-slate-500">This is your listing. You can edit it from your profile.</p>
                   </div>
                 ) : (
                   <button 
                     onClick={handleStartMessage}
-                    className="w-full py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm tracking-tight transition-all shadow-xl shadow-[0_10px_22px_rgba(255,107,53,0.22)] flex items-center justify-center gap-2"
+                    className="w-full min-h-[44px] py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm tracking-tight transition-all shadow-xl shadow-[0_10px_22px_rgba(255,107,53,0.22)] flex items-center justify-center gap-2"
                   >
                     <MessageCircle size={16} /> Contact Seller
                   </button>
@@ -724,7 +724,7 @@ const ProductDetailPage: React.FC = () => {
                   <button 
                     onClick={handleToggleFavorite}
                     disabled={checkingFavorite}
-                    className={`flex-1 py-3 border rounded-md font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
+                    className={`flex-1 min-h-[44px] py-3 border rounded-md font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
                       isFavorited
                         ? 'border-[#FF6B35] bg-[#FF6B35]/5 text-[#FF6B35]'
                         : 'border-slate-200 text-[#121c32] hover:bg-slate-50'
@@ -734,7 +734,7 @@ const ProductDetailPage: React.FC = () => {
                   </button>
                   <button 
                     onClick={handleShare}
-                    className="flex-1 py-3 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 min-h-[44px] py-3 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
                   >
                     <Share2 size={14} /> Share
                   </button>
@@ -784,14 +784,16 @@ const ProductDetailPage: React.FC = () => {
               </div>
               
               {lat != null && lng != null ? (
-                <DiscoveryMap
-                  lat={lat}
-                  lng={lng}
-                  privacy={privacy}
-                  height="200px"
-                  showUserLocation={true}
-                  interactive={true}
-                />
+                <div className="h-[280px] md:h-[200px] w-full rounded-lg overflow-hidden">
+                  <DiscoveryMap
+                    lat={lat}
+                    lng={lng}
+                    privacy={privacy}
+                    height="100%"
+                    showUserLocation={true}
+                    interactive={true}
+                  />
+                </div>
               ) : (
                 <div className="h-[200px] flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg">
                   <p className="text-sm font-medium text-slate-500">Location not specified</p>

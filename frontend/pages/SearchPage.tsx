@@ -7,6 +7,41 @@ import { productsApi, salesApi } from '../lib/api';
 import { Product, GarageSale } from '../types';
 import { FALLBACK_IMAGE, PRODUCTS, SALES } from '../data';
 
+const SearchSkeletonGrid = () => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" aria-busy="true">
+    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+      <div key={i} className="animate-pulse rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-slate-200 h-48" />
+        <div className="p-4 space-y-2">
+          <div className="bg-slate-200 h-4 rounded w-3/4" />
+          <div className="bg-slate-200 h-4 rounded w-1/2" />
+          <div className="bg-slate-200 h-3 rounded w-1/3 mt-3" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const EventsSkeletonList = () => (
+  <div className="space-y-8" aria-busy="true">
+    {[1, 2, 3].map((i) => (
+      <div key={i} className="animate-pulse bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="p-5 border-b border-slate-50 flex items-start gap-4">
+          <div className="w-12 h-12 bg-slate-200 rounded-lg shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="bg-slate-200 h-5 rounded w-2/3" />
+            <div className="bg-slate-200 h-4 rounded w-1/4" />
+          </div>
+        </div>
+        <div className="aspect-[21/9] bg-slate-200" />
+        <div className="p-5 bg-slate-50">
+          <div className="bg-slate-200 h-3 rounded w-full" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const CATEGORIES = [
   { name: 'All', icon: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -375,22 +410,35 @@ const SearchPage: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-6 md:px-10 md:py-8">
             <div className="max-w-6xl mx-auto">
               {mode === 'events' ? (
-                <div className="space-y-8">
-                  {filteredEvents.length > 0 ? filteredEvents.map(sale => (
-                    <SalesEventCard key={sale.id} sale={sale} />
-                  )) : (
+                <>
+                  {loading ? (
+                    <EventsSkeletonList />
+                  ) : error ? (
+                    <div className="text-center py-20 bg-red-50 rounded-xl border border-red-200">
+                      <p className="text-red-600 font-medium mb-4">{error}</p>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="text-sm text-red-600 hover:text-red-700 underline"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : filteredEvents.length > 0 ? (
+                    <div className="space-y-8">
+                      {filteredEvents.map(sale => (
+                        <SalesEventCard key={sale.id} sale={sale} />
+                      ))}
+                    </div>
+                  ) : (
                     <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                       <p className="text-slate-400 font-medium italic">No neighborhood sales found in this range.</p>
+                      <p className="text-slate-400 font-medium italic">No neighborhood sales found in this range.</p>
                     </div>
                   )}
-                </div>
+                </>
               ) : (
                 <>
                   {loading ? (
-                    <div className="text-center py-20">
-                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent mb-4"></div>
-                      <p className="text-slate-500 font-medium">Loading treasures...</p>
-                    </div>
+                    <SearchSkeletonGrid />
                   ) : error ? (
                     <div className="text-center py-20 bg-red-50 rounded-xl border border-red-200">
                       <p className="text-red-600 font-medium mb-4">{error}</p>

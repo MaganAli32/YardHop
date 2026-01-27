@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { usePersistence } from '../store/PersistenceContext';
 import { conversationsApi, aiApi } from '../lib/api';
 import { Chat, Message } from '../types';
@@ -117,6 +118,17 @@ const InboxPage: React.FC = () => {
     // Since our mock data is simple, we'll just show all for now.
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className="flex-grow flex items-center justify-center min-h-[60vh] bg-slate-50 dark:bg-background-dark">
+        <div className="flex flex-col items-center">
+          <RefreshCw className="animate-spin text-[#FF6B35]" size={32} aria-hidden />
+          <span className="mt-3 text-slate-600 dark:text-slate-400 font-medium">Loading messages...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-grow h-[calc(100vh-140px)] bg-slate-50 dark:bg-background-dark overflow-hidden animate-fadeIn">
