@@ -139,6 +139,51 @@ router.get('/', optionalAuth, standardLimiter, async (req, res) => {
 });
 
 /**
+ * GET /api/sales/user/:userId
+ * Get garage sales by user
+ * MUST BE BEFORE /:id route to avoid conflicts
+ */
+router.get('/user/:userId', optionalAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status } = req.query;
+
+    let query = req.supabase
+      .from('garage_sales')
+      .select(`
+        *,
+        images:garage_sale_images(id, url, is_primary, order_index),
+        products:products!garage_sale_id(count)
+      `)
+      .eq('host_id', userId)
+      .order('start_date', { ascending: false });
+
+    // Filter by status
+    if (status) {
+      query = query.eq('status', status);
+    } else if (req.user?.id !== userId) {
+      // Only show upcoming/active to others
+      query = query.in('status', ['upcoming', 'active']);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    // Add image convenience field
+    const sales = (data || []).map(sale => {
+      const primaryImage = getPrimaryImage(sale.images);
+      return { ...sale, image: primaryImage };
+    });
+
+    res.json(sales);
+  } catch (error) {
+    console.error('Error fetching user garage sales:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/sales/:id
  * Get single garage sale details
  */
@@ -434,50 +479,6 @@ router.post('/:id/images', requireAuth, async (req, res) => {
     res.status(201).json(data);
   } catch (error) {
     console.error('Error adding images:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/sales/user/:userId
- * Get garage sales by user
- */
-router.get('/user/:userId', optionalAuth, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { status } = req.query;
-
-    let query = req.supabase
-      .from('garage_sales')
-      .select(`
-        *,
-        images:garage_sale_images(id, url, is_primary, order_index),
-        products:products!garage_sale_id(count)
-      `)
-      .eq('host_id', userId)
-      .order('start_date', { ascending: false });
-
-    // Filter by status
-    if (status) {
-      query = query.eq('status', status);
-    } else if (req.user?.id !== userId) {
-      // Only show upcoming/active to others
-      query = query.in('status', ['upcoming', 'active']);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    // Add image convenience field
-    const sales = (data || []).map(sale => {
-      const primaryImage = getPrimaryImage(sale.images);
-      return { ...sale, image: primaryImage };
-    });
-
-    res.json(sales);
-  } catch (error) {
-    console.error('Error fetching user garage sales:', error);
     res.status(500).json({ error: error.message });
   }
 });
