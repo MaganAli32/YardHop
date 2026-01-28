@@ -265,6 +265,14 @@ router.post('/', requireAuth, validate(schemas.createGarageSale), async (req, re
   try {
     const { image_urls, ...saleData } = req.body;
 
+    console.log('[GarageSale Create] Received payload:', {
+      title: saleData.title,
+      address: saleData.address,
+      imageCount: image_urls?.length || 0,
+      imageUrls: image_urls,
+      userId: req.user.id,
+    });
+
     // Create garage sale
     const { data: sale, error } = await req.supabase
       .from('garage_sales')
@@ -275,10 +283,17 @@ router.post('/', requireAuth, validate(schemas.createGarageSale), async (req, re
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[GarageSale Create] Error inserting sale:', error);
+      throw error;
+    }
+
+    console.log('[GarageSale Create] Sale created with ID:', sale.id);
 
     // Add images if provided
     if (image_urls && image_urls.length > 0) {
+      console.log(`[GarageSale Create] Inserting ${image_urls.length} images...`);
+      
       const images = image_urls.map((url, index) => ({
         garage_sale_id: sale.id,
         url,
@@ -286,14 +301,32 @@ router.post('/', requireAuth, validate(schemas.createGarageSale), async (req, re
         order_index: index,
       }));
 
-      const { error: imgError } = await req.supabase.from('garage_sale_images').insert(images);
+      console.log('[GarageSale Create] Image records to insert:', images);
+
+      const { data: insertedImages, error: imgError } = await req.supabase
+        .from('garage_sale_images')
+        .insert(images)
+        .select();
+
       if (imgError) {
-        console.warn('Error inserting garage sale images:', imgError.message);
+        console.error('[GarageSale Create] Error inserting garage sale images:', {
+          error: imgError.message,
+          code: imgError.code,
+          details: imgError.details,
+          hint: imgError.hint,
+          imagesAttempted: images,
+        });
+        // Don't throw - continue even if images fail
+      } else {
+        console.log(`[GarageSale Create] Successfully inserted ${insertedImages?.length || 0} images:`, insertedImages);
       }
+    } else {
+      console.log('[GarageSale Create] No images provided');
     }
 
     // Fetch complete sale with relations
-    const { data: completeSale } = await req.supabase
+    console.log('[GarageSale Create] Fetching complete sale with relations...');
+    const { data: completeSale, error: fetchError } = await req.supabase
       .from('garage_sales')
       .select(`
         *,
@@ -303,13 +336,33 @@ router.post('/', requireAuth, validate(schemas.createGarageSale), async (req, re
       .eq('id', sale.id)
       .single();
 
+    if (fetchError) {
+      console.error('[GarageSale Create] Error fetching complete sale:', fetchError);
+      throw fetchError;
+    }
+
+    console.log('[GarageSale Create] Complete sale fetched:', {
+      id: completeSale.id,
+      title: completeSale.title,
+      imageCount: completeSale.images?.length || 0,
+      images: completeSale.images,
+    });
+
     // Add image convenience field
     const primaryImage = getPrimaryImage(completeSale?.images);
+    console.log('[GarageSale Create] Primary image extracted:', primaryImage);
+    
     const saleWithImage = { ...completeSale, image: primaryImage };
 
     res.status(201).json(saleWithImage);
   } catch (error) {
-    console.error('Error creating garage sale:', error);
+    console.error('[GarageSale Create] Error creating garage sale:', {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      stack: error.stack,
+    });
     res.status(500).json({ error: error.message });
   }
 });

@@ -72,27 +72,54 @@ const CreateGarageSalePage: React.FC = () => {
 
     try {
       const imageUrls: string[] = [];
+      const uploadErrors: string[] = [];
       
-      for (const photoUrl of photos) {
-        const uploadId = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-        // Convert blob URL to File object
-        const file = await blobUrlToFile(photoUrl, `sale-${uploadId}.jpg`);
-        
-        // uploadApi.uploadImage expects (file: File, bucket: string)
-        const result = await uploadApi.uploadImage(
-          file, 
-          'garage-sale-images'
-        );
-        
-        imageUrls.push(result.url);
+      // Upload images with error handling - continue even if some fail
+      for (let i = 0; i < photos.length; i++) {
+        const photoUrl = photos[i];
+        try {
+          const uploadId = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+          console.log(`[Upload ${i + 1}/${photos.length}] Converting blob URL to file...`);
+          
+          // Convert blob URL to File object
+          const file = await blobUrlToFile(photoUrl, `sale-${uploadId}.jpg`);
+          
+          console.log(`[Upload ${i + 1}/${photos.length}] Uploading to garage-sale-images bucket...`);
+          
+          // uploadApi.uploadImage expects (file: File, bucket: string)
+          const result = await uploadApi.uploadImage(
+            file, 
+            'garage-sale-images'
+          );
+          
+          console.log(`[Upload ${i + 1}/${photos.length}] Success:`, result.url);
+          imageUrls.push(result.url);
+        } catch (uploadErr: any) {
+          console.error(`[Upload ${i + 1}/${photos.length}] Failed:`, uploadErr);
+          uploadErrors.push(`Image ${i + 1}: ${uploadErr.message || 'Upload failed'}`);
+          // Continue with other images even if this one fails
+        }
       }
 
+      if (uploadErrors.length > 0 && imageUrls.length === 0) {
+        throw new Error(`All image uploads failed: ${uploadErrors.join(', ')}`);
+      }
+
+      if (uploadErrors.length > 0) {
+        console.warn(`Some images failed to upload:`, uploadErrors);
+      }
+
+      console.log('Creating garage sale with payload:', {
+        title: eventData.name,
+        address: locationData?.address || eventData.address,
+        imageCount: imageUrls.length,
+      });
+
+      // Remove city, state, and is_private - these fields don't exist in DB schema
       const payload = {
         title: eventData.name,
         description: eventData.description,
         address: locationData?.address || eventData.address,
-        city: eventData.city,
-        state: eventData.state,
         latitude: locationData?.latitude,
         longitude: locationData?.longitude,
         location_privacy: locationData?.privacy || 'neighborhood',
@@ -101,16 +128,27 @@ const CreateGarageSalePage: React.FC = () => {
         start_time: eventData.startTime,
         end_time: eventData.endTime,
         image_urls: imageUrls, // API expects image_urls, not images
-        is_private: locationData?.privacy !== 'exact'
       };
 
       const finalResult = await salesApi.create(payload, authToken) as { id: string };
       
+      console.log('Garage sale created successfully:', finalResult);
+      
       if (finalResult.id) {
-        navigate('/search?mode=events', { replace: true });
+        if (uploadErrors.length > 0) {
+          // Show warning but still navigate
+          setError(`Sale created but some images failed: ${uploadErrors.join(', ')}`);
+          setTimeout(() => {
+            navigate('/search?mode=events', { replace: true });
+          }, 2000);
+        } else {
+          navigate('/search?mode=events', { replace: true });
+        }
       }
     } catch (err: any) {
+      console.error('Error publishing garage sale:', err);
       setError(err.message || 'Error publishing listing.');
+      setLoading(false);
     } finally {
       setLoading(false);
   }

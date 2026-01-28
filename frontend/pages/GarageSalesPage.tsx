@@ -26,10 +26,18 @@ const GarageSalesPage: React.FC = () => {
         }
         const data = await salesApi.list(params);
         
+        console.log('Raw sales data from API:', data);
+        
         // Helper to extract primary image URL from a sale object
         const getSaleImage = (sale: any): string => {
-          // If there's already an image field with a value
+          console.log(`Processing sale "${sale.title}" images:`, {
+            imageField: sale.image,
+            imagesArray: sale.images
+          });
+          
+          // If there's already an image field with a value (set by backend)
           if (sale.image && typeof sale.image === 'string' && sale.image.trim() !== '') {
+            console.log(`Using pre-set image field: ${sale.image}`);
             return sale.image;
           }
           
@@ -43,6 +51,7 @@ const GarageSalesPage: React.FC = () => {
             });
             
             const first = sorted[0];
+            console.log(`Found ${sale.images.length} images, using first:`, first);
             
             // If it's a string
             if (typeof first === 'string' && first.trim() !== '') {
@@ -55,6 +64,7 @@ const GarageSalesPage: React.FC = () => {
             }
           }
           
+          console.log(`No images found for sale "${sale.title}", using fallback`);
           return FALLBACK_IMAGE;
         };
         
@@ -63,6 +73,8 @@ const GarageSalesPage: React.FC = () => {
           ...sale,
           image: getSaleImage(sale)
         }));
+        
+        console.log('Processed sales with images:', salesWithImages);
         
         setSales(salesWithImages);
       } catch (err: any) {

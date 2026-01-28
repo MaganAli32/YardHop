@@ -221,7 +221,7 @@ export const salesApi = {
   get: (id: string) =>
     apiFetch<any>(`/sales/${id}`),
 
-  create: (data: any) =>
+  create: (data: any, _authToken?: string | null) =>
     apiFetch<any>('/sales', {
       method: 'POST',
       body: JSON.stringify(data),

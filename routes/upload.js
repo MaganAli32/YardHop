@@ -88,6 +88,9 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
     const adminClient = getAdminClient();
     const uploadClient = adminClient || req.supabase;
 
+    console.log(`[Upload] Using ${adminClient ? 'admin' : 'regular'} client for bucket: ${bucket}`);
+    console.log(`[Upload] Filename: ${filename}, Size: ${buffer.length} bytes`);
+
     // Upload to Supabase
     const { data, error } = await uploadClient.storage
       .from(bucket)
@@ -97,11 +100,20 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
       });
 
     if (error) {
-      console.error('Upload error:', error);
+      console.error('[Upload] Storage error:', {
+        error: error.message,
+        statusCode: error.statusCode,
+        bucket,
+        filename,
+        usingAdminClient: !!adminClient,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      });
       return res.status(500).json({ 
         error: 'Upload failed',
         message: error.message,
-        details: 'Make sure the storage bucket exists in Supabase Dashboard'
+        details: adminClient 
+          ? 'Admin client used but upload failed. Check bucket exists and permissions.'
+          : 'Using regular client. SUPABASE_SERVICE_ROLE_KEY may be missing. Make sure the storage bucket exists in Supabase Dashboard and RLS policies allow uploads.'
       });
     }
 
