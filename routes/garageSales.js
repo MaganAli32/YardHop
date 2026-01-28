@@ -141,7 +141,7 @@ router.get('/', optionalAuth, standardLimiter, async (req, res) => {
 /**
  * GET /api/sales/user/:userId
  * Get garage sales by user
- * MUST BE BEFORE /:id route to avoid conflicts
+ * IMPORTANT: Must be BEFORE /:id route!
  */
 router.get('/user/:userId', optionalAuth, async (req, res) => {
   try {
@@ -186,6 +186,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
 /**
  * GET /api/sales/:id
  * Get single garage sale details
+ * IMPORTANT: Must be AFTER /user/:userId route!
  */
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
