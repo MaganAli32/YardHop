@@ -121,14 +121,21 @@ const SignupPage: React.FC = () => {
       return;
     }
 
-    // Use the same redirect URL format as login
-    const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+    // Set redirect URL - must match exactly what's configured in Supabase dashboard
+    // For HashRouter, use base URL - Supabase will handle the callback
+    const baseUrl = import.meta.env.VITE_APP_URL || 'https://yard-front-ivory.vercel.app';
+    // Remove any trailing slashes and hash fragments
+    const redirectUrl = baseUrl.replace(/\/$/, '').split('#')[0];
 
     try {
       const { data, error: googleError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 

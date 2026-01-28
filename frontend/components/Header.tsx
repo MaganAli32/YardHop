@@ -2,23 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
-import { Search, MapPin, ChevronRight, Star, User, MessageCircle, Menu, X } from 'lucide-react';
+import { Search, ChevronRight, Star, User, MessageCircle, Menu, X } from 'lucide-react';
 
 const Header: React.FC = () => {
   const { user, signOut, loading } = usePersistence();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [location, setLocation] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Use user's location from profile when available; avoid hardcoded defaults
-  useEffect(() => {
-    if (user?.location) {
-      setLocation(user.location);
-    } else {
-      setLocation('');
-    }
-  }, [user?.location]);
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -64,7 +54,7 @@ const Header: React.FC = () => {
     e.preventDefault();
     setMobileMenuOpen(false);
     if (searchQuery.trim()) {
-      const targetPath = `/search?q=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(location)}`;
+      const targetPath = `/search?q=${encodeURIComponent(searchQuery)}`;
       if (!user && !loading) {
         navigate('/login', { state: { from: { pathname: targetPath } } });
       } else {
@@ -103,7 +93,7 @@ const Header: React.FC = () => {
             <span className="text-xl md:text-2xl font-black text-[#121c32] tracking-tighter uppercase italic font-display">YardFront</span>
           </Link>
 
-          <form onSubmit={handleSearch} className="flex-1 max-w-2xl hidden md:flex items-center group/search">
+          <form onSubmit={handleSearch} className="flex-1 max-w-2xl hidden md:flex items-center group/search gap-3">
             <div className="flex-1 relative">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                 <Search size={16} strokeWidth={3} />
@@ -113,26 +103,16 @@ const Header: React.FC = () => {
                 placeholder="Search items..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-l-md py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-4 focus:ring-[#FF6B35]/5 focus:border-[#FF6B35] transition-all font-body"
-              />
-            </div>
-            <div className="w-48 relative border-l border-slate-200">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                <MapPin size={16} strokeWidth={3} />
-              </div>
-              <input 
-                type="text" 
-                placeholder="Location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full bg-slate-50 border-y border-slate-200 py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-4 focus:ring-[#FF6B35]/5 focus:border-[#FF6B35] transition-all font-body"
+                className="w-full bg-slate-50 border border-slate-200 rounded-md py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-4 focus:ring-[#FF6B35]/5 focus:border-[#FF6B35] transition-all font-body"
               />
             </div>
             <button 
-              type="submit" 
-              className="bg-[#FF6B35] hover:bg-[#ff8452] text-white px-6 py-3 rounded-r-md transition-all active:scale-90 flex items-center shadow-lg shadow-orange-500/20"
+              type="button"
+              onClick={() => handleProtectedNavigation('/search')}
+              className="bg-[#FF6B35] hover:bg-[#ff8452] text-white px-6 py-3 rounded-md transition-all active:scale-90 flex items-center gap-2 shadow-lg shadow-orange-500/20 text-[10px] font-black uppercase tracking-[0.2em] italic font-display whitespace-nowrap"
             >
-              <ChevronRight size={20} strokeWidth={4} />
+              Browse Feed
+              <ChevronRight size={16} strokeWidth={4} />
             </button>
           </form>
 
@@ -247,33 +227,23 @@ const Header: React.FC = () => {
                     autoComplete="off"
                   />
                 </div>
-                <div className="relative">
-                  <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Location (e.g. city or zip)"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
-                    autoComplete="off"
-                  />
-                </div>
                 <button type="submit" className="w-full bg-[#FF6B35] hover:bg-[#ff8452] text-white py-3 rounded-lg font-bold text-sm uppercase tracking-wider transition-colors flex items-center justify-center gap-2 min-h-[44px]">
                   <Search size={20} /> Search
                 </button>
               </form>
+              
+              <button
+                onClick={() => handleProtectedNavigation('/search')}
+                className="w-full bg-[#FF6B35] hover:bg-[#ff8452] text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 min-h-[44px]"
+              >
+                <ChevronRight size={18} /> Browse Feed
+              </button>
 
               <button
                 onClick={() => handleProtectedNavigation('/sell-hub')}
                 className="w-full bg-[#FF6B35] hover:bg-[#ff8452] text-white py-3 rounded-lg font-bold flex items-center justify-center min-h-[44px]"
               >
                 Start Selling
-              </button>
-              <button
-                onClick={() => handleProtectedNavigation('/search')}
-                className="w-full py-3 border-2 border-slate-200 rounded-lg font-semibold text-sm text-slate-700 hover:border-[#FF6B35] hover:text-[#FF6B35] transition-colors flex items-center justify-center gap-2 min-h-[44px]"
-              >
-                <Search size={18} /> Browse Items
               </button>
               <button
                 onClick={() => handleProtectedNavigation('/favorites')}

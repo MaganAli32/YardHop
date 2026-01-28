@@ -86,12 +86,15 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       console.log('Auth state changed:', event, session?.user?.email);
       
       if (session) {
+        // Set authToken immediately so ProtectedRoute knows user is authenticated
         setAuthToken(session.access_token);
-        // Use setTimeout to avoid potential race condition with Supabase
-        setTimeout(async () => {
-          await loadUserProfile(session.user.id);
+        // Load user profile (this can happen async, authToken is already set)
+        loadUserProfile(session.user.id).then(() => {
           setLoading(false);
-        }, 0);
+        }).catch((error) => {
+          console.error('Error loading user profile:', error);
+          setLoading(false);
+        });
       } else {
         setAuthToken(null);
         setUser(null);

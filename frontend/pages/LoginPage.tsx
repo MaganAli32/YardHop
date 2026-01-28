@@ -34,18 +34,48 @@ const LoginPage: React.FC = () => {
 
   // Get return path from location state (for post-login redirect)
   const from = (location.state as any)?.from?.pathname || '/search';
+  
+  // Check for OAuth errors passed via navigation state
+  useEffect(() => {
+    const oauthError = (location.state as any)?.oauthError;
+    if (oauthError) {
+      setError(oauthError);
+      // Clear the state to prevent showing error on re-render
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   // Navigate when auth state updates after successful login
   useEffect(() => {
     if (loginSuccess && (user || authToken)) {
-      console.log('Auth state updated, navigating to:', from);
-      navigate(from, { replace: true });
+      console.log('Auth state updated after login, navigating to:', from);
+      // Small delay to ensure state is fully propagated
+      const timer = setTimeout(() => {
+        navigate(from, { replace: true });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loginSuccess, user, authToken, from, navigate]);
+  
+  // Fallback: if loginSuccess is true but auth state hasn't updated after a delay, check session directly
+  useEffect(() => {
+    if (loginSuccess && !user && !authToken) {
+      const fallbackTimer = setTimeout(async () => {
+        if (!supabase) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('Fallback: Session exists, forcing navigation to:', from);
+          navigate(from, { replace: true });
+        }
+      }, 800);
+      return () => clearTimeout(fallbackTimer);
     }
   }, [loginSuccess, user, authToken, from, navigate]);
 
-  // If already logged in, redirect
+  // If already logged in, redirect (only check once on mount)
   useEffect(() => {
-    if (user || authToken) {
+    if ((user || authToken) && !loginSuccess) {
+      console.log('Already logged in, redirecting to:', from);
       navigate(from, { replace: true });
     }
   }, []);
@@ -79,14 +109,28 @@ const LoginPage: React.FC = () => {
 
       if (signInError) throw signInError;
 
-      if (data.user) {
-        console.log('Login successful, waiting for auth state update...');
-        setLoginSuccess(true);
-        // Don't navigate here - let the useEffect handle it when auth state updates
+      if (data.user && data.session) {
+        console.log('Login successful, session created:', data.user.email);
+        // Verify session is properly set
+        const { data: { session: verifiedSession } } = await supabase.auth.getSession();
+        
+        if (verifiedSession) {
+          console.log('Session verified, waiting for auth state to propagate...');
+          setLoginSuccess(true);
+          setLoading(false);
+          
+          // The useEffect will handle navigation when authToken/user is set by PersistenceContext
+          // The auth state listener should fire quickly and update the context
+        } else {
+          throw new Error('Session was not properly established. Please try again.');
+        }
+      } else {
+        throw new Error('Login failed - no user or session returned');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please check your credentials.');
       setLoading(false);
+      setLoginSuccess(false);
     }
   };
 
@@ -100,15 +144,21 @@ const LoginPage: React.FC = () => {
       return;
     }
 
-    // FIXED: Remove hash from redirect URL - Supabase OAuth doesn't handle hash routing well
-    // Redirect to root, navigation will be handled by auth state listener
-    const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+    // Set redirect URL - must match exactly what's configured in Supabase dashboard
+    // For HashRouter, use base URL - Supabase will handle the callback
+    const baseUrl = import.meta.env.VITE_APP_URL || 'https://yard-front-ivory.vercel.app';
+    // Remove any trailing slashes and hash fragments
+    const redirectUrl = baseUrl.replace(/\/$/, '').split('#')[0];
 
     try {
       const { data, error: googleError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 
