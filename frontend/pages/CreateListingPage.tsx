@@ -43,7 +43,7 @@ const CreateListingPage: React.FC = () => {
     description: '',
     price: '',
     condition: 'Good',
-    location: 'Austin, TX'
+    location: ''
   });
   const [locationData, setLocationData] = useState<{
     address: string;
@@ -52,15 +52,8 @@ const CreateListingPage: React.FC = () => {
     privacy: 'exact' | 'neighborhood' | 'city';
   } | null>(null);
 
-  // Cleanup photos when component unmounts (user navigates away without publishing)
-  useEffect(() => {
-    return () => {
-      // Only revoke if we still have photos (didn't publish successfully)
-      if (photos.length > 0) {
-        revokePhotoUrls(photos);
-      }
-    };
-  }, []); // Empty deps - only run on unmount
+  // Do NOT revoke blob URLs on unmount: React Strict Mode runs cleanup on first "unmount",
+  // which would revoke URLs before the user clicks Publish. We only revoke after successful publish.
 
   const handlePriceCheck = async () => {
     if (photos.length === 0 || !formData.title) return;
@@ -111,6 +104,12 @@ const CreateListingPage: React.FC = () => {
       return;
     }
 
+    const locationText = (locationData?.address || formData.location || '').trim();
+    if (!locationText) {
+      alert('Please set an item location: enter an address in the location field or use "Use My Location" so buyers see where the item is.');
+      return;
+    }
+
     setIsPublishing(true);
 
     try {
@@ -120,31 +119,31 @@ const CreateListingPage: React.FC = () => {
       for (let i = 0; i < photos.length; i++) {
         const photoUrl = photos[i];
         try {
-          console.log(`Uploading photo ${i + 1}/${photos.length}:`, photoUrl);
-          
-          // Get the File object from our store (or fetch from blob URL)
           const file = await getFileFromBlobUrl(
-            photoUrl, 
+            photoUrl,
             `product-${Date.now()}-${i}.jpg`
           );
-          console.log('File retrieved:', file.name, file.size, file.type);
-          
-          // Upload to Supabase Storage
+          if (!file || file.size === 0) {
+            throw new Error('Photo file is empty. Remove and re-add the photo.');
+          }
           const uploadResult = await uploadApi.uploadImage(file, 'listing-images');
-          console.log('Upload successful:', uploadResult.url);
-          
           imageUrls.push(uploadResult.url);
-        } catch (error) {
-          console.error(`Failed to upload image ${i + 1}:`, error);
-          // Continue trying other images
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Upload failed';
+          console.error(`Failed to upload image ${i + 1}:`, msg);
+          if (msg.includes('blob') || msg.includes('revoked')) {
+            throw new Error('Could not read photo. Please remove and re-add the photo, then try again.');
+          }
+          if (i === 0 && imageUrls.length === 0) {
+            throw new Error(`Image upload failed: ${msg}`);
+          }
         }
       }
       
       console.log('Final imageUrls:', imageUrls);
       
-      // Check if we have at least one image
       if (imageUrls.length === 0) {
-        throw new Error('Failed to upload images. Please try again.');
+        throw new Error('Failed to upload images. Please try again. Check that you are logged in and the photo was added correctly.');
       }
 
       // Create the product with uploaded image URLs
@@ -155,7 +154,7 @@ const CreateListingPage: React.FC = () => {
         condition: formData.condition,
         category: formData.category,
         tags: [formData.category.toLowerCase()],
-        location: locationData?.address || formData.location,
+        location: locationText,
         latitude: locationData?.latitude,
         longitude: locationData?.longitude,
         location_privacy: locationData?.privacy || 'neighborhood',

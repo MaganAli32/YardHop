@@ -341,6 +341,17 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
     `);
   });
 
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ Port ${PORT} is already in use.`);
+      console.error('   Free it with: kill $(lsof -i :' + PORT + ' -t)');
+      console.error('   Or use another port: PORT=3001 npm run dev:api\n');
+    } else {
+      console.error('Server error:', err);
+    }
+    process.exit(1);
+  });
+
   // Graceful Shutdown
   process.on('SIGTERM', () => {
     console.log('SIGTERM signal received: closing HTTP server');

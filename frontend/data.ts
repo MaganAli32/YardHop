@@ -101,7 +101,13 @@ export const SALES: GarageSale[] = [
     time: '8:00 AM - 2:00 PM',
     description: 'Moving sale across two adjacent houses. Lots of high-end furniture, kid toys, and kitchen gadgets.',
     image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80',
-    tags: ['Yard Sale', 'Multi-Family', 'Moving']
+    tags: ['Yard Sale', 'Multi-Family', 'Moving'],
+    address: 'Barton Hills, Austin, TX',
+    latitude: 30.2627,
+    longitude: -97.7809,
+    display_text: 'Barton Hills, Austin',
+    display_latitude: 30.2627,
+    display_longitude: -97.7809
   },
   {
     id: 's2',
@@ -110,7 +116,13 @@ export const SALES: GarageSale[] = [
     time: '7:00 AM - 1:00 PM',
     description: 'Downsizing sale with rare glassware, vintage tools, and 1950s collectibles.',
     image: 'https://images.unsplash.com/photo-1520038410233-7141f77e47aa?w=1200&auto=format&fit=crop&q=80',
-    tags: ['Estate Sale', 'Antiques']
+    tags: ['Estate Sale', 'Antiques'],
+    address: 'Hyde Park, Austin, TX',
+    latitude: 30.3074,
+    longitude: -97.7342,
+    display_text: 'Hyde Park, Austin',
+    display_latitude: 30.3074,
+    display_longitude: -97.7342
   },
   {
     id: 's3',
@@ -119,7 +131,13 @@ export const SALES: GarageSale[] = [
     time: '9:00 AM - 3:00 PM',
     description: 'Join the block for 5 houses worth of treasures. Clothing, books, and home decor.',
     image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=1200&auto=format&fit=crop&q=80',
-    tags: ['Yard Sale', 'Austin', 'Community']
+    tags: ['Yard Sale', 'Austin', 'Community'],
+    address: 'East Riverside, Austin, TX',
+    latitude: 30.2518,
+    longitude: -97.7213,
+    display_text: 'East Riverside, Austin',
+    display_latitude: 30.2518,
+    display_longitude: -97.7213
   }
 ];
 

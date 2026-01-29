@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { usePersistence } from '../store/PersistenceContext';
 import { cartApi } from '../lib/api';
+import { formatLocation } from '../lib/locationUtils';
 
 interface CartItem {
   id: string;
@@ -61,7 +62,7 @@ const CartPage: React.FC = () => {
     if (newQuantity < 1 || !authToken) return;
     
     try {
-      await cartApi.add(productId, newQuantity, authToken);
+      await cartApi.add(productId, newQuantity);
       setCartItems(prev => prev.map(item => 
         item.productId === productId ? { ...item, quantity: newQuantity } : item
       ));
@@ -75,7 +76,7 @@ const CartPage: React.FC = () => {
     if (!authToken) return;
     
     try {
-      await cartApi.remove(productId, authToken);
+      await cartApi.remove(productId);
       setCartItems(prev => prev.filter(item => item.productId !== productId));
     } catch (err: any) {
       console.error('Failed to remove item:', err);
@@ -195,7 +196,10 @@ const CartPage: React.FC = () => {
                             </h3>
                           </Link>
                           <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            <span>{item.product.location}</span>
+                            <span>{(() => {
+                              const { neighborhood, cityState } = formatLocation(item.product.location || '');
+                              return neighborhood ? `${neighborhood} • ${cityState}` : (cityState || item.product.location || '');
+                            })()}</span>
                           </div>
                         </div>
                         

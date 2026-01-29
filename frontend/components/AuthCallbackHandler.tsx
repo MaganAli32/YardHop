@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { supabase } from '../lib/supabase';
@@ -16,47 +16,55 @@ const AuthCallbackHandler: React.FC = () => {
   const { user, loading } = usePersistence();
 
   useEffect(() => {
-    // Check for OAuth errors in URL parameters
+    const winPath = window.location.pathname || '';
     const urlParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    
-    const error = urlParams.get('error') || hashParams.get('error');
-    const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
-    
+    const pathParams = winPath.startsWith('/') && winPath.includes('=') ? new URLSearchParams(winPath.substring(1)) : null;
+
+    const error = urlParams.get('error') || hashParams.get('error') || pathParams?.get('error');
+    const errorDescription = urlParams.get('error_description') || hashParams.get('error_description') || pathParams?.get('error_description');
+
     if (error) {
       console.error('OAuth error detected:', error, errorDescription);
       setOauthError(errorDescription || error);
-      
-      // Clean up URL
-      const cleanUrl = window.location.origin + window.location.pathname;
+      const cleanUrl = window.location.origin + '/#/';
       window.history.replaceState({}, '', cleanUrl);
-      
-      // Redirect to login with error
-      navigate('/login', { 
-        replace: true,
-        state: { oauthError: errorDescription || error }
-      });
+      navigate('/login', { replace: true, state: { oauthError: errorDescription || error } });
       return;
     }
 
-    // Handle OAuth callback - Supabase should have already processed the hash
-    // But we need to ensure the session is extracted
-    if (window.location.hash && supabase) {
-      const hash = window.location.hash;
-      // Check if hash contains OAuth callback data
-      if (hash.includes('access_token') || hash.includes('code')) {
-        // Supabase should handle this automatically with detectSessionInUrl: true
-        // But we can verify the session was created
+    // OAuth callback: tokens can be in hash (correct) or in path (wrong redirect from provider)
+    const hash = window.location.hash || '';
+    const tokensInPath = winPath.includes('access_token');
+    const tokensInHash = hash.includes('access_token') || hash.includes('code');
+
+    if (supabase && (tokensInPath || tokensInHash)) {
+      if (tokensInPath) {
+        // Tokens in path: Supabase redirect went to path instead of hash. Parse and set session.
+        const pathPart = winPath.startsWith('/') ? winPath.slice(1) : winPath;
+        const params = new URLSearchParams(pathPart);
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+        if (access_token) {
+          supabase.auth.setSession({ access_token, refresh_token: refresh_token || '' }).then(() => {
+            console.log('OAuth callback processed, session created (from path)');
+            window.history.replaceState({}, '', window.location.origin + '/#/');
+            navigate('/', { replace: true });
+          }).catch((err) => console.error('setSession failed:', err));
+          return;
+        }
+      }
+      if (tokensInHash) {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session) {
             console.log('OAuth callback processed, session created');
-            // Clean up URL hash
-            window.history.replaceState({}, '', window.location.pathname);
+            window.history.replaceState({}, '', window.location.origin + '/#/');
+            navigate('/', { replace: true });
           }
         });
       }
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     // Wait for auth state to load

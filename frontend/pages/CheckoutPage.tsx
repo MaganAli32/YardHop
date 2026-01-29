@@ -444,7 +444,7 @@ const CheckoutPage: React.FC = () => {
                         type="text"
                         value={shippingInfo.city}
                         onChange={(e) => setShippingInfo({...shippingInfo, city: e.target.value})}
-                        placeholder="Austin"
+                        placeholder="City"
                         className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-bold focus:ring-4 focus:ring-primary/10 transition-all"
                       />
                     </div>
@@ -612,7 +612,7 @@ const CheckoutPage: React.FC = () => {
                       <div className="text-sm font-bold text-slate-700 space-y-1">
                         <p className="text-slate-900">{shippingInfo.fullName || 'John Miller'}</p>
                         <p className="opacity-60 font-medium">{shippingInfo.address || '123 Local Lane, Apt 4'}</p>
-                        <p className="opacity-60 font-medium">{shippingInfo.city || 'Austin'}, {shippingInfo.state || 'TX'} {shippingInfo.zipCode || '78704'}</p>
+                        <p className="opacity-60 font-medium">{shippingInfo.city || '—'}, {shippingInfo.state || '—'} {shippingInfo.zipCode || '—'}</p>
                       </div>
                    </div>
 

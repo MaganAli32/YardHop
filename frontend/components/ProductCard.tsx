@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { Product } from '../types';
+import { formatLocation } from '../lib/locationUtils';
 import { usePersistence } from '../store/PersistenceContext';
 
 // Fallback image when no image is available
@@ -37,7 +38,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   // Map Product type to display format
   const displayName = product.title || (product as any).name || 'Untitled Item';
   const displayPrice = product.price || 0;
-  const displayLocation = product.location || 'Unknown';
+  const { neighborhood, cityState } = formatLocation(product.location || '');
+  const displayLocation = neighborhood ? `${neighborhood} • ${cityState}` : (cityState || 'Unknown');
   
   // Handle multiple image formats:
   // 1. product.image (string) - direct image URL

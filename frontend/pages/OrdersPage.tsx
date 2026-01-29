@@ -22,9 +22,10 @@ const OrdersPage: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const data = await ordersApi.list(authToken);
+        const data = await ordersApi.list();
+        const ordersList = data?.orders ?? [];
         // Transform API response to match frontend structure
-        const transformedOrders = (data || []).map((order: any) => ({
+        const transformedOrders = ordersList.map((order: any) => ({
           id: order.id,
           orderNumber: `YF-${order.id}`,
           date: new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -96,7 +97,8 @@ const OrdersPage: React.FC = () => {
     return order.status === filter;
   });
 
-  const getStatusBadge = (status: Order['status']) => {
+  type OrderStatus = 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  const getStatusBadge = (status: OrderStatus) => {
     const badges = {
       processing: { bg: 'bg-blue-50', text: 'text-blue-600', label: 'Processing', icon: 'pending' },
       shipped: { bg: 'bg-orange-50', text: 'text-orange-600', label: 'In Transit', icon: 'local_shipping' },

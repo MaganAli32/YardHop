@@ -144,10 +144,10 @@ const LoginPage: React.FC = () => {
       return;
     }
 
-    // Set redirect URL - must match exactly what's configured in Supabase dashboard
-    // For HashRouter, use base URL - Supabase will handle the callback
+    // Set redirect URL - must match exactly what's configured in Supabase dashboard.
+    // With HashRouter, Supabase appends #access_token=... to this URL; the resulting path
+    // won't match any route, so we use OAuthCallbackFallback (*) to catch it and redirect to /.
     const baseUrl = import.meta.env.VITE_APP_URL || 'https://yard-front-ivory.vercel.app';
-    // Remove any trailing slashes and hash fragments
     const redirectUrl = baseUrl.replace(/\/$/, '').split('#')[0];
 
     try {

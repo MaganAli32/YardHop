@@ -28,6 +28,7 @@ import { PersistenceProvider } from './store/PersistenceContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import AuthCallbackHandler from './components/AuthCallbackHandler';
+import OAuthCallbackFallback from './components/OAuthCallbackFallback';
 import CookieConsent from './components/CookieConsent';
 
 const ScrollToTop = () => {
@@ -183,8 +184,11 @@ const App: React.FC = () => {
                   <ProductDetailPage />
                 </ProtectedRoute>
               } />
-              <Route path="/sales" element={<GarageSalesPage />} />
+              {/* Redirect old /sales list to unified search (events mode); keep /sales/:id for event detail */}
+              <Route path="/sales" element={<Navigate to="/search?mode=events" replace />} />
               <Route path="/sales/:id" element={<YardSaleDetailPage />} />
+              {/* Catch OAuth callback when HashRouter path becomes "access_token=..." */}
+              <Route path="*" element={<OAuthCallbackFallback />} />
             </Routes>
           </Layout>
         </Router>

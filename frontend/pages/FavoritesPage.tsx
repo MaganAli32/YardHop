@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { usePersistence } from '../store/PersistenceContext';
 import { favoritesApi } from '../lib/api';
+import { formatLocation } from '../lib/locationUtils';
 import { Product } from '../types';
 
 const FavoritesPage: React.FC = () => {
@@ -189,14 +190,17 @@ const FavoritesPage: React.FC = () => {
         ) : (
           /* Items Grid */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 animate-fadeIn">
-            {filteredItems.map((item) => (
+            {filteredItems.map((item) => {
+              const { neighborhood, cityState } = formatLocation(item.location || '');
+              const distance = (item as any).distance;
+              return (
               <article 
                 key={item.id}
                 className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-xl transition-all duration-300 group"
               >
                 
                 {/* Image */}
-                <Link to={item.saleId ? `/sales/${item.saleId}` : `/product/${item.id}`}>
+                <Link to={item.id ? `/product/${item.id}` : item.saleId ? `/sales/${item.saleId}` : '#'}>
                   <div className="relative aspect-square bg-slate-50 overflow-hidden">
                     <img 
                       src={item.image}
@@ -240,11 +244,15 @@ const FavoritesPage: React.FC = () => {
                   </Link>
                   
                   <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
-                    </svg>
-                    <span>{item.location}{item.distance ? ` • ${item.distance}` : ''}</span>
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden />
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">
+                        {neighborhood ? `${neighborhood}${distance ? ` • ${distance}` : ''}` : (cityState || item.location || '')}
+                      </span>
+                      {neighborhood && cityState && (
+                        <span className="truncate text-slate-500 normal-case tracking-normal font-semibold">{cityState}</span>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex items-end justify-between pt-4 border-t border-slate-50">
@@ -278,7 +286,8 @@ const FavoritesPage: React.FC = () => {
                 </div>
                 
               </article>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>

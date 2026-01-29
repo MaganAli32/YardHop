@@ -58,7 +58,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
       try {
         const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
-            card: cardElement,
+            card: cardElement as unknown as import('@stripe/stripe-js').StripeCardElement,
             billing_details: {
               name: cardName,
               address: billingAddress ? {

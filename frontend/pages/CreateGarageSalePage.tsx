@@ -43,8 +43,30 @@ const CreateGarageSalePage: React.FC = () => {
 
   const handleContinue = () => {
     if (step === 1) {
-      if (!eventData.name || !eventData.date || !locationData) {
-        setError('Please fill in all required fields including location');
+      setError('');
+      if (!eventData.name?.trim()) {
+        setError('Please enter a title for your garage sale.');
+        return;
+      }
+      if (eventData.name.trim().length < 3) {
+        setError('Title must be at least 3 characters.');
+        return;
+      }
+      const address = locationData?.address ?? eventData.address;
+      if (!address?.trim()) {
+        setError('Please enter an address or use "Use My Location".');
+        return;
+      }
+      if (address.trim().length < 5) {
+        setError('Address must be at least 5 characters.');
+        return;
+      }
+      if (!eventData.date?.trim()) {
+        setError('Please select a date.');
+        return;
+      }
+      if (!locationData) {
+        setError('Please enter your sale location (address or Use My Location).');
         return;
       }
       if (!isValidTimeRange(eventData.startTime, eventData.endTime)) {
@@ -64,6 +86,36 @@ const CreateGarageSalePage: React.FC = () => {
   const handlePublish = async () => {
     if (!authToken) {
       setError('Session expired. Please log in again.');
+      return;
+    }
+
+    if (!eventData.name?.trim()) {
+      setError('Please enter a title for your garage sale.');
+      return;
+    }
+    if (eventData.name.trim().length < 3) {
+      setError('Title must be at least 3 characters.');
+      return;
+    }
+    const address = locationData?.address || eventData.address;
+    if (!address?.trim()) {
+      setError('Please enter an address.');
+      return;
+    }
+    if (address.trim().length < 5) {
+      setError('Address must be at least 5 characters.');
+      return;
+    }
+    if (!eventData.date || !eventData.date.trim()) {
+      setError('Please select a date for your garage sale.');
+      return;
+    }
+    if (!eventData.startTime?.trim()) {
+      setError('Please select a start time.');
+      return;
+    }
+    if (!eventData.endTime?.trim()) {
+      setError('Please select an end time.');
       return;
     }
 
@@ -114,26 +166,28 @@ const CreateGarageSalePage: React.FC = () => {
         console.warn(`Some images failed to upload:`, uploadErrors);
       }
 
-      console.log('Creating garage sale with payload:', {
-        title: eventData.name,
-        address: locationData?.address || eventData.address,
-        imageCount: imageUrls.length,
-      });
+      // Debug: log state and full payload to trace 400 validation errors
+      const today = new Date().toISOString().split('T')[0];
+      console.log('Event data state:', eventData);
+      console.log('Location data state:', locationData);
+      console.log('Photos uploaded (count):', imageUrls.length);
 
-      // Remove city, state, and is_private - these fields don't exist in DB schema
+      // Build payload with safe defaults so required fields are never empty
       const payload = {
         title: eventData.name,
-        description: eventData.description,
+        description: eventData.description ?? '',
         address: locationData?.address || eventData.address,
         latitude: locationData?.latitude,
         longitude: locationData?.longitude,
         location_privacy: locationData?.privacy || 'neighborhood',
-        start_date: eventData.date,
-        end_date: eventData.date,
-        start_time: eventData.startTime,
-        end_time: eventData.endTime,
-        image_urls: imageUrls, // API expects image_urls, not images
+        start_date: eventData.date.trim() || today,
+        end_date: (eventData.date?.trim() || today),
+        start_time: eventData.startTime?.trim() || '08:00',
+        end_time: eventData.endTime?.trim() || '14:00',
+        image_urls: imageUrls,
       };
+
+      console.log('Creating garage sale with FULL payload:', payload);
 
       const finalResult = await salesApi.create(payload, authToken) as { id: string };
       
@@ -152,7 +206,11 @@ const CreateGarageSalePage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error publishing garage sale:', err);
-      setError(err.message || 'Error publishing listing.');
+      const details = err?.errorData?.details;
+      const message = Array.isArray(details) && details.length > 0
+        ? details.map((d: { field?: string; message?: string }) => `${d.field || 'Field'}: ${d.message || ''}`).join('. ')
+        : err.message || 'Error publishing listing.';
+      setError(message);
       setLoading(false);
     } finally {
       setLoading(false);
@@ -264,6 +322,9 @@ const PhotoUploader: React.FC<{
                     value={eventData.name}
                     onChange={(e) => setEventData({ ...eventData, name: e.target.value })}
                   />
+                  {eventData.name.length > 0 && eventData.name.length < 3 && (
+                    <p className="text-xs text-amber-600 font-medium">Title must be at least 3 characters</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">

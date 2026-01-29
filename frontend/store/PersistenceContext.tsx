@@ -47,19 +47,20 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (error) throw error;
 
-      if (data) {
+      const profile = data as Record<string, unknown> | null;
+      if (profile) {
         setUser({
-          name: data.name || 'User',
-          email: data.email,
-          bio: data.bio || '',
-          location: data.location || '',
-          avatar: data.avatar_url || '',
-          role: (data.role as any) || 'Buyer',
-          joinedDate: new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-          verified: data.verified || false,
+          name: (profile.name as string) || 'User',
+          email: (profile.email as string) ?? '',
+          bio: (profile.bio as string) || '',
+          location: (profile.location as string) || '',
+          avatar: (profile.avatar_url as string) || '',
+          role: ((profile.role as string) as UserProfile['role']) || 'Buyer',
+          joinedDate: new Date((profile.created_at as string) || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          verified: (profile.verified as boolean) || false,
           preferences: {
-            safeMeetOnly: data.safe_meet_only ?? true,
-            notifications: data.notifications_enabled ?? true,
+            safeMeetOnly: (profile.safe_meet_only as boolean) ?? true,
+            notifications: (profile.notifications_enabled as boolean) ?? true,
           },
         });
       }
@@ -164,7 +165,7 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
 
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.bio !== undefined) updateData.bio = updates.bio;
       if (updates.location !== undefined) updateData.location = updates.location;
@@ -175,12 +176,14 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       const { error } = await supabase
         .from('profiles')
-        .update(updateData)
+        .update(updateData as never)
         .eq('id', authUser.id);
 
       if (error) throw error;
 
-      setUser(prev => prev ? { ...prev, ...updates } : null);
+      setUser((prev: UserProfile | null): UserProfile | null =>
+        prev ? { ...prev, ...updates } : null
+      );
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;

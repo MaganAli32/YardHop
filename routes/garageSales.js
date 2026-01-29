@@ -142,6 +142,7 @@ router.get('/', optionalAuth, standardLimiter, async (req, res) => {
  * GET /api/sales/user/:userId
  * Get garage sales by user
  * IMPORTANT: Must be BEFORE /:id route!
+ * Note: Product counts are not embedded (avoids PostgREST "more than one relationship" error).
  */
 router.get('/user/:userId', optionalAuth, async (req, res) => {
   try {
@@ -152,8 +153,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
       .from('garage_sales')
       .select(`
         *,
-        images:garage_sale_images(id, url, is_primary, order_index),
-        products:products!garage_sale_id(count)
+        images:garage_sale_images(id, url, is_primary, order_index)
       `)
       .eq('host_id', userId)
       .order('start_date', { ascending: false });
@@ -170,11 +170,30 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
 
     if (error) throw error;
 
-    // Add image convenience field
     const sales = (data || []).map(sale => {
       const primaryImage = getPrimaryImage(sale.images);
       return { ...sale, image: primaryImage };
     });
+
+    // Optionally attach product counts in a separate query (avoids embed ambiguity)
+    try {
+      const saleIds = sales.map(s => s.id);
+      if (saleIds.length > 0) {
+        const { data: counts } = await req.supabase
+          .from('products')
+          .select('garage_sale_id')
+          .in('garage_sale_id', saleIds)
+          .eq('status', 'active');
+        const countBySale = (counts || []).reduce((acc, row) => {
+          const sid = row.garage_sale_id;
+          acc[sid] = (acc[sid] || 0) + 1;
+          return acc;
+        }, {});
+        sales.forEach(s => { s.products = { count: countBySale[s.id] || 0 }; });
+      }
+    } catch (countErr) {
+      console.warn('Could not fetch product counts for user sales:', countErr?.message);
+    }
 
     res.json(sales);
   } catch (error) {
@@ -191,6 +210,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('[GET /api/sales/:id] Fetching sale', id);
 
     // Validate UUID format (basic check - UUIDs are 36 chars with hyphens)
     // This prevents PostgreSQL errors when invalid IDs like "s1" are used
@@ -199,17 +219,13 @@ router.get('/:id', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Garage sale not found' });
     }
 
-    const { data, error } = await req.supabase
+    // Fetch sale with host and images only (avoid products embed - multiple relationships cause 500)
+    const { data: saleData, error } = await req.supabase
       .from('garage_sales')
       .select(`
         *,
         host:profiles!host_id(id, name, avatar_url, bio, created_at),
-        images:garage_sale_images(id, url, is_primary, order_index),
-        products:products!garage_sale_id(
-          id, title, description, price, original_price, market_average, 
-          is_steal, steal_percentage, condition, category,
-          images:product_images(id, url, is_primary, order_index)
-        )
+        images:garage_sale_images(id, url, is_primary, order_index)
       `)
       .eq('id', id)
       .single();
@@ -218,9 +234,13 @@ router.get('/:id', optionalAuth, async (req, res) => {
       if (error.code === 'PGRST116') {
         return res.status(404).json({ error: 'Garage sale not found' });
       }
-      // Handle UUID format errors from PostgreSQL
       if (error.message && error.message.includes('invalid input syntax for type uuid')) {
         return res.status(404).json({ error: 'Garage sale not found' });
+      }
+      // PostgREST "more than one relationship" – should not happen (we do not embed products here)
+      if (error.message && error.message.includes('more than one relationship')) {
+        console.error('[GET /api/sales/:id] Unexpected embed error – ensure this route uses two separate queries:', error.message);
+        return res.status(500).json({ error: 'Could not load sale. Please try again.' });
       }
       throw error;
     }
@@ -229,23 +249,36 @@ router.get('/:id', optionalAuth, async (req, res) => {
     try {
       await req.supabase
         .from('garage_sales')
-        .update({ view_count: (data.view_count || 0) + 1 })
+        .update({ view_count: (saleData.view_count || 0) + 1 })
         .eq('id', id);
     } catch (viewErr) {
       console.warn('Could not update view count:', viewErr.message);
     }
 
-    // Add image convenience field for the sale
-    const primaryImage = getPrimaryImage(data.images);
-    
-    // Also add image convenience field for each product
-    const productsWithImages = (data.products || []).map(product => {
+    // Fetch products for this sale in a separate query (avoids "more than one relationship" embed error)
+    const { data: productsData, error: productsError } = await req.supabase
+      .from('products')
+      .select(`
+        id, title, description, price, original_price, market_average,
+        is_steal, steal_percentage, condition, category,
+        images:product_images(id, url, is_primary, order_index)
+      `)
+      .eq('garage_sale_id', id)
+      .eq('status', 'active');
+
+    if (productsError) {
+      console.warn('Could not fetch products for sale:', productsError.message);
+    }
+
+    const products = productsData || [];
+    const productsWithImages = products.map(product => {
       const productImage = getPrimaryImage(product.images);
       return { ...product, image: productImage };
     });
 
-    const saleWithImage = { 
-      ...data, 
+    const primaryImage = getPrimaryImage(saleData.images);
+    const saleWithImage = {
+      ...saleData,
       image: primaryImage,
       products: productsWithImages
     };

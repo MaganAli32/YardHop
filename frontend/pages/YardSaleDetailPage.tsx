@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { salesApi } from '../lib/api';
+import { formatLocation } from '../lib/locationUtils';
 import { SALES, FALLBACK_IMAGE } from '../data';
 import { GarageSale } from '../types';
 import { DiscoveryMap } from '../components/maps';
@@ -197,15 +198,8 @@ const HostBox = ({ sale }: { sale: GarageSale & { host?: any } }) => {
   
   // Format location for display - try multiple sources (location is on the sale, not the host)
   const locationText = sale.address || (sale as any).location || (sale as any).display_text || host?.location || 'Location not available';
-  let displayLocation = locationText;
-  try {
-    if (locationText && typeof locationText === 'string' && locationText.includes(',')) {
-      const parts = locationText.split(',');
-      displayLocation = parts.length > 1 ? `${parts[0].trim()}, ${parts[1].trim()}` : parts[0];
-    }
-  } catch (e) {
-    displayLocation = locationText;
-  }
+  const { neighborhood, cityState } = formatLocation(locationText);
+  const displayLocation = neighborhood ? `${neighborhood}, ${cityState}` : cityState;
   
   return (
     <div className="p-4 border border-slate-200 rounded-lg space-y-3">
@@ -260,24 +254,33 @@ interface SaleItem {
 }
 
 // --- YARD SALE DETAIL PAGE ---
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const YardSaleDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [showPriceAnalysis, setShowPriceAnalysis] = useState<number | null>(null);
   const [saleInfo, setSaleInfo] = useState<GarageSale | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     const fetchSale = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
-        // Try to fetch from API first
         let data: any = null;
         try {
           data = await salesApi.get(id || '');
         } catch (apiError) {
-          // Fallback to mock data if API fails
-          console.warn('API fetch failed, using mock data:', apiError);
+          console.warn('API fetch failed:', apiError);
+          const isRealId = id && UUID_REGEX.test(id);
+          if (isRealId) {
+            // This might be a product ID (wrong link). Redirect to product page so user lands in the right place.
+            navigate(`/product/${id}`, { replace: true });
+            return;
+          }
           data = SALES.find(s => s.id === id) || null;
         }
 
@@ -348,10 +351,11 @@ const YardSaleDetailPage: React.FC = () => {
             time: data.start_time ? formatTime(data.start_time) : (data.time || ''),
             image: imageUrl || FALLBACK_IMAGE,
             tags: data.tags || [],
-            address: data.address || (data as any).location,
+            address: data.address || (data as any).display_text || (data as any).location,
             latitude: data.latitude,
             longitude: data.longitude,
             location_privacy: data.location_privacy,
+            display_text: data.display_text,
             // Include host data from API response (can be null)
             host: hostData,
             // Store host_id separately for reference
@@ -398,7 +402,7 @@ const YardSaleDetailPage: React.FC = () => {
     };
 
     fetchSale();
-  }, [id]);
+  }, [id, retryCount]);
 
   const items: SaleItem[] = [
     {
@@ -454,13 +458,28 @@ const YardSaleDetailPage: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white p-8 text-center">
         <AlertCircle size={48} className="text-slate-200 mb-4 mx-auto" />
-        <h2 className="text-xl font-bold text-[#121c32] mb-2">Event Not Found</h2>
-        <button
-          onClick={() => navigate('/sales')}
-          className="bg-[#121c32] text-white px-6 py-2 rounded-lg font-bold text-sm uppercase mt-4"
-        >
-          Back to Sales
-        </button>
+        <h2 className="text-xl font-bold text-[#121c32] mb-2">
+          {loadError ? 'Could not load event' : 'Event Not Found'}
+        </h2>
+        {loadError && (
+          <p className="text-slate-600 max-w-sm mb-4">{loadError}</p>
+        )}
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          {loadError && (
+            <button
+              onClick={() => setRetryCount(c => c + 1)}
+              className="bg-[#FF6B35] text-white px-6 py-2 rounded-lg font-bold text-sm uppercase hover:bg-[#e55a2b] transition"
+            >
+              Try again
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/search?mode=events')}
+            className="bg-[#121c32] text-white px-6 py-2 rounded-lg font-bold text-sm uppercase hover:bg-slate-800 transition"
+          >
+            Back to Sales
+          </button>
+        </div>
       </div>
     );
   }
@@ -478,7 +497,7 @@ const YardSaleDetailPage: React.FC = () => {
             Home
           </Link>
           <ChevronRight size={12} className="text-slate-200" />
-          <Link to="/sales" className="hover:text-[#FF6B35] transition-colors">
+          <Link to="/search?mode=events" className="hover:text-[#FF6B35] transition-colors">
             Garage Sales
           </Link>
           <ChevronRight size={12} className="text-slate-200" />
@@ -519,7 +538,7 @@ const YardSaleDetailPage: React.FC = () => {
                 <Clock size={14} className="text-[#FF6B35]" /> {saleInfo.time}
               </div>
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-4 md:px-5 py-2 md:py-3 rounded-xl text-[11px] md:text-xs font-bold text-slate-700">
-                <MapPin size={14} className="text-[#FF6B35]" /> {(saleInfo as any).location || 'Temecula, CA'}
+                <MapPin size={14} className="text-[#FF6B35]" /> {saleInfo.address || (saleInfo as any).display_text || (saleInfo as any).location || 'Location not available'}
               </div>
             </div>
           </div>

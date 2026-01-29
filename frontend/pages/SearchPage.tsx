@@ -4,8 +4,64 @@ import { Link, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import { usePersistence } from '../store/PersistenceContext';
 import { productsApi, salesApi } from '../lib/api';
+import { formatLocation } from '../lib/locationUtils';
 import { Product, GarageSale } from '../types';
 import { FALLBACK_IMAGE, PRODUCTS, SALES } from '../data';
+
+/** Haversine formula: distance in miles between two lat/lng points */
+function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 3959; // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** Get display string for a sale's location (address or display_text, formatted) */
+function formatLocationDisplay(sale: GarageSale): string {
+  const raw =
+    sale.address ||
+    sale.display_text ||
+    (sale as any).location ||
+    '';
+  if (!raw) return '';
+  const { neighborhood, cityState } = formatLocation(raw);
+  return neighborhood ? `${neighborhood}, ${cityState}` : cityState;
+}
+
+/** Debug: log sale location fields (call from SalesEventCard where we have userCoords) */
+function logLocationDebug(
+  sale: GarageSale,
+  userCoords: { lat: number; lng: number } | null,
+  calculatedDistance: number | null,
+  finalDisplay: string
+): void {
+  console.log('formatLocationDisplay called with:', {
+    saleId: sale.id,
+    display_text: sale.display_text,
+    address: sale.address,
+    latitude: sale.latitude,
+    longitude: sale.longitude,
+    display_latitude: sale.display_latitude,
+    display_longitude: sale.display_longitude,
+    userCoords: userCoords ?? undefined
+  });
+  if (calculatedDistance != null) {
+    console.log('Distance calculated:', calculatedDistance.toFixed(2));
+  }
+  console.log('Final location display:', finalDisplay);
+}
 
 const SearchSkeletonGrid = () => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" aria-busy="true">
@@ -82,6 +138,7 @@ const CATEGORIES = [
 
 const SearchPage: React.FC = () => {
   const { coords } = usePersistence();
+  console.log('SearchPage coords from usePersistence:', coords);
   const [searchParams] = useSearchParams();
   const initialView = searchParams.get('view') === 'map' ? 'map' : 'grid';
   const initialMode = searchParams.get('mode') === 'items' ? 'items' : 'events';
@@ -426,7 +483,7 @@ const SearchPage: React.FC = () => {
                   ) : filteredEvents.length > 0 ? (
                     <div className="space-y-8">
                       {filteredEvents.map(sale => (
-                        <SalesEventCard key={sale.id} sale={sale} />
+                        <SalesEventCard key={sale.id} sale={sale} userCoords={coords} />
                       ))}
                     </div>
                   ) : (
@@ -486,10 +543,32 @@ const SearchPage: React.FC = () => {
 
 interface SalesEventCardProps {
   sale: GarageSale;
+  userCoords: { lat: number; lng: number } | null;
 }
 
-const SalesEventCard: React.FC<SalesEventCardProps> = ({ sale }) => {
+const SalesEventCard: React.FC<SalesEventCardProps> = ({ sale, userCoords }) => {
   const [imgSrc, setImgSrc] = useState(sale.image);
+  const locationStr =
+    sale.address ||
+    sale.display_text ||
+    (sale as any).location ||
+    '';
+  const { neighborhood, cityState } = formatLocation(locationStr);
+  // Use backend distance if provided; otherwise calculate from user coords + sale coords
+  const saleLat = sale.display_latitude ?? sale.latitude;
+  const saleLng = sale.display_longitude ?? sale.longitude;
+  const calculatedDistance =
+    userCoords && saleLat != null && saleLng != null
+      ? calculateDistance(userCoords.lat, userCoords.lng, saleLat, saleLng)
+      : null;
+  const distance =
+    sale.distance ??
+    (calculatedDistance != null ? `${calculatedDistance.toFixed(1)} mi away` : undefined);
+
+  const finalDisplay = neighborhood
+    ? `${neighborhood}${distance ? ` • ${distance}` : ''}`
+    : (cityState || 'Location not specified');
+  logLocationDebug(sale, userCoords, calculatedDistance ?? null, finalDisplay);
 
   return (
     <article className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-md transition cursor-pointer group">
@@ -538,12 +617,16 @@ const SalesEventCard: React.FC<SalesEventCardProps> = ({ sale }) => {
         
         {/* Location Badge Overlay */}
         <div className="absolute bottom-4 left-4">
-          <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-sm text-white text-xs font-medium px-3 py-1.5 rounded-md">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
-            </svg>
-            <span className="uppercase tracking-wide">Barton Springs, Austin • 0.8 mi away</span>
+          <div className="flex items-start gap-2 bg-slate-900/90 backdrop-blur-sm text-white text-xs font-medium px-3 py-1.5 rounded-md min-w-0 max-w-[85%]">
+            <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden />
+            <div className="flex flex-col min-w-0">
+              <span className="uppercase tracking-wide">
+                {neighborhood ? `${neighborhood}${distance ? ` • ${distance}` : ''}` : cityState || 'Location not specified'}
+              </span>
+              {cityState && (neighborhood || distance) && (
+                <span className="truncate text-slate-300">{cityState}</span>
+              )}
+            </div>
           </div>
         </div>
       </Link>

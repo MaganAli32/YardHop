@@ -28,9 +28,10 @@ class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
-  public render() {
-    if (this.state.hasError) {
-      return this.props.fallback || (
+  public render(): ReactNode {
+    const { state, props } = this as Component<Props, State>;
+    if (state.hasError) {
+      return props.fallback || (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
           <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -42,18 +43,18 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="text-slate-600 mb-4">
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {process.env.NODE_ENV === 'development' && state.error && (
               <details className="mb-4 text-left bg-red-50 p-3 rounded text-xs">
                 <summary className="cursor-pointer font-semibold text-red-800">Error Details (Dev Mode)</summary>
                 <pre className="mt-2 text-red-700 whitespace-pre-wrap break-words">
-                  {this.state.error.toString()}
-                  {this.state.error.stack && `\n\nStack:\n${this.state.error.stack}`}
+                  {state.error.toString()}
+                  {state.error.stack && `\n\nStack:\n${state.error.stack}`}
                 </pre>
               </details>
             )}
             <button
               onClick={() => {
-                this.setState({ hasError: false, error: null });
+                (this as Component<Props, State>).setState({ hasError: false, error: null });
                 window.location.href = '/';
               }}
               className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
@@ -65,7 +66,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.props.children;
+    return props.children;
   }
 }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { productsApi, aiApi, favoritesApi, conversationsApi } from '../lib/api';
+import { formatLocation } from '../lib/locationUtils';
 import { supabase } from '../lib/supabase';
 import { PRODUCTS, FALLBACK_IMAGE } from '../data';
 import ProductCard from '../components/ProductCard';
@@ -186,23 +187,10 @@ const SellerBox = ({ product }: { product: Product }) => {
   const reviewCount = seller?.rating_count || product.reviewCount || 0;
   const isVerified = seller?.verified !== false && (product.isVerified !== false);
   
-  // Format location for display (extract city/state if available)
+  // Format location for display (extract neighborhood and city/state)
   const locationText = product.location || 'Location not available';
-  let displayLocation = locationText;
-  try {
-    // Try to extract city/state from coordinates or location string
-    if (product.latitude && product.longitude) {
-      // For now, just show the location string, could enhance with geocoding
-      displayLocation = locationText;
-    } else if (locationText.includes(',')) {
-      // If it's "City, State" format, extract city
-      const parts = locationText.split(',');
-      displayLocation = parts.length > 1 ? `${parts[0].trim()}, ${parts[1].trim()}` : parts[0];
-    }
-  } catch (e) {
-    // Keep original if parsing fails
-    displayLocation = locationText;
-  }
+  const { neighborhood, cityState } = formatLocation(locationText);
+  const displayLocation = neighborhood ? `${neighborhood}, ${cityState}` : cityState;
   
   return (
     <div className="p-4 border border-slate-200 rounded-lg space-y-3">

@@ -29,6 +29,10 @@ interface LocationPrivacySelectorProps {
   }) => void;
   initialPrivacy?: LocationPrivacy;
   cityName?: string;
+  /** Initial address from parent (e.g. when editing) */
+  address?: string;
+  showPreview?: boolean;
+  required?: boolean;
 }
 
 // =============================================================================
@@ -87,29 +91,30 @@ const LocationPrivacySelector: React.FC<LocationPrivacySelectorProps> = ({
   onLocationChange,
   initialPrivacy = 'neighborhood',
   cityName,
+  address: initialAddress = '',
 }) => {
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(initialAddress);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [privacy, setPrivacy] = useState<LocationPrivacy>(initialPrivacy);
   const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Notify parent of changes
+  // Notify parent of changes (with lat/lng, or 0,0 for manual address)
   const notifyChange = useCallback((
-    addr: string, 
-    lat: number | null, 
-    lng: number | null, 
+    addr: string,
+    lat: number | null,
+    lng: number | null,
     priv: LocationPrivacy
   ) => {
-    if (lat !== null && lng !== null) {
-      onLocationChange({
-        address: addr,
-        latitude: lat,
-        longitude: lng,
-        privacy: priv,
-      });
-    }
+    const latNum = lat ?? 0;
+    const lngNum = lng ?? 0;
+    onLocationChange({
+      address: addr,
+      latitude: latNum,
+      longitude: lngNum,
+      privacy: priv,
+    });
   }, [onLocationChange]);
 
   // Handle "Use My Location" button
@@ -148,11 +153,11 @@ const LocationPrivacySelector: React.FC<LocationPrivacySelectorProps> = ({
     notifyChange(address, latitude, longitude, newPrivacy);
   };
 
-  // Handle address input change
+  // Handle address input change – notify parent so manual entry works (no map needed)
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAddress(e.target.value);
-    // Note: In production, integrate with Google Places Autocomplete
-    // to get lat/lng from the address
+    const value = e.target.value;
+    setAddress(value);
+    notifyChange(value.trim() || '', latitude ?? 0, longitude ?? 0, privacy);
   };
 
   return (
@@ -193,6 +198,9 @@ const LocationPrivacySelector: React.FC<LocationPrivacySelectorProps> = ({
             className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-[#121c32] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35] transition-all"
           />
         </div>
+        {address.length > 0 && address.length < 5 && (
+          <p className="text-xs text-amber-600 font-medium">Address must be at least 5 characters</p>
+        )}
 
         {/* Location found indicator */}
         {latitude && longitude && (
