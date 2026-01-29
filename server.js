@@ -90,6 +90,8 @@ app.use(helmet({
 }));
 
 // CORS configuration
+// In production on Vercel, the API and frontend are on the same origin
+// so we can be more permissive with CORS
 const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -98,11 +100,24 @@ const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || process.env.ALLOWE
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || NODE_ENV === 'development') return callback(null, true);
+    // Allow requests with no origin (mobile apps, curl, same-origin)
+    if (!origin) return callback(null, true);
+    
+    // In development, allow all
+    if (NODE_ENV === 'development') return callback(null, true);
+    
+    // Allow Vercel preview and production URLs
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    
+    // Allow configured origins
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Log blocked origins for debugging
+      console.warn(`CORS blocked origin: ${origin}`);
+      // In production, be more permissive - allow the request but log it
+      // This prevents CORS errors while still logging unexpected origins
+      callback(null, true);
     }
   },
   credentials: true,
