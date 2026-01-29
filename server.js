@@ -44,6 +44,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Trust proxy for Vercel deployments (needed for rate limiting and IP detection)
+// Vercel sets X-Forwarded-For headers, so we need to trust the proxy
+app.set('trust proxy', true);
+
 // ============================================================
 // SUPABASE CLIENT INITIALIZATION
 // ============================================================

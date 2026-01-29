@@ -108,6 +108,7 @@ export const schemas = {
     address: z.string().min(5),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
+    location_privacy: z.enum(['exact', 'neighborhood', 'city']).optional(),
     start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
