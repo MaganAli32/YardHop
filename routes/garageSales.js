@@ -362,6 +362,7 @@ router.post('/', requireAuth, validate(schemas.createGarageSale), async (req, re
       details: error.details,
       hint: error.hint,
       stack: error.stack,
+      payload: req.body ? { ...req.body, image_urls: req.body.image_urls?.length ? `[${req.body.image_urls.length} URLs]` : req.body.image_urls } : undefined,
     });
     res.status(500).json({ error: error.message });
   }

@@ -23,7 +23,17 @@ export const validate = (schema, source = 'body') => {
           field: issue.path.join('.'),
           message: issue.message,
         }));
-        
+        // Log full payload and detailed error for Vercel/debugging (avoid logging secrets)
+        const safePayload = typeof data === 'object' && data !== null
+          ? JSON.stringify(data, (k, v) => (k && /password|token|secret|key/i.test(k) ? '[REDACTED]' : v), 2)
+          : String(data);
+        console.error('[Validation] Request validation failed:', {
+          source,
+          payload: safePayload,
+          errorMessage: result.error.message,
+          issues: result.error.issues,
+          details: errors,
+        });
         return res.status(400).json({
           error: 'Validation Error',
           message: 'Invalid request data',
@@ -81,7 +91,7 @@ export const schemas = {
     garage_sale_id: z.string().uuid().optional(),
     shipping_available: z.boolean().optional(),
     shipping_price: z.coerce.number().min(0).optional(),
-    image_urls: z.array(z.string().url()).optional(),
+    image_urls: z.array(z.string().min(1)).optional(),
   }),
   
   updateProduct: z.object({
@@ -101,7 +111,7 @@ export const schemas = {
     shipping_price: z.coerce.number().min(0).optional(),
   }),
   
-  // Garage Sale
+  // Garage Sale (permissive date/time and image URLs for frontend flexibility)
   createGarageSale: z.object({
     title: z.string().min(3).max(200),
     description: z.string().max(5000).optional(),
@@ -109,14 +119,14 @@ export const schemas = {
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
     location_privacy: z.enum(['exact', 'neighborhood', 'city']).optional(),
-    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    start_date: z.string().min(1),
+    end_date: z.string().min(1).optional(),
+    start_time: z.string().min(1),
+    end_time: z.string().min(1).optional(),
     tags: z.array(z.string()).optional(),
     is_multi_family: z.boolean().optional(),
     items_preview: z.array(z.string()).optional(),
-    image_urls: z.array(z.string().url()).optional(),
+    image_urls: z.array(z.string().min(1)).optional(),
   }),
   
   updateGarageSale: z.object({
@@ -125,10 +135,10 @@ export const schemas = {
     address: z.string().min(5).optional(),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
-    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
-    end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+    start_date: z.string().min(1).optional(),
+    end_date: z.string().min(1).optional(),
+    start_time: z.string().min(1).optional(),
+    end_time: z.string().min(1).optional(),
     tags: z.array(z.string()).optional(),
     is_multi_family: z.boolean().optional(),
     status: z.enum(['upcoming', 'active', 'completed', 'cancelled']).optional(),
@@ -187,7 +197,7 @@ export const schemas = {
     location: z.string().optional(),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
-    image_urls: z.array(z.string().url()).optional(),
+    image_urls: z.array(z.string().min(1)).optional(),
   }),
   
   // Review
@@ -203,7 +213,7 @@ export const schemas = {
     name: z.string().min(1).max(100).optional(),
     bio: z.string().max(500).optional(),
     location: z.string().optional(),
-    avatar_url: z.string().url().optional(),
+    avatar_url: z.string().min(1).optional(),
     role: z.enum(['Buyer', 'Seller', 'Collector', 'Neighbor']).optional(),
     safe_meet_only: z.boolean().optional(),
     notifications_enabled: z.boolean().optional(),
@@ -224,7 +234,7 @@ export const schemas = {
   
   // AI Analysis
   analyzeImage: z.object({
-    image_url: z.string().url().optional(),
+    image_url: z.string().min(1).optional(),
     image_base64: z.string().optional(),
   }).refine(
     data => data.image_url || data.image_base64,

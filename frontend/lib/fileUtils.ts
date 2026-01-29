@@ -54,18 +54,32 @@ export const getFileFromBlobUrl = async (
   filename: string = `file-${Date.now()}.jpg`,
   mimeType: string = 'image/jpeg'
 ): Promise<File> => {
+  // #region agent log
+  const storeSize = fileStore.size;
+  fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'fileUtils:getFileFromBlobUrl:entry',message:'blob to file entry',data:{storeSize,hasBlobUrl:!!blobUrl,blobUrlPrefix:blobUrl?.slice(0,30)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
   // First, try to get the stored file
   const storedFile = fileStore.get(blobUrl);
   if (storedFile) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'fileUtils:getFileFromBlobUrl:stored',message:'using stored file',data:{size:storedFile?.size,type:storedFile?.type},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     return storedFile;
   }
-  
+
   // Fallback: try to fetch from blob URL (may fail if revoked)
   try {
     const response = await fetch(blobUrl);
     const blob = await response.blob();
-    return new File([blob], filename, { type: blob.type || mimeType });
+    const file = new File([blob], filename, { type: blob.type || mimeType });
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'fileUtils:getFileFromBlobUrl:fetched',message:'used fetch fallback',data:{size:file?.size,type:file?.type},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    return file;
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'fileUtils:getFileFromBlobUrl:error',message:'blob url failed',data:{errorMsg:(error as Error)?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     throw new Error(`Failed to get file from blob URL. The URL may have been revoked.`);
   }
 };

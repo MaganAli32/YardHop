@@ -659,6 +659,9 @@ export const searchApi = {
 // ============================================================
 export const uploadApi = {
   uploadImage: async (file: File, bucket = 'listing-images'): Promise<{ url: string; path: string }> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:uploadImage',message:'uploadImage entry',data:{fileSize:file?.size,fileType:file?.type,bucket,hasFile:!!file},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
+    // #endregion
     const formData = new FormData();
     formData.append('image', file);
     formData.append('bucket', bucket);
@@ -675,12 +678,22 @@ export const uploadApi = {
       body: formData,
     });
 
+    // #region agent log
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:uploadImage',message:'upload failed',data:{status:response.status,statusText:response.statusText,error:errBody},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    }
+    // #endregion
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Upload failed');
     }
 
-    return response.json();
+    const result = await response.json();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:uploadImage',message:'upload success',data:{url:result?.url},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    return result;
   },
 
   uploadImages: async (files: File[], bucket = 'listing-images'): Promise<{ uploaded: any[]; errors?: any[] }> => {
