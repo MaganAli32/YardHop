@@ -1,24 +1,17 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SignInPage, Testimonial } from '../components/ui/sign-in';
+import Navbar from '../components/Navbar';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { usePersistence } from '../store/PersistenceContext';
 
-const sampleTestimonials: Testimonial[] = [
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/women/57.jpg",
-    name: "Sarah Chen",
-    handle: "@sarahhop",
-    text: "YardFront makes selling my vintage finds so easy. Love the community!"
-  },
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/men/64.jpg",
-    name: "Marcus Johnson",
-    handle: "@marcustech",
-    text: "Found incredible tools for my workshop just blocks away. Highly recommend."
-  }
-];
+const GoogleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s12-5.373 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-2.641-.21-5.236-.611-7.743z" />
+    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+    <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.022 35.026 44 30.038 44 24c0-2.641-.21-5.236-.611-7.743z" />
+  </svg>
+);
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -32,8 +25,17 @@ const LoginPage: React.FC = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
 
-  // Get return path from location state (for post-login redirect)
-  const from = (location.state as any)?.from?.pathname || '/search';
+  // Get return path: extension sends ?from=extension → redirect to /extension-auth.
+  // With HashRouter the param can be in the hash (#/login?from=extension) or in search (if tab opened as /login?from=extension).
+  const hash = window.location.hash || '';
+  const queryString =
+    (hash.includes('?') ? hash.split('?')[1] : '') ||
+    (window.location.search || '').slice(1) ||
+    '';
+  const searchParams = new URLSearchParams(queryString);
+  const fromExtension = searchParams.get('from') === 'extension';
+  const from = fromExtension ? '/extension-auth' : ((location.state as any)?.from?.pathname || '/');
+  const fromRef = useRef(from);
   
   // Check for OAuth errors passed via navigation state
   useEffect(() => {
@@ -51,7 +53,7 @@ const LoginPage: React.FC = () => {
       console.log('Auth state updated after login, navigating to:', from);
       // Small delay to ensure state is fully propagated
       const timer = setTimeout(() => {
-        navigate(from, { replace: true });
+        if (fromRef.current === '/extension-auth') { window.location.href = '/#/extension-auth'; window.location.reload(); } else { if (fromRef.current === '/extension-auth') { window.location.href = '/#/extension-auth'; window.location.reload(); } else { navigate(fromRef.current, { replace: true }); } }
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -65,7 +67,7 @@ const LoginPage: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           console.log('Fallback: Session exists, forcing navigation to:', from);
-          navigate(from, { replace: true });
+          if (fromRef.current === '/extension-auth') { window.location.href = '/#/extension-auth'; window.location.reload(); } else { if (fromRef.current === '/extension-auth') { window.location.href = '/#/extension-auth'; window.location.reload(); } else { navigate(fromRef.current, { replace: true }); } }
         }
       }, 800);
       return () => clearTimeout(fallbackTimer);
@@ -76,7 +78,7 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     if ((user || authToken) && !loginSuccess) {
       console.log('Already logged in, redirecting to:', from);
-      navigate(from, { replace: true });
+      if (fromRef.current === '/extension-auth') { window.location.href = '/#/extension-auth'; window.location.reload(); } else { if (fromRef.current === '/extension-auth') { window.location.href = '/#/extension-auth'; window.location.reload(); } else { navigate(fromRef.current, { replace: true }); } }
     }
   }, []);
 
@@ -223,32 +225,85 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-white font-sans">
+      <Navbar />
       {error && !showResetModal && (
         <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50 shadow-lg">
           {error}
         </div>
       )}
-      <SignInPage
-        title={<span className="font-bold tracking-tight text-slate-900 dark:text-white">Welcome Back</span>}
-        description="Log in to access your saved items and messages."
-        heroImageSrc="https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=2160&q=80"
-        testimonials={sampleTestimonials}
-        onSignIn={handleSignIn}
-        onGoogleSignIn={handleGoogleSignIn}
-        onCreateAccount={handleCreateAccount}
-        onResetPassword={() => setShowResetModal(true)}
-        buttonText={loading ? "Signing In..." : "Sign In"}
-      />
-      
+      <div className="flex flex-col items-center justify-center pt-24 pb-12 px-4">
+        <div className="w-full max-w-md">
+          <h1 className="font-serif text-[28px] text-[#0A0A0A] mb-2">Sign in</h1>
+          <p className="text-[15px] text-[#6B6B6B] mb-8 font-sans">
+            Log in to access your account and continue.
+          </p>
+          <form onSubmit={handleSignIn} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-[#0A0A0A] mb-1 font-sans">Email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                className="w-full border-0 border-b border-[#E0E0E0] bg-transparent py-2.5 text-[15px] text-[#0A0A0A] placeholder:text-[#9A9A9A] focus:outline-none focus:border-[#0A0A0A] font-sans"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-[#0A0A0A] mb-1 font-sans">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                placeholder="Enter your password"
+                className="w-full border-0 border-b border-[#E0E0E0] bg-transparent py-2.5 text-[15px] text-[#0A0A0A] placeholder:text-[#9A9A9A] focus:outline-none focus:border-[#0A0A0A] font-sans"
+              />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[#6B6B6B] font-sans">Keep me signed in</span>
+              <button type="button" onClick={() => setShowResetModal(true)} className="text-[#FF6B35] hover:underline font-sans">
+                Reset password
+              </button>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#0A0A0A] text-white font-medium py-3 rounded-full hover:opacity-90 transition-opacity disabled:opacity-60 font-sans"
+            >
+              {loading ? 'Signing In...' : 'Sign In'}
+            </button>
+          </form>
+          <div className="relative flex items-center justify-center my-8">
+            <span className="w-full border-t border-[#E0E0E0]" />
+            <span className="absolute px-4 text-sm text-[#9A9A9A] bg-white font-sans">or</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="w-full flex items-center justify-center gap-3 border border-[#E0E0E0] rounded-full py-3 text-[#0A0A0A] font-medium hover:bg-[#F2F2F2] transition-colors font-sans"
+          >
+            <GoogleIcon />
+            Continue with Google
+          </button>
+          <p className="text-center text-sm text-[#6B6B6B] mt-8 font-sans">
+            Don&apos;t have an account?{' '}
+            <button type="button" onClick={handleCreateAccount} className="text-[#FF6B35] hover:underline font-medium">
+              Sign up
+            </button>
+          </p>
+        </div>
+      </div>
+
       {/* Password Reset Modal */}
       {showResetModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !resetLoading && setShowResetModal(false)}>
-          <div className="bg-white dark:bg-surface-dark rounded-lg p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-black mb-4 text-slate-900 dark:text-white">Reset Password</h3>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-semibold mb-4 text-[#0A0A0A] font-serif">Reset Password</h3>
             {resetSuccess ? (
               <div className="space-y-4">
-                <p className="text-green-600 dark:text-green-400 font-medium">
+                <p className="text-green-600 font-medium font-sans">
                   Password reset email sent! Check your inbox for instructions.
                 </p>
                 <button
@@ -257,7 +312,7 @@ const LoginPage: React.FC = () => {
                     setResetEmail('');
                     setResetSuccess(false);
                   }}
-                  className="w-full bg-primary text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                  className="w-full bg-[#0A0A0A] text-white px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity font-sans"
                 >
                   Close
                 </button>
@@ -265,7 +320,7 @@ const LoginPage: React.FC = () => {
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div>
-                  <label htmlFor="reset-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label htmlFor="reset-email" className="block text-sm font-medium text-[#0A0A0A] mb-2 font-sans">
                     Email Address
                   </label>
                   <input
@@ -274,14 +329,14 @@ const LoginPage: React.FC = () => {
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="w-full border border-gray-300 dark:border-white/10 rounded-lg px-4 py-2 bg-white dark:bg-black/20 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full border border-[#E0E0E0] rounded-lg px-4 py-2 bg-white text-[#0A0A0A] focus:outline-none focus:border-[#0A0A0A] font-sans"
                     required
                     disabled={resetLoading}
                   />
                 </div>
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-600 font-sans">{error}</p>
                   </div>
                 )}
                 <div className="flex gap-3 justify-end">
@@ -293,14 +348,14 @@ const LoginPage: React.FC = () => {
                       setError('');
                     }}
                     disabled={resetLoading}
-                    className="px-4 py-2 text-slate-600 dark:text-slate-400 font-medium hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-4 py-2 text-[#6B6B6B] font-medium hover:bg-[#F2F2F2] rounded-lg transition-colors disabled:opacity-50 font-sans"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={resetLoading}
-                    className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-[#0A0A0A] text-white px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-sans"
                   >
                     {resetLoading ? 'Sending...' : 'Send Reset Link'}
                   </button>
@@ -310,7 +365,7 @@ const LoginPage: React.FC = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

@@ -1,23 +1,16 @@
-
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SignInPage, Testimonial } from '../components/ui/sign-in';
+import Navbar from '../components/Navbar';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-const sampleTestimonials: Testimonial[] = [
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/men/32.jpg",
-    name: "David Martinez",
-    handle: "@davidcreates",
-    text: "The verification process gave me peace of mind. Safe and simple."
-  },
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/women/44.jpg",
-    name: "Elena R.",
-    handle: "@elenavintage",
-    text: "I set up my moving sale in 10 minutes. Everything was gone by noon!"
-  }
-];
+const GoogleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s12-5.373 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-2.641-.21-5.236-.611-7.743z" />
+    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+    <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.022 35.026 44 30.038 44 24c0-2.641-.21-5.236-.611-7.743z" />
+  </svg>
+);
 
 const SignupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,7 +19,7 @@ const SignupPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   // Get return path from location state (for post-signup redirect)
-  const from = (location.state as any)?.from?.pathname || '/search';
+  const from = (location.state as any)?.from?.pathname || '/';
 
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -207,23 +200,94 @@ const SignupPage: React.FC = () => {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-white font-sans">
+      <Navbar />
       {error && (
         <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg z-50">
           {error}
         </div>
       )}
-      <SignInPage
-        title={<span className="font-bold tracking-tight text-slate-900 dark:text-white">Start Your Journey</span>}
-        description="Create an account to join your neighborhood marketplace."
-        heroImageSrc="https://images.unsplash.com/photo-1519999482648-25049ddd37b1?w=2160&q=80"
-        testimonials={sampleTestimonials}
-        onSignIn={handleSignUp}
-        onGoogleSignIn={handleGoogleSignUp}
-        onCreateAccount={handleLogin}
-        buttonText={loading ? "Creating Account..." : "Create Account"}
-      />
-    </>
+      <div className="flex flex-col items-center justify-center pt-24 pb-12 px-4">
+        <div className="w-full max-w-md">
+          <h1 className="font-serif text-[28px] text-[#0A0A0A] mb-2">Create account</h1>
+          <p className="text-[15px] text-[#6B6B6B] mb-8 font-sans">
+            Join YardFront to list items and get price intelligence.
+          </p>
+          <form onSubmit={handleSignUp} className="space-y-6">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-[#0A0A0A] mb-1 font-sans">Full Name</label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                required
+                placeholder="Your name"
+                className="w-full border-0 border-b border-[#E0E0E0] bg-transparent py-2.5 text-[15px] text-[#0A0A0A] placeholder:text-[#9A9A9A] focus:outline-none focus:border-[#0A0A0A] font-sans"
+              />
+            </div>
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-[#0A0A0A] mb-1 font-sans">Username</label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                required
+                placeholder="Choose a username (3–20 chars)"
+                className="w-full border-0 border-b border-[#E0E0E0] bg-transparent py-2.5 text-[15px] text-[#0A0A0A] placeholder:text-[#9A9A9A] focus:outline-none focus:border-[#0A0A0A] font-sans"
+              />
+            </div>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-[#0A0A0A] mb-1 font-sans">Email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                className="w-full border-0 border-b border-[#E0E0E0] bg-transparent py-2.5 text-[15px] text-[#0A0A0A] placeholder:text-[#9A9A9A] focus:outline-none focus:border-[#0A0A0A] font-sans"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-[#0A0A0A] mb-1 font-sans">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                placeholder="At least 8 characters"
+                className="w-full border-0 border-b border-[#E0E0E0] bg-transparent py-2.5 text-[15px] text-[#0A0A0A] placeholder:text-[#9A9A9A] focus:outline-none focus:border-[#0A0A0A] font-sans"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#0A0A0A] text-white font-medium py-3 rounded-full hover:opacity-90 transition-opacity disabled:opacity-60 font-sans"
+            >
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>
+          <div className="relative flex items-center justify-center my-8">
+            <span className="w-full border-t border-[#E0E0E0]" />
+            <span className="absolute px-4 text-sm text-[#9A9A9A] bg-white font-sans">or</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleGoogleSignUp}
+            className="w-full flex items-center justify-center gap-3 border border-[#E0E0E0] rounded-full py-3 text-[#0A0A0A] font-medium hover:bg-[#F2F2F2] transition-colors font-sans"
+          >
+            <GoogleIcon />
+            Continue with Google
+          </button>
+          <p className="text-center text-sm text-[#6B6B6B] mt-8 font-sans">
+            Already have an account?{' '}
+            <button type="button" onClick={handleLogin} className="text-[#FF6B35] hover:underline font-medium">
+              Sign in
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 

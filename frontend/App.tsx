@@ -1,35 +1,34 @@
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import HeaderWrapper from './components/HeaderWrapper';
-import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
-import SearchPage from './pages/SearchPage';
-import GarageSalesPage from './pages/GarageSalesPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import YardSaleDetailPage from './pages/YardSaleDetailPage';
-import FavoritesPage from './pages/FavoritesPage';
-import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage';
-import OrdersPage from './pages/OrdersPage';
+import AppraisalResultsPage from './pages/AppraisalResultsPage';
+import MarketplacePage from './pages/MarketplacePage';
 import CreateListingPage from './pages/CreateListingPage';
-import CreateGarageSalePage from './pages/CreateGarageSalePage';
+import ListingDetailPage from './pages/ListingDetailPage';
+import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
-import HowItWorksPage from './pages/HowItWorksPage';
-import CommunityPage from './pages/CommunityPage';
-import ProfilePage from './pages/ProfilePage';
-import InboxPage from './pages/InboxPage';
-import GarageSaleScannerPage from './pages/GarageSaleScannerPage';
-import StitchLivePage from './pages/StitchLivePage';
-import SellHubPage from './pages/SellHubPage';
+import ExtensionAuthPage from './pages/ExtensionAuthPage';
+import BusinessPage from './pages/BusinessPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import { PersistenceProvider } from './store/PersistenceContext';
-import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import AuthCallbackHandler from './components/AuthCallbackHandler';
 import OAuthCallbackFallback from './components/OAuthCallbackFallback';
 import CookieConsent from './components/CookieConsent';
+
+const CatchAllRoute = () => {
+  const location = useLocation();
+  const pathname = (location.pathname || '').toString();
+  const isOAuthCallback =
+    pathname.includes('access_token') ||
+    pathname.includes('refresh_token') ||
+    pathname.startsWith('access_token') ||
+    pathname.startsWith('/access_token');
+  if (isOAuthCallback) return <OAuthCallbackFallback />;
+  return <Navigate to="/" replace />;
+};
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -40,20 +39,11 @@ const ScrollToTop = () => {
 };
 
 const Layout: React.FC<{children: React.ReactNode}> = ({ children }) => {
-  const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
-  const isInbox = location.pathname === '/inbox';
-  const isLive = location.pathname === '/live-advisor';
-  const isLandingPage = location.pathname === '/';
-
   return (
-    <div className={`flex min-h-screen flex-col ${isLandingPage ? '' : 'bg-slate-50 dark:bg-background-dark'} text-slate-900 dark:text-slate-100 font-display antialiased`}>
-      {!isAuthPage && !isLive && <HeaderWrapper />}
-      <main className={`flex-grow flex flex-col ${isAuthPage || isLive ? 'h-screen' : ''}`}>
+    <div className="flex min-h-screen flex-col bg-white antialiased">
+      <main className="flex-grow flex flex-col">
         {children}
       </main>
-      {/* Footer is rendered inside LandingPage, so don't show it here for landing page */}
-      {!isAuthPage && !isInbox && !isLive && !isLandingPage && <Footer />}
       <CookieConsent />
     </div>
   );
@@ -63,6 +53,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
+      * { scroll-behavior: smooth; }
       .scroll-reveal {
         opacity: 0;
         transform: translateY(24px);
@@ -85,16 +76,8 @@ const App: React.FC = () => {
         background-clip: text;
         animation: shimmer-text 5s linear infinite;
       }
-      @font-face {
-        font-family: 'Breul Grotesk';
-        src: local('Impact'), local('Arial Black');
-      }
-      .font-display { font-family: 'Breul Grotesk', 'Impact', sans-serif !important; }
-      .font-body { font-family: 'Inter', sans-serif !important; }
-      * { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
     `;
     document.head.appendChild(style);
-    
     return () => {
       if (document.head.contains(style)) {
         document.head.removeChild(style);
@@ -111,84 +94,39 @@ const App: React.FC = () => {
           <Layout>
             <Routes>
               <Route path="/" element={<LandingPage />} />
-              {/* Redirect /feed to the new unified /search hub */}
-              <Route path="/feed" element={<Navigate to="/search" replace />} />
-              
-              {/* Protected Routes - Require Authentication */}
-              <Route path="/search" element={
-                <ProtectedRoute>
-                  <SearchPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/favorites" element={
-                <ProtectedRoute>
-                  <FavoritesPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/cart" element={
-                <ProtectedRoute>
-                  <CartPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/checkout" element={
-                <ProtectedRoute>
-                  <CheckoutPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/orders" element={
-                <ProtectedRoute>
-                  <OrdersPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/create" element={
-                <ProtectedRoute>
-                  <CreateListingPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/create-sale" element={
-                <ProtectedRoute>
-                  <CreateGarageSalePage />
-                </ProtectedRoute>
-              } />
-              <Route path="/profile" element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              } />
-              <Route path="/inbox" element={
-                <ProtectedRoute>
-                  <InboxPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/scanner" element={
-                <ProtectedRoute>
-                  <GarageSaleScannerPage />
-                </ProtectedRoute>
-              } />
-              
-              {/* Public Routes */}
+              <Route path="/appraise/results" element={<AppraisalResultsPage />} />
+              <Route path="/marketplace" element={<MarketplacePage />} />
+              <Route path="/marketplace/new" element={<CreateListingPage />} />
+              <Route path="/marketplace/:id" element={<ListingDetailPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
-              <Route path="/how-it-works" element={<HowItWorksPage />} />
-              <Route path="/community" element={<CommunityPage />} />
-              <Route path="/live-advisor" element={<StitchLivePage />} />
+              <Route path="/extension-auth" element={<ExtensionAuthPage />} />
+              <Route path="/business" element={<BusinessPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-              <Route path="/sell-hub" element={
-                <ProtectedRoute>
-                  <SellHubPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/product/:id" element={
-                <ProtectedRoute>
-                  <ProductDetailPage />
-                </ProtectedRoute>
-              } />
-              {/* Redirect old /sales list to unified search (events mode); keep /sales/:id for event detail */}
-              <Route path="/sales" element={<Navigate to="/search?mode=events" replace />} />
-              <Route path="/sales/:id" element={<YardSaleDetailPage />} />
+              {/* Old marketplace UI — redirect to new product (appraisal) homepage */}
+              <Route path="/feed" element={<Navigate to="/" replace />} />
+              <Route path="/browse" element={<Navigate to="/" replace />} />
+              <Route path="/search" element={<Navigate to="/" replace />} />
+              <Route path="/favorites" element={<Navigate to="/" replace />} />
+              <Route path="/cart" element={<Navigate to="/" replace />} />
+              <Route path="/checkout" element={<Navigate to="/" replace />} />
+              <Route path="/orders" element={<Navigate to="/" replace />} />
+              <Route path="/create" element={<Navigate to="/" replace />} />
+              <Route path="/create-sale" element={<Navigate to="/" replace />} />
+              <Route path="/profile" element={<Navigate to="/" replace />} />
+              <Route path="/inbox" element={<Navigate to="/" replace />} />
+              <Route path="/scanner" element={<Navigate to="/" replace />} />
+              <Route path="/sell-hub" element={<Navigate to="/" replace />} />
+              <Route path="/product/:id" element={<Navigate to="/" replace />} />
+              <Route path="/sales" element={<Navigate to="/" replace />} />
+              <Route path="/sales/:id" element={<Navigate to="/" replace />} />
+              <Route path="/how-it-works" element={<Navigate to="/" replace />} />
+              <Route path="/community" element={<Navigate to="/" replace />} />
+              <Route path="/live-advisor" element={<Navigate to="/" replace />} />
               {/* Catch OAuth callback when HashRouter path becomes "access_token=..." */}
-              <Route path="*" element={<OAuthCallbackFallback />} />
+              <Route path="*" element={<CatchAllRoute />} />
             </Routes>
           </Layout>
         </Router>

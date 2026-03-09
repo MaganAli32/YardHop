@@ -659,9 +659,6 @@ export const searchApi = {
 // ============================================================
 export const uploadApi = {
   uploadImage: async (file: File, bucket = 'listing-images'): Promise<{ url: string; path: string }> => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:uploadImage',message:'uploadImage entry',data:{fileSize:file?.size,fileType:file?.type,bucket,hasFile:!!file},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
-    // #endregion
     const formData = new FormData();
     formData.append('image', file);
     formData.append('bucket', bucket);
@@ -678,21 +675,12 @@ export const uploadApi = {
       body: formData,
     });
 
-    // #region agent log
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:uploadImage',message:'upload failed',data:{status:response.status,statusText:response.statusText,error:errBody},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    }
-    // #endregion
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Upload failed');
     }
 
     const result = await response.json();
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:uploadImage',message:'upload success',data:{url:result?.url},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return result;
   },
 
@@ -745,6 +733,95 @@ export const uploadApi = {
 
     return response.json();
   },
+};
+
+// ============================================================
+// MARKETPLACE API (YardFront listings)
+// ============================================================
+export const marketplaceApi = {
+  list: (params?: {
+    search?: string;
+    category?: string;
+    condition?: string;
+    price_min?: number;
+    price_max?: number;
+    sort?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return apiFetch<{ listings: any[]; total: number; page: number; pages: number }>(
+      `/marketplace${query ? `?${query}` : ''}`
+    );
+  },
+
+  get: (id: string) =>
+    apiFetch<any>(`/marketplace/${id}`),
+
+  create: (data: {
+    title: string;
+    description?: string;
+    category: string;
+    condition: string;
+    asking_price: number;
+    images: string[];
+    location?: string;
+    shipping: 'local' | 'shipping' | 'both';
+    appraisal_id?: string | null;
+  }) =>
+    apiFetch<any>('/marketplace', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<{
+    title: string;
+    description: string;
+    category: string;
+    condition: string;
+    asking_price: number;
+    images: string[];
+    location: string;
+    shipping: string;
+  }>) =>
+    apiFetch<any>(`/marketplace/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<{ message: string }>(`/marketplace/${id}`, { method: 'DELETE' }),
+
+  save: (id: string) =>
+    apiFetch<any>(`/marketplace/${id}/save`, { method: 'POST' }),
+
+  unsave: (id: string) =>
+    apiFetch<{ message: string }>(`/marketplace/${id}/save`, { method: 'DELETE' }),
+};
+
+// ============================================================
+// DASHBOARD API
+// ============================================================
+export const dashboardApi = {
+  listings: () =>
+    apiFetch<{ listings: any[] }>('/dashboard/listings'),
+
+  appraisals: () =>
+    apiFetch<{ appraisals: any[] }>('/dashboard/appraisals'),
+
+  saved: () =>
+    apiFetch<{ saved: any[] }>('/dashboard/saved'),
+
+  stats: () =>
+    apiFetch<{ views: number; messages: number }>('/dashboard/stats'),
 };
 
 // ============================================================

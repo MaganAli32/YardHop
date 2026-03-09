@@ -1,366 +1,551 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { PRODUCTS } from '../data';
-import ProductCard from '../components/ProductCard';
-import Footer from '../components/Footer';
+/**
+ * YardFront Landing Page — AI-powered secondhand price intelligence
+ * Design: white background, Instrument Serif headlines, orange accents, upload → appraisal flow.
+ */
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import Navbar from '../components/Navbar';
+import { ArrowRight, Upload, Check } from 'lucide-react';
+import { getBrowserFingerprint } from '../lib/fingerprint';
 import { usePersistence } from '../store/PersistenceContext';
-import { ChevronRight, Star, ArrowRight, Zap, Camera, TrendingUp, ShieldCheck, LayoutGrid } from 'lucide-react';
 
-// --- MAXIMALIST LAYER COMPONENTS ---
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ACCEPT_IMAGES = 'image/jpeg,image/png,image/heic,image/webp';
 
-const DitherOverlay = () => (
-  <div 
-    className="fixed inset-0 pointer-events-none z-[9999] opacity-[0.15] mix-blend-overlay"
-    style={{
-      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-    }}
-  />
-);
+interface UsageState {
+  used: number;
+  limit: number;
+  remaining: number;
+  is_limited: boolean;
+}
 
-const InteractiveParticles = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mouse = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let raf: number;
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-
-    resize();
-
-    const handleMouseMove = (e: MouseEvent) => {
-      mouse.current.x = e.clientX;
-      mouse.current.y = e.clientY;
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('resize', resize);
-
-    const particles = Array.from({ length: 40 }).map(() => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      size: Math.random() * 2 + 1
-    }));
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => {
-        const dx = mouse.current.x - p.x;
-        const dy = mouse.current.y - p.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 150) {
-          p.vx -= (dx / dist) * 0.05;
-          p.vy -= (dy / dist) * 0.05;
-        }
-        p.vx *= 0.98;
-        p.vy *= 0.98;
-        p.x += p.vx;
-        p.y += p.vy;
-
-        ctx.fillStyle = '#FF6B35';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      raf = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none opacity-30" />;
-};
-
-const LandingPage: React.FC = () => {
-  const { user, loading } = usePersistence();
+export default function LandingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { authToken } = usePersistence();
+  const uploadSectionRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageState>({ used: 0, limit: 3, remaining: 3, is_limited: false });
 
-  // Helper to handle protected navigation
-  const handleProtectedNavigation = (path: string) => {
-    console.log('handleProtectedNavigation called:', { hasUser: !!user, loading, path });
-    
-    if (user) {
-      // User is logged in, navigate directly
-      console.log('User authenticated, navigating to:', path);
-      navigate(path);
-    } else if (!loading) {
-      // Not loading and no user - redirect to login
-      console.log('No user and not loading, redirecting to login');
-      navigate('/login', { state: { from: { pathname: path } } });
-    } else {
-      // Still loading - wait a bit then check again, or just redirect to login
-      console.log('Still loading auth state, redirecting to login anyway');
-      navigate('/login', { state: { from: { pathname: path } } });
-    }
-  };
-  const [scrollY, setScrollY] = useState(0);
-
+  // Fetch usage on load and when auth changes
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
+    const headers: Record<string, string> = { 'X-Fingerprint': getBrowserFingerprint() };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    fetch('/api/usage', { headers })
+      .then((res) => res.json())
+      .then((data) => setUsage({
+        used: data.used ?? 0,
+        limit: data.limit ?? 3,
+        remaining: data.remaining ?? 3,
+        is_limited: data.is_limited ?? false,
+      }))
+      .catch(() => {});
+  }, [authToken]);
+
+  // Scroll to section when navigated with state (e.g. from "Try Another Appraisal") or hash
+  useEffect(() => {
+    const scrollTo = (location.state as { scrollTo?: string })?.scrollTo;
+    const hash = window.location.hash?.slice(1);
+    const target = scrollTo || hash;
+    if (target) {
+      const el = document.getElementById(target);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [location.state, location.key]);
+
+  // Scroll reveal: fade-up with IntersectionObserver
+  useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('is-visible');
-            observer.unobserve(entry.target);
           }
         });
       },
-      { 
-        threshold: 0.12, 
-        rootMargin: '0px 0px -80px 0px' 
-      }
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
     );
-
-    document.querySelectorAll('.scroll-reveal').forEach(el => {
-      observer.observe(el);
-    });
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      observer.disconnect();
-    };
+    document.querySelectorAll('.scroll-reveal').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
   }, []);
 
+  const scrollToUpload = () => {
+    uploadSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleAppraise = async (file: File) => {
+    setUploadError(null);
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError('File too large. Please use an image under 10MB.');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please upload an image file.');
+      return;
+    }
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const headers: Record<string, string> = { 'X-Fingerprint': getBrowserFingerprint() };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+    try {
+      const response = await fetch('/api/appraise', {
+        method: 'POST',
+        body: formData,
+        headers,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 403 && data?.error === 'free_limit_reached') {
+        setUsage((prev) => ({ ...prev, is_limited: true, remaining: 0 }));
+        setUploadError("You've used all 3 free appraisals. Upgrade to Pro for unlimited.");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || `Appraisal failed (${response.status})`);
+      }
+
+      sessionStorage.setItem('appraisalResult', JSON.stringify(data));
+      setUsage((prev) => ({
+        ...prev,
+        used: prev.used + 1,
+        remaining: Math.max(0, prev.remaining - 1),
+        is_limited: prev.used + 1 >= prev.limit,
+      }));
+      navigate('/appraise/results');
+    } catch (e) {
+      console.error('Appraisal error:', e);
+      setUploadError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleAppraise(file);
+    e.target.value = '';
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) handleAppraise(file);
+    else setUploadError('Please drop an image file (JPG, PNG, HEIC).');
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const onDragLeave = () => setIsDragging(false);
+
+  const triggerFileInput = () => {
+    if (isUploading) return;
+    fileInputRef.current?.click();
+  };
+
+  const scrollToSteps = () => {
+    document.getElementById('steps')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
-    <div className="flex flex-col w-full overflow-hidden bg-[#121c32] selection:bg-[#FF6B35] selection:text-white">
-      <DitherOverlay />
+    <div className="landing-page bg-[#FFFFFF] text-[#1A1A1A] font-sans antialiased overflow-x-hidden">
+      <style>{`
+        .landing-page { --black: #0A0A0A; --dark: #1A1A1A; --gray-600: #6B6B6B; --gray-400: #9A9A9A; --gray-200: #E0E0E0; --gray-100: #F2F2F2; --white: #FAFAFA; --pure-white: #FFFFFF; --orange: #FF6B35; --orange-soft: rgba(255,107,53,0.08); }
+        .scroll-reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.9s cubic-bezier(0.25, 1, 0.5, 1), transform 0.9s cubic-bezier(0.25, 1, 0.5, 1); }
+        .scroll-reveal.is-visible { opacity: 1 !important; transform: translateY(0) !important; }
+        .scroll-reveal.d1 { transition-delay: 0.1s; } .scroll-reveal.d2 { transition-delay: 0.2s; } .scroll-reveal.d3 { transition-delay: 0.3s; } .scroll-reveal.d4 { transition-delay: 0.4s; }
+        [data-confidence-bar] { transition: width 1.8s cubic-bezier(0.25, 1, 0.5, 1); }
+        .scroll-reveal.is-visible [data-confidence-bar] { width: 87% !important; }
+        @keyframes breathe { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+        .hero-dot { animation: breathe 3s ease-in-out infinite; }
+        @keyframes scrolld { 0% { top: -100%; } 50%, 100% { top: 100%; } }
+        .scroll-line-inner { position: absolute; left: 0; width: 100%; height: 100%; background: var(--orange); top: -100%; animation: scrolld 2s ease-in-out infinite; }
+        .step-num-hover { transition: color 0.4s ease; }
+        .landing-page .step-card:hover .step-num-hover { color: var(--orange-soft); }
+      `}</style>
 
-      {/* 1. HERO SECTION */}
-      <section className="relative flex flex-col lg:flex-row lg:h-[480px] bg-white overflow-hidden">
-        <InteractiveParticles />
-        
-        {/* LEFT PANEL */}
-        <div className="relative flex-[3] min-h-[320px] bg-slate-100 overflow-hidden">
-          <img 
-            src="https://images.unsplash.com/photo-1594026112284-02bb6f3352fe?w=1600&q=80&fit=crop" 
-            alt="Hero Furniture" 
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ transform: `translateY(${scrollY * 0.1}px)` }}
-          />
-          {/* Dark gradient overlay for text visibility */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#121c32]/70 via-[#121c32]/50 to-transparent z-[5]" />
-          
-          <div className="relative z-10 flex items-center h-full">
-            <div className="max-w-lg px-6 lg:px-12 py-8 w-full">
-              <h1 className="text-[clamp(1.9rem,4.2vw,3.4rem)] leading-[0.92] font-black tracking-tighter uppercase italic mb-6 font-display text-white drop-shadow-2xl">
-                Discover hidden gems <br/>right in your <br/>neighborhood
-              </h1>
-              <p className="text-base font-bold text-white/90 mb-6 uppercase italic max-w-sm font-display drop-shadow-lg">Your neighborhood marketplace for trusted local exchanges.</p>
-              <button
-                onClick={() => handleProtectedNavigation('/search')}
-                className="inline-flex items-center gap-4 bg-[#FF6B35] text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] shadow-xl hover:-translate-y-1 transition italic font-display"
-              >
-                Browse Feed
-                <ArrowRight size={18} strokeWidth={4} />
-              </button>
-            </div>
-          </div>
+      <Navbar />
+
+      {/* 2. Hero — padding 140px 24px 100px desktop, 120px 24px 80px mobile */}
+      <section className="min-h-screen flex flex-col justify-center items-center text-center relative pt-[120px] pb-[80px] md:pt-[140px] md:pb-[100px] px-6">
+        <div className="scroll-reveal d1 inline-flex items-center gap-2 text-[13px] font-semibold text-[#9A9A9A] tracking-[0.5px] mb-10">
+          <span className="hero-dot w-1.5 h-1.5 rounded-full bg-[#FF6B35]" />
+          Now live in Berkeley
         </div>
-
-        {/* RIGHT PANEL */}
-        <div className="relative flex-[2] min-h-[260px] bg-[#FF6B35] overflow-hidden">
-          <img 
-            src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1000&q=80&fit=crop" 
-            alt="Sell Furniture" 
-            className="absolute inset-0 w-full h-full object-cover opacity-20"
-            style={{ transform: `translateY(${scrollY * 0.15}px)` }}
-          />
-          
-          <div className="relative z-10 flex items-center justify-center h-full px-8 py-10 text-center">
-            <div className="w-full">
-              <h2 className="text-[clamp(1.5rem,2.6vw,2.2rem)] leading-[0.9] font-black uppercase italic mb-6 text-white font-display">
-                Ready to start <br/>selling?
-              </h2>
-              <button
-                onClick={() => handleProtectedNavigation('/sell-hub')}
-                className="border border-white/40 text-white px-10 py-4 rounded-md text-[11px] font-black uppercase tracking-[0.3em] hover:bg-white hover:text-[#FF6B35] transition italic font-display"
-              >
-                Learn More
-              </button>
-            </div>
+        <h1 className="scroll-reveal d1 font-serif text-[clamp(52px,7vw,96px)] font-normal text-[#0A0A0A] tracking-[-2px] leading-[1.05] max-w-[800px]">
+          Know what it's<br /><em className="italic text-[#FF6B35]">actually worth</em>
+        </h1>
+        <p className="scroll-reveal d2 mt-7 text-[18px] leading-[1.6] text-[#6B6B6B] max-w-[440px]">
+          Upload a photo. Get an instant AI appraisal with real market data from 5+ platforms.
+        </p>
+        <div className="scroll-reveal d3 mt-12 flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+          <button type="button" onClick={scrollToUpload} className="btn-dark inline-flex items-center gap-2 py-3.5 px-8 rounded-[100px] text-[15px] font-semibold bg-[#0A0A0A] text-white hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)] transition-all w-full sm:w-auto justify-center">
+            Try a Free Appraisal
+            <ArrowRight size={16} strokeWidth={2.5} />
+          </button>
+          <button type="button" onClick={scrollToSteps} className="btn-ghost inline-flex items-center gap-2 py-3.5 px-8 rounded-[100px] text-[15px] font-semibold bg-transparent text-[#6B6B6B] border border-[#E0E0E0] border-[1.5px] hover:border-[#9A9A9A] hover:text-[#0A0A0A] transition-all w-full sm:w-auto justify-center">
+            Learn More
+          </button>
+        </div>
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          <div className="w-px h-8 bg-[#E0E0E0] relative overflow-hidden">
+            <div className="scroll-line-inner" />
           </div>
         </div>
       </section>
 
-      {/* WAVE DIVIDER */}
-      <div className="h-24 w-full bg-white relative z-20 overflow-hidden">
-        <svg viewBox="0 0 1440 100" className="absolute bottom-0 w-full h-full fill-[#121c32]">
-          <path d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,48C1120,43,1280,53,1360,58.7L1440,64L1440,100L1360,100C1280,100,1120,100,960,100C800,100,640,100,480,100C320,100,160,100,80,100L0,100Z"></path>
-        </svg>
-      </div>
-
-      {/* 2. KEY FEATURES */}
-      <section className="py-40 px-8 bg-[#121c32] relative">
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="flex flex-col md:flex-row items-end justify-between mb-24 gap-8 scroll-reveal">
-            <div>
-              <div className="w-16 h-1.5 bg-[#FF6B35] mb-8" />
-              <h2 className="text-5xl font-black text-white tracking-tighter leading-none mb-6 uppercase italic font-display">Smart Pricing Tools</h2>
-              <p className="text-xl font-bold text-white/40 uppercase tracking-widest text-xs italic font-display">Data-driven insights for smarter neighborhood shopping.</p>
+      {/* 3. Demo Appraisal Card — matches HTML .demo-wrap / .demo-card */}
+      <section className="px-6 pb-[160px] md:pb-[160px] flex justify-center">
+        <div className="scroll-reveal w-full max-w-[720px] bg-[#FAFAFA] border border-[#E0E0E0] rounded-[20px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_24px_80px_rgba(0,0,0,0.06)] transition-shadow duration-[0.6s]">
+          <div className="flex justify-between items-center py-5 px-6 md:py-5 md:px-7 border-b border-[#F2F2F2]">
+            <div className="flex gap-1.5 items-center">
+              <span className="w-2 h-2 rounded-full bg-[#FF5F57]" />
+              <span className="w-2 h-2 rounded-full bg-[#FFBD2E]" />
+              <span className="w-2 h-2 rounded-full bg-[#28C840]" />
+              <span className="text-[13px] font-medium text-[#9A9A9A] ml-2.5">Appraisal</span>
             </div>
-            <div className="flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display">
-              <Zap size={14} fill="currentColor" />
-              Market Intelligence Active
-            </div>
+            <span className="text-[12px] font-semibold text-[#16A34A] bg-[rgba(22,163,74,0.08)] py-1 px-3 rounded-[100px]">Complete</span>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: TrendingUp, num: "01", title: "Market Arbitrage", desc: "Identify items listed 30% below national averages." },
-              { icon: Camera, num: "02", title: "Photo Analysis", desc: "Get pricing data and descriptions from one photo." },
-              { icon: ShieldCheck, num: "03", title: "Trust Protocol", desc: "Verified neighborhood profiles and safe zones." },
-              { icon: LayoutGrid, num: "04", title: "Discovery Hub", desc: "High-fidelity neighborhood sale browser." }
-            ].map((f, i) => (
-              <div key={i} className="bg-white/5 backdrop-blur-md border border-white/10 p-10 rounded-2xl hover:border-[#FF6B35]/40 transition-all group scroll-reveal">
-                <div className="flex justify-between items-start mb-8">
-                  <f.icon className="text-[#FF6B35] group-hover:scale-110 transition-transform" size={32} strokeWidth={3} />
-                  <span className="text-2xl font-black text-white/10 group-hover:text-[#FF6B35]/20 font-display transition-colors">{f.num}</span>
-                </div>
-                <h3 className="text-xl font-black text-white mb-4 italic tracking-tighter uppercase font-display">{f.title}</h3>
-                <p className="text-white/40 text-sm leading-relaxed font-medium font-body">{f.desc}</p>
+          <div className="py-9 px-6 md:px-8">
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="w-[100px] h-[100px] rounded-[14px] shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(145deg, #E8E4E0, #D8D2CC)' }}>
+                <svg className="w-9 h-9 text-[#9A9A9A] opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M12 12h.01" /></svg>
               </div>
-            ))}
+              <div className="flex-1">
+                <h3 className="font-serif text-[22px] text-[#0A0A0A] mb-0.5">Herman Miller Aeron Chair</h3>
+                <p className="text-[13px] text-[#9A9A9A] mb-5">Size B · Graphite · Good condition</p>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-[36px] font-bold text-[#0A0A0A] tracking-[-1.5px]">$485</span>
+                  <span className="text-[14px] text-[#9A9A9A]">$380 – $620</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-7 pt-7 border-t border-[#F2F2F2]">
+              <div className="flex justify-between mb-2.5">
+                <span className="text-[12px] font-semibold uppercase tracking-[0.8px] text-[#9A9A9A]">Confidence</span>
+                <strong className="text-[13px] font-semibold text-[#0A0A0A]">87%</strong>
+              </div>
+              <div className="h-1 bg-[#F2F2F2] rounded-sm overflow-hidden">
+                <div data-confidence-bar className="h-full w-0 bg-[#FF6B35] rounded-sm" />
+              </div>
+              <div className="flex flex-wrap gap-2 mt-5">
+                {['eBay Sold', 'Amazon', 'Mercari', 'Craigslist', 'Google Shopping'].map((label) => (
+                  <span key={label} className="text-[12px] font-medium text-[#6B6B6B] py-1.5 px-3 bg-[#F2F2F2] rounded-[100px]">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 3. WORKFLOW - NUMERIC STEPS WITH ICONS */}
-      <section className="py-48 px-8 bg-[#121c32] border-y border-white/5 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="mb-32 text-center scroll-reveal">
-            <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white mb-10 leading-[0.85] uppercase italic font-display">
-              The System Workflow
-            </h2>
-            <p className="text-2xl text-white/40 max-w-2xl mx-auto font-black uppercase tracking-widest text-xs leading-loose font-display">Optimized discovery through localized data analysis.</p>
+      {/* 4. How It Works — matches HTML .steps */}
+      <section id="steps" className="py-[100px] md:py-[160px] px-6 md:px-[56px]">
+        <div className="max-w-[1100px] mx-auto">
+          <div className="text-center mb-16 md:mb-[100px]">
+            <p className="scroll-reveal text-[12px] font-bold uppercase tracking-[2px] text-[#FF6B35] mb-5">How It Works</p>
+            <h2 className="scroll-reveal d1 font-serif text-[clamp(36px,4.5vw,56px)] font-normal text-[#0A0A0A] tracking-[-1px]">Photo in, price out.</h2>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 text-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16">
             {[
-              { num: "01", title: "Browse", desc: "Scan neighborhood patterns for high-potential listings." },
-              { num: "02", title: "Validate", desc: "Snap a photo for neural recognition and MSRP data." },
-              { num: "03", title: "Acquire", desc: "Secure the deal with protected local payments." },
-              { num: "04", title: "Scale", desc: "Flip or resell using automated SEO descriptions." }
+              { num: '01', title: 'Snap a photo', desc: 'Take a photo of anything you want to sell. Furniture, electronics, clothing, collectibles — whatever it is.' },
+              { num: '02', title: 'AI scans the market', desc: 'We identify the item and cross-reference real sold prices from eBay, Amazon, Etsy, Mercari, and Google Shopping.' },
+              { num: '03', title: 'Get your price', desc: 'Receive a detailed appraisal with fair market value, confidence score, and comparable listings. Sell wherever you want.' },
             ].map((step, i) => (
-              <div key={i} className="scroll-reveal group">
-                <div className="text-7xl md:text-8xl font-black text-white/5 group-hover:text-[#FF6B35]/20 transition-colors mb-6 select-none italic tracking-tighter font-display leading-none">
-                  {step.num}
-                </div>
-                <h4 className="text-xl font-black text-white mb-4 uppercase italic font-display">{step.title}</h4>
-                <p className="text-white/40 text-sm font-body px-4">{step.desc}</p>
+              <div key={step.num} className={`scroll-reveal step-card ${i === 0 ? 'd1' : i === 1 ? 'd2' : 'd3'}`}>
+                <div className="font-serif text-[64px] leading-none text-[#F2F2F2] mb-6 step-num-hover">{step.num}</div>
+                <h3 className="text-[18px] font-bold text-[#0A0A0A] tracking-[-0.3px] mb-3">{step.title}</h3>
+                <p className="text-[15px] leading-[1.7] text-[#6B6B6B]">{step.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 4. MARKET FINDS */}
-      <section className="py-40 px-8 bg-[#0a101d]">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-end mb-20 scroll-reveal">
-            <h2 className="text-5xl font-black text-white tracking-tighter italic uppercase leading-none font-display">Recent Market Finds</h2>
-            <button
-              onClick={() => handleProtectedNavigation('/search')}
-              className="group flex items-center gap-4 text-[#FF6B35] font-black text-[10px] uppercase tracking-[0.4em] italic font-display"
-            >
-              <span>EXPLORE ALL</span>
-              <div className="w-10 h-10 rounded-full border-2 border-current flex items-center justify-center group-hover:bg-[#FF6B35] group-hover:text-white group-hover:border-[#FF6B35] transition-all">
-                <ChevronRight size={18} strokeWidth={4} />
-              </div>
-            </button>
+      {/* 5. Features — dark, matches HTML .feats */}
+      <section className="bg-[#0A0A0A] text-white py-[100px] md:py-[160px] px-6 md:px-[56px]">
+        <div className="max-w-[1100px] mx-auto">
+          <div className="mb-16 md:mb-[100px]">
+            <p className="scroll-reveal text-[12px] font-bold uppercase tracking-[2px] mb-5" style={{ color: 'rgba(255,107,53,0.7)' }}>Why YardFront</p>
+            <h2 className="scroll-reveal d1 font-serif text-[clamp(36px,4.5vw,56px)] font-normal text-white tracking-[-1px] max-w-[600px]">Built different.</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-            {PRODUCTS.slice(0, 4).map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 5. REVIEWS SECTION (LUCIDE STARS, NO EMOJIS) */}
-      <section className="py-40 px-8 bg-[#121c32] border-t border-white/5">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-24 scroll-reveal">
-            <h2 className="text-5xl font-black text-white tracking-tighter uppercase italic font-display">Trusted by Your Neighbors</h2>
-            <div className="w-24 h-1 bg-[#FF6B35] mx-auto mt-8" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="divide-y divide-white/[0.08]">
             {[
-              {
-                stars: 5,
-                quote: "YardFront's pricing intelligence helped me find a vintage Fender amp for $20. The valuation was spot-on.",
-                author: "Marcus Thorne, Verified Buyer"
-              },
-              {
-                stars: 5,
-                quote: "I cleared out my garage in a weekend. Pricing, listings, and discovery were handled automatically.",
-                author: "Elena G., Verified Seller"
-              },
-              {
-                stars: 5,
-                quote: "The trust layer makes all the difference. No sketchy meetups, no guessing.",
-                author: "Jordan Pierce, Neighborhood Curator"
-              }
-            ].map((review, i) => (
-              <div key={i} className="bg-white/5 backdrop-blur-md border border-white/10 p-10 rounded-2xl scroll-reveal group">
-                <div className="flex gap-1 mb-6 text-[#FF6B35]">
-                  {[...Array(review.stars)].map((_, j) => (
-                    <Star key={j} size={16} fill="currentColor" />
-                  ))}
+              { num: '01', title: 'Real sold data', desc: "We pull actual completed sales, not asking prices. You see what people really paid — not what sellers wished they'd get." },
+              { num: '02', title: 'AI vision, not keywords', desc: 'Google Gemini identifies brand, model, era, and condition from a single photo. No typing, no searching — point and shoot.' },
+              { num: '03', title: 'Local context', desc: 'A couch in Berkeley prices differently than in rural Montana. We factor in your local market alongside national data.' },
+              { num: '04', title: 'Sell anywhere', desc: "We're not a marketplace. Get your price, then list on eBay, Facebook, Craigslist — wherever works best for you." },
+            ].map((row, i) => (
+              <div key={row.num} className={`scroll-reveal grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4 md:gap-12 py-12 items-baseline border-t border-white/[0.08] hover:pl-3 transition-[padding-left] duration-300 ${i === 3 ? 'border-b border-white/[0.08]' : ''} ${i === 0 ? 'd1' : i === 1 ? 'd2' : i === 2 ? 'd3' : 'd4'}`}>
+                <span className="font-serif text-[18px] text-[#FF6B35]">{row.num}</span>
+                <div>
+                  <h3 className="text-[22px] font-semibold text-white tracking-[-0.3px] mb-2">{row.title}</h3>
+                  <p className="text-[15px] leading-[1.7] text-white/40 max-w-[520px]">{row.desc}</p>
                 </div>
-                <p className="text-white/80 text-lg mb-8 italic font-body">"{review.quote}"</p>
-                <div className="h-px w-10 bg-[#FF6B35] mb-4" />
-                <p className="text-[#FF6B35] text-[10px] font-black uppercase tracking-widest font-display">{review.author}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 6. FINAL CTA */}
-      <section className="py-64 bg-[#121c32] px-8 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B35]/20 via-transparent to-transparent pointer-events-none" />
-        <div className="absolute -bottom-20 -right-20 w-[40rem] h-[40rem] bg-[#FF6B35]/10 rounded-full blur-[120px]" />
-        
-        <div className="relative z-10 max-w-5xl mx-auto text-center space-y-16 scroll-reveal">
-          <h2 className="text-6xl md:text-9xl font-black text-white tracking-tighter leading-[0.8] uppercase italic font-display">
-            Own the <br/>Neighborhood.
-          </h2>
-          <p className="text-2xl text-white/40 max-w-2xl mx-auto font-black uppercase tracking-[0.3em] text-sm italic font-display">
-            Join 50,000+ neighbors discoverying value with Silicon Valley tools.
-          </p>
-          <div className="pt-10">
-            <Link 
-              to="/signup" 
-              className="group inline-flex items-center justify-center bg-[#FF6B35] hover:bg-white hover:text-[#FF6B35] text-white text-base font-black uppercase tracking-[0.4em] px-24 py-8 rounded-md transition-all shadow-[0_20px_60px_-10px_rgba(255,107,53,0.5)] hover:-translate-y-2 active:scale-95 italic font-display"
+      {/* 6. Upload / Try It — matches HTML .upload-sec */}
+      <section ref={uploadSectionRef} id="upload" className="py-[100px] md:py-[160px] px-6 flex flex-col items-center text-center">
+        <p className="scroll-reveal text-[12px] font-bold uppercase tracking-[2px] text-[#FF6B35] mb-4">Try It</p>
+        <h2 className="scroll-reveal d1 font-serif text-[clamp(36px,4.5vw,56px)] font-normal text-[#0A0A0A] tracking-[-1px] mb-4">See it in action.</h2>
+        <p className="scroll-reveal d2 text-[17px] text-[#6B6B6B] mb-14 max-w-[380px]">No signup required for your first appraisal.</p>
+
+        {usage.is_limited ? (
+          <div className="scroll-reveal d3 w-full max-w-[520px] border border-[#E0E0E0] rounded-[20px] p-12 text-center bg-[#FAFAFA]">
+            <div className="text-4xl mb-4">🔒</div>
+            <h3 className="text-[20px] font-bold text-[#0A0A0A] mb-2">You've used all 3 free appraisals</h3>
+            <p className="text-[#6B6B6B] mb-8 max-w-[360px] mx-auto">
+              Upgrade to Pro for unlimited appraisals, all 5+ data sources, and comparable listings.
+            </p>
+            <button
+              type="button"
+              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+              className="inline-flex items-center gap-2 px-8 py-3 bg-[#0A0A0A] text-white rounded-[100px] font-semibold text-[15px] hover:opacity-85 transition-opacity"
             >
-              <span>GET STARTED FREE</span>
+              View Plans
+            </button>
+            <p className="text-[13px] text-[#9A9A9A] mt-4">Starting at $9/mo · Cancel anytime</p>
+          </div>
+        ) : (
+          <>
+            <input ref={fileInputRef} type="file" accept={ACCEPT_IMAGES} capture="environment" className="hidden" onChange={onFileChange} />
+
+            {/* Error message above the upload box */}
+            {uploadError && (
+              <div className="scroll-reveal d3 w-full max-w-[520px] mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 flex flex-col items-center justify-center text-center">
+                <p className="text-[15px] font-medium text-red-700">{uploadError}</p>
+                <p className="text-[13px] text-[#6B6B6B] mt-1">Try another photo or click the box below to try again.</p>
+                <button type="button" onClick={() => setUploadError(null)} className="mt-2 text-[13px] font-medium text-[#FF6B35] hover:underline">Dismiss</button>
+              </div>
+            )}
+
+            <div
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onClick={() => {
+                if (uploadError) setUploadError(null);
+                triggerFileInput();
+              }}
+              className={`scroll-reveal d3 w-full max-w-[520px] border-[1.5px] border-dashed rounded-[20px] py-16 px-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${
+                isDragging || isUploading ? 'border-[#FF6B35] bg-[rgba(255,107,53,0.08)]' : 'border-[#E0E0E0] hover:border-[#FF6B35] hover:bg-[rgba(255,107,53,0.08)]'
+              }`}
+            >
+              {isUploading ? (
+                <>
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-5 bg-[rgba(255,107,53,0.08)]">
+                    <div className="w-6 h-6 border-2 border-[#E0E0E0] border-t-[#FF6B35] rounded-full animate-spin" />
+                  </div>
+                  <p className="text-[16px] font-medium text-[#0A0A0A]">Scanning markets...</p>
+                  <p className="text-[13px] text-[#9A9A9A] mt-1">Checking eBay, Mercari, Craigslist, and more</p>
+                </>
+              ) : (
+                <>
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-5 transition-all duration-300 ${isDragging ? 'bg-[rgba(255,107,53,0.08)] text-[#FF6B35]' : 'bg-[#F2F2F2] text-[#9A9A9A]'}`}>
+                    <Upload size={24} strokeWidth={2} />
+                  </div>
+                  <p className="text-[16px] font-medium text-[#1A1A1A]">Drop a photo here, or <span className="text-[#FF6B35]">browse</span></p>
+                  <p className="text-[13px] text-[#9A9A9A] mt-2">JPG, PNG, HEIC up to 10MB</p>
+                </>
+              )}
+            </div>
+
+            {usage.used > 0 && !usage.is_limited && (
+              <p className="text-[13px] text-[#9A9A9A] mt-4">
+                {usage.remaining} free appraisal{usage.remaining !== 1 ? 's' : ''} remaining
+              </p>
+            )}
+          </>
+        )}
+
+        <div className="flex flex-wrap justify-center gap-2 mt-7 scroll-reveal d4">
+          {['Furniture', 'Electronics', 'Sneakers', 'Instruments', 'Collectibles'].map((label) => (
+            <button key={label} type="button" className="text-[13px] font-medium text-[#6B6B6B] py-[7px] px-4 border border-[#E0E0E0] rounded-[100px] hover:border-[#FF6B35] hover:text-[#FF6B35] hover:bg-[rgba(255,107,53,0.08)] transition-colors duration-200">
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-[#9A9A9A] mt-4 text-center">
+          Powering pricing for estate sales, thrift chains & insurance appraisers.{" "}
+          <Link to="/business" className="text-[#FF6B35] hover:underline">
+            See business plans →
+          </Link>
+        </p>
+      </section>
+
+      {/* 7. Pricing — matches HTML .pricing */}
+      <section id="pricing" className="py-[100px] md:py-[160px] px-6 md:px-[56px]">
+        <div className="max-w-[1100px] mx-auto">
+          <div className="text-center mb-16 md:mb-[72px]">
+            <p className="scroll-reveal text-[12px] font-bold uppercase tracking-[2px] text-[#FF6B35] mb-5">Pricing</p>
+            <h2 className="scroll-reveal d1 font-serif text-[clamp(36px,4.5vw,56px)] font-normal text-[#0A0A0A] tracking-[-1px]">Simple and fair.</h2>
+            <p className="scroll-reveal d2 text-[16px] text-[#6B6B6B] mt-3">Start with 3 free appraisals. No credit card.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-[400px] md:max-w-none mx-auto md:mx-0">
+            {[
+              { name: 'Free', price: '$0', priceSpan: '', sub: '3 appraisals', features: ['AI item recognition', 'Price range estimate', '3 platform sources'], cta: 'Get Started', highlight: false, outline: true },
+              { name: 'Pro', price: '$9', priceSpan: '/mo', sub: 'Unlimited appraisals', features: ['Unlimited appraisals', 'All 5+ sources', 'Comparable listings', 'Bulk uploads'], cta: 'Start Free Trial', highlight: true, badge: 'Popular', outline: false },
+              { name: 'Business', price: '$29', priceSpan: '/mo', sub: 'For resellers', features: ['Everything in Pro', 'API access', 'Batch processing', 'CSV / PDF export'], cta: 'Contact Us', highlight: false, outline: true },
+            ].map((plan) => (
+              <div
+                key={plan.name}
+                className={`scroll-reveal relative rounded-[20px] py-10 px-8 border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] ${plan.highlight ? 'bg-[#0A0A0A] text-white border-transparent' : 'bg-white border-[#E0E0E0]'}`}
+              >
+                {plan.badge && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 py-1 px-3.5 bg-[#FF6B35] text-white text-[11px] font-bold uppercase tracking-[0.5px] rounded-[100px]">{plan.badge}</span>
+                )}
+                <div className="text-[13px] font-bold uppercase tracking-[1.5px] text-[#9A9A9A] mb-5">{plan.name}</div>
+                <div className={`text-[44px] font-bold tracking-[-2px] ${plan.highlight ? 'text-white' : 'text-[#0A0A0A]'}`}>
+                  {plan.price}<span className="text-[16px] font-medium tracking-normal">{plan.priceSpan}</span>
+                </div>
+                <div className={`text-[14px] mt-1 mb-8 ${plan.highlight ? 'text-white/40' : 'text-[#9A9A9A]'}`}>{plan.sub}</div>
+                <ul className="flex flex-col gap-3 mb-9">
+                  {plan.features.map((f) => (
+                    <li key={f} className={`flex items-center gap-2.5 text-[14px] ${plan.highlight ? 'text-white/50' : 'text-[#6B6B6B]'}`}>
+                      {plan.highlight ? <span className="text-[#FF6B35]">✓</span> : <Check className="w-4 h-4 text-[#16A34A] shrink-0" strokeWidth={2.5} />}
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                {plan.name === 'Free' ? (
+                  <button
+                    type="button"
+                    onClick={scrollToUpload}
+                    className={`block w-full text-center py-3 px-6 rounded-[100px] text-[14px] font-semibold transition-all duration-300 bg-transparent border border-[#E0E0E0] text-[#1A1A1A] hover:border-[#9A9A9A]`}
+                  >
+                    {plan.cta}
+                  </button>
+                ) : plan.name === 'Pro' ? (
+                  <button
+                    type="button"
+                    onClick={() => alert('Pro plan coming soon! Join the waitlist at hello@yardfront.com')}
+                    className={`block w-full text-center py-3 px-6 rounded-[100px] text-[14px] font-semibold transition-all duration-300 bg-white text-[#0A0A0A] hover:bg-[#F2F2F2]`}
+                  >
+                    {plan.cta}
+                  </button>
+                ) : (
+                  <a
+                    href="mailto:hello@yardfront.com?subject=YardFront%20Business%20Plan%20Inquiry"
+                    className={`block text-center py-3 px-6 rounded-[100px] text-[14px] font-semibold transition-all duration-300 bg-transparent border border-[#E0E0E0] text-[#1A1A1A] hover:border-[#9A9A9A]`}
+                  >
+                    {plan.cta}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 8. Final CTA — matches HTML .final */}
+      <section className="py-[120px] md:py-[200px] px-6 text-center">
+        <h2 className="scroll-reveal font-serif text-[clamp(44px,6vw,80px)] font-normal text-[#0A0A0A] tracking-[-2px] leading-[1.05] mb-10">
+          Stop guessing.<br />Start <em className="italic text-[#FF6B35]">knowing.</em>
+        </h2>
+        <button
+          type="button"
+          onClick={scrollToUpload}
+          className="scroll-reveal d1 inline-flex items-center gap-2 bg-[#0A0A0A] text-white font-semibold text-[17px] py-4 px-10 rounded-[100px] hover:opacity-90 transition-opacity"
+        >
+          Try Your First Appraisal
+          <ArrowRight size={18} strokeWidth={2.5} />
+        </button>
+      </section>
+
+      {/* ── BUSINESS SECTION ──────────────────────────────────── */}
+      <section className="bg-[#121C32] py-24 px-6">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-[#FF6B35] text-xs font-semibold tracking-[0.2em] uppercase mb-6">
+            For Businesses
+          </p>
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-16">
+            <h2 className="text-white font-serif italic text-4xl lg:text-6xl leading-tight max-w-2xl">
+              Price your entire inventory.<br />
+              Not just one item.
+            </h2>
+            <Link
+              to="/business"
+              className="inline-flex items-center gap-2 bg-[#FF6B35] text-white px-6 py-3 rounded-full text-sm font-medium hover:opacity-90 transition-opacity self-start lg:self-end whitespace-nowrap no-underline"
+            >
+              Get API Access →
             </Link>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
+            {[
+              {
+                title: "Estate Sale Companies",
+                description: "Price 200+ items per event in minutes, not days. Bulk upload via CSV or API.",
+                stat: "500 items/event avg",
+              },
+              {
+                title: "Thrift Store Chains",
+                description: "Stop leaving money on the table. Accurate comps from eBay, Mercari, and more.",
+                stat: "5+ data sources",
+              },
+              {
+                title: "Insurance & Claims",
+                description: "Defensible market-value appraisals for personal property claims. Audit trail included.",
+                stat: "2s response time",
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                className="border border-white/10 rounded-2xl p-6 hover:border-[#FF6B35]/40 transition-colors"
+              >
+                <p className="text-[#FF6B35] text-2xl font-semibold mb-2">{card.stat}</p>
+                <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
+                <p className="text-white/50 text-sm leading-relaxed">{card.description}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <p className="text-white/40 text-xs font-mono mb-3">POST /api/v1/appraise</p>
+            <pre className="text-white/80 text-sm font-mono leading-relaxed overflow-x-auto">
+{`{
+  "image_url": "https://...",
+  "condition": "good",
+  "category": "electronics"
+}
+
+→ {
+  "item_name": "Canon AE-1 35mm Film Camera",
+  "price_low": 65,
+  "price_high": 110,
+  "price_recommended": 85,
+  "confidence": 8.2,
+  "sources": ["ebay_sold", "mercari", "craigslist"]
+}`}
+            </pre>
+          </div>
         </div>
       </section>
+      {/* ── END BUSINESS SECTION ──────────────────────────────── */}
 
-      <Footer />
+      {/* 9. Footer — matches HTML footer */}
+      <footer className="border-t border-[#F2F2F2] py-10 md:py-12 px-6 md:px-[56px] flex flex-col md:flex-row justify-between items-center gap-5 md:gap-0 text-center md:text-left">
+        <div className="text-[13px] text-[#9A9A9A]">© 2026 YardFront · Berkeley, CA</div>
+        <div className="flex gap-7">
+          <Link to="/privacy-policy" className="text-[13px] text-[#9A9A9A] hover:text-[#0A0A0A] transition-colors">Privacy</Link>
+          <Link to="/terms-of-service" className="text-[13px] text-[#9A9A9A] hover:text-[#0A0A0A] transition-colors">Terms</Link>
+          <button type="button" onClick={scrollToUpload} className="text-[13px] text-[#9A9A9A] hover:text-[#0A0A0A] transition-colors">Contact</button>
+        </div>
+      </footer>
     </div>
   );
-};
-
-export default LandingPage;
+}

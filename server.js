@@ -6,12 +6,14 @@
  * ============================================================
  */
 
+// Load .env first so route modules (e.g. appraise.js) have process.env when they initialize
+import 'dotenv/config';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import compression from 'compression';
@@ -32,9 +34,16 @@ import aiRoutes from './routes/ai.js';
 import uploadRoutes from './routes/upload.js';
 import searchRoutes from './routes/search.js';
 import paymentRoutes from './routes/payments.js';
+import appraiseRoutes from './routes/appraise.js';
+import v1AppraiseRouter from './routes/v1/appraise.js';
+import apiKeysRoutes from './routes/apiKeys.js';
+import extensionRoutes from './routes/extension.js';
+import usageRoutes from './routes/usage.js';
+import marketplaceRoutes from './routes/marketplace.js';
+import dashboardRoutes from './routes/dashboard.js';
 
-// Load environment variables
-dotenv.config();
+// Optional: override with .env.local if present
+import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local', override: true });
 
 const __filename = fileURLToPath(import.meta.url);
@@ -74,6 +83,21 @@ export const supabaseAdmin = supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
+const productionCriticalEnv = [
+  'SUPABASE_URL',
+  'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'GEMINI_API_KEY',
+  'EBAY_APP_ID',
+  'SERPAPI_KEY',
+];
+
+const missingCriticalEnv = productionCriticalEnv.filter((k) => !process.env[k]);
+if (missingCriticalEnv.length) {
+  console.warn('⚠️ Missing environment variables:', missingCriticalEnv.join(', '));
+  console.warn('   If running on Vercel, add these in Project Settings > Environment Variables and redeploy.');
+}
+
 // ============================================================
 // MIDDLEWARE
 // ============================================================
@@ -100,6 +124,8 @@ const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || process.env.ALLOWE
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
+  'https://yardfrontend.com',
+  'https://www.yardfrontend.com',
 ];
 
 app.use(cors({
@@ -126,7 +152,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Api-Key'],
 }));
 
 // Compression
@@ -258,14 +284,22 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/v1/appraise', v1AppraiseRouter);
+app.use('/api/appraise', extensionRoutes);
+app.use('/api/appraise', appraiseRoutes);
+app.use('/api/user', apiKeysRoutes);
+app.use('/api/usage', usageRoutes);
+app.use('/api/marketplace', marketplaceRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ============================================================
 // STATIC FILE SERVING (Frontend)
 // ============================================================
 
-// Serve static files from dist directory (built frontend)
+// Serve static files from frontend/dist (built frontend; npm run build outputs there)
 // Must be before the catch-all route to properly serve CSS/JS assets
-app.use(express.static(join(__dirname, 'dist'), {
+const distPath = join(__dirname, 'frontend', 'dist');
+app.use(express.static(distPath, {
   maxAge: NODE_ENV === 'production' ? '1y' : '0',
   etag: true,
   lastModified: true,
@@ -303,7 +337,7 @@ app.get('*', (req, res, next) => {
   if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
     return res.status(404).send('Not found');
   }
-  res.sendFile(join(__dirname, 'dist', 'index.html'));
+  res.sendFile(join(__dirname, 'frontend', 'dist', 'index.html'));
 });
 
 // Global error handler

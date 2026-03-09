@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "YardFront",
+  "version": "1.0",
+  "description": "Price badges for marketplace listings",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://*.craigslist.org/*",
+    "https://*.ebay.com/*",
+    "https://*.amazon.com/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:5173/*",
+    "http://127.0.0.1:5173/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.craigslist.org/*"],
+      "js": [
+        "content-scripts/badge.js",
+        "content-scripts/scrapers/craigslist.js",
+        "content-scripts/detector.js"
+      ],
+      "css": ["content-scripts/badge.css"]
+    },
+    {
+      "matches": ["https://*.ebay.com/sch/*", "https://*.ebay.com/itm/*"],
+      "js": [
+        "content-scripts/badge.js",
+        "content-scripts/scrapers/ebay.js",
+        "content-scripts/detector.js"
+      ],
+      "css": ["content-scripts/badge.css"]
+    },
+    {
+      "matches": [
+        "https://*.amazon.com/dp/*",
+        "https://*.amazon.com/*/dp/*",
+        "https://*.amazon.com/s*"
+      ],
+      "js": [
+        "content-scripts/badge.js",
+        "content-scripts/scrapers/amazon.js",
+        "content-scripts/detector.js"
+      ],
+      "css": ["content-scripts/badge.css"]
+    },
+    {
+      "matches": ["http://localhost:5173/*", "http://127.0.0.1:5173/*"],
+      "js": ["content-scripts/auth-receiver.js"]
+    }
+  ]
+}

@@ -52,9 +52,6 @@ function getAdminClient() {
  */
 router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async (req, res) => {
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.js:POST/image',message:'handler entry',data:{hasFile:!!req.file,bodyBucket:req.body?.bucket,hasUser:!!req.user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     if (!req.file) {
       return res.status(400).json({ error: 'No image provided' });
     }
@@ -90,9 +87,6 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
     // Try to use admin client for upload (bypasses RLS issues)
     const adminClient = getAdminClient();
     const uploadClient = adminClient || req.supabase;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.js:client',message:'which client',data:{usingAdmin:!!adminClient,hasServiceKey:!!process.env.SUPABASE_SERVICE_ROLE_KEY,bucket},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     console.log(`[Upload] Using ${adminClient ? 'admin' : 'regular'} client for bucket: ${bucket}`);
     console.log(`[Upload] Filename: ${filename}, Size: ${buffer.length} bytes`);
 
@@ -105,9 +99,6 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
       });
 
     if (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.js:storageError',message:'supabase storage error',data:{errorMsg:error.message,statusCode:error.statusCode,bucket,filename,usingAdmin:!!adminClient},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,D'})}).catch(()=>{});
-      // #endregion
       console.error('[Upload] Storage error:', {
         error: error.message,
         statusCode: error.statusCode,
@@ -130,15 +121,9 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
       .from(bucket)
       .getPublicUrl(filename);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.js:storageSuccess',message:'upload success',data:{bucket,path:data.path,url:publicUrl},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     console.log(`✅ Successfully uploaded image to ${bucket}: ${filename}`);
     res.json({ url: publicUrl, path: data.path });
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.js:catch',message:'upload handler error',data:{errorMsg:error?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
-    // #endregion
     console.error('Upload error:', error);
     res.status(500).json({ error: error.message || 'Upload failed' });
   }

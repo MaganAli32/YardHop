@@ -135,9 +135,6 @@ const CreateGarageSalePage: React.FC = () => {
           
           // Convert blob URL to File object
           const file = await blobUrlToFile(photoUrl, `sale-${uploadId}.jpg`);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CreateGarageSalePage:beforeUpload',message:'file from blob',data:{index:i,fileSize:file?.size,fileType:file?.type,hasFile:!!file},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
           console.log(`[Upload ${i + 1}/${photos.length}] Uploading to garage-sale-images bucket...`);
           
           // uploadApi.uploadImage expects (file: File, bucket: string)
@@ -149,9 +146,6 @@ const CreateGarageSalePage: React.FC = () => {
           console.log(`[Upload ${i + 1}/${photos.length}] Success:`, result.url);
           imageUrls.push(result.url);
         } catch (uploadErr: any) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/d02755c2-16ed-4073-9690-00cfbedbcd38',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CreateGarageSalePage:uploadCatch',message:'upload error',data:{index:i,message:uploadErr?.message,name:uploadErr?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
-          // #endregion
           console.error(`[Upload ${i + 1}/${photos.length}] Failed:`, uploadErr);
           uploadErrors.push(`Image ${i + 1}: ${uploadErr.message || 'Upload failed'}`);
           // Continue with other images even if this one fails

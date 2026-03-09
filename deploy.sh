@@ -24,9 +24,9 @@ echo ""
 echo "🔨 Building frontend..."
 npm run build
 
-# Check if build succeeded
-if [ ! -d "dist" ]; then
-    echo "❌ Build failed! dist folder not found."
+# Check if build succeeded (Vite outputs to frontend/dist)
+if [ ! -d "frontend/dist" ]; then
+    echo "❌ Build failed! frontend/dist folder not found."
     exit 1
 fi
 
