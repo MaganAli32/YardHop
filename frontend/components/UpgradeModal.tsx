@@ -1,111 +1,223 @@
-import React from 'react';
-import { X, Check, Zap, Crown, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  EmbeddedCheckoutProvider,
+  EmbeddedCheckout,
+} from '@stripe/react-stripe-js';
+import { supabase } from '../lib/supabase';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+const PLANS = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    monthly: 99,
+    annual: 79,
+    limit: '500 appraisals/mo',
+  },
+  {
+    id: 'growth',
+    name: 'Growth',
+    monthly: 299,
+    annual: 239,
+    limit: '2,000 appraisals/mo',
+    popular: true,
+  },
+  {
+    id: 'scale',
+    name: 'Scale',
+    monthly: 799,
+    annual: 639,
+    limit: '7,500 appraisals/mo',
+  },
+];
 
 interface UpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentTier: string;
+  currentPlan: string;
 }
 
-export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, currentTier }) => {
+export default function UpgradeModal({ isOpen, onClose, currentPlan }: UpgradeModalProps) {
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedPlan(null);
+      setClientSecret(null);
+      setError('');
+      setLoading(false);
+    }
+  }, [isOpen]);
+
+  const handleSelectPlan = async (planId: string) => {
+    setSelectedPlan(planId);
+    setLoading(true);
+    setError('');
+
+    try {
+      const { data: { session } } = await supabase?.auth.getSession() ?? { data: { session: null } };
+      const res = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ plan: planId, billing_period: billing }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      setClientSecret(data.clientSecret);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Checkout failed');
+      setSelectedPlan(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchClientSecret = useCallback(() => Promise.resolve(clientSecret || ''), [clientSecret]);
+
   if (!isOpen) return null;
 
-  const plans = [
-    {
-      name: 'Free',
-      price: 0,
-      scans: 2,
-      features: ['2 AI scans/month', 'Basic listing creation', 'Browse marketplace'],
-      current: currentTier === 'free',
-      icon: Zap,
-    },
-    {
-      name: 'Pro',
-      price: 4.99,
-      scans: 50,
-      features: ['50 AI scans/month', 'Priority support', 'Advanced price analytics', 'Bulk scanning'],
-      recommended: true,
-      icon: Crown,
-    },
-    {
-      name: 'Unlimited',
-      price: 9.99,
-      scans: 'Unlimited',
-      features: ['Unlimited AI scans', 'Priority support', 'Advanced analytics', 'API access', 'Early features'],
-      icon: Sparkles,
-    },
-  ];
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-black text-[#121c32]">Upgrade Your Plan</h2>
-            <p className="text-slate-500 text-sm">Unlock more AI-powered insights</p>
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#1a2540] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative">
+        <div className="p-6 border-b border-white/[0.08]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[#FF6B35] text-xs font-semibold tracking-widest uppercase mb-1">
+                Upgrade Plan
+              </p>
+              <h2 className="text-white font-serif italic text-2xl">
+                Scale your pricing engine.
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-white/30 hover:text-white transition-colors text-2xl leading-none ml-4"
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
-            <X size={20} />
-          </button>
         </div>
 
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={`rounded-xl border-2 p-6 relative ${
-                plan.recommended ? 'border-[#FF6B35] bg-orange-50' : 'border-slate-200'
-              } ${plan.current ? 'opacity-60' : ''}`}
-            >
-              {plan.recommended && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#FF6B35] text-white text-xs font-bold px-3 py-1 rounded-full">
-                  RECOMMENDED
-                </div>
-              )}
-
-              <plan.icon size={24} className={plan.recommended ? 'text-[#FF6B35]' : 'text-slate-400'} />
-
-              <h3 className="text-xl font-black text-[#121c32] mt-3">{plan.name}</h3>
-
-              <div className="mt-2 mb-4">
-                <span className="text-3xl font-black text-[#121c32]">${plan.price}</span>
-                <span className="text-slate-500 text-sm">/month</span>
-              </div>
-
-              <p className="text-sm font-bold text-[#FF6B35] mb-4">
-                {plan.scans} scans/month
-              </p>
-
-              <ul className="space-y-2 mb-6">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm text-slate-600">
-                    <Check size={14} className="text-green-500" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
+        {!clientSecret && (
+          <div className="p-6">
+            <div className="flex items-center justify-center gap-3 mb-8">
               <button
-                disabled={plan.current}
-                className={`w-full py-3 rounded-xl font-bold text-sm ${
-                  plan.current
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    : plan.recommended
-                    ? 'bg-[#FF6B35] text-white hover:bg-[#e55a2b]'
-                    : 'bg-[#121c32] text-white hover:bg-slate-800'
+                type="button"
+                onClick={() => setBilling('monthly')}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  billing === 'monthly'
+                    ? 'bg-[#FF6B35] text-white'
+                    : 'text-white/40 hover:text-white'
                 }`}
               >
-                {plan.current ? 'Current Plan' : plan.price === 0 ? 'Downgrade' : 'Upgrade'}
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBilling('annual')}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                  billing === 'annual'
+                    ? 'bg-[#FF6B35] text-white'
+                    : 'text-white/40 hover:text-white'
+                }`}
+              >
+                Annual
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  billing === 'annual'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-green-500/20 text-green-400'
+                }`}>
+                  Save 20%
+                </span>
               </button>
             </div>
-          ))}
-        </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {PLANS.map((plan) => {
+                const isCurrent = plan.id === currentPlan;
+                const price = billing === 'annual' ? plan.annual : plan.monthly;
+                return (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onClick={() => !isCurrent && handleSelectPlan(plan.id)}
+                    disabled={isCurrent || loading}
+                    className={`relative text-left p-5 rounded-xl border transition-all ${
+                      isCurrent
+                        ? 'border-white/10 opacity-40 cursor-not-allowed'
+                        : selectedPlan === plan.id && loading
+                        ? 'border-[#FF6B35] bg-[#FF6B35]/10'
+                        : plan.popular
+                        ? 'border-[#FF6B35]/50 hover:border-[#FF6B35] hover:bg-[#FF6B35]/5'
+                        : 'border-white/10 hover:border-white/25 hover:bg-white/[0.03]'
+                    }`}
+                  >
+                    {plan.popular && (
+                      <span className="absolute -top-2.5 left-4 bg-[#FF6B35] text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        Popular
+                      </span>
+                    )}
+                    {isCurrent && (
+                      <span className="absolute -top-2.5 left-4 bg-white/20 text-white text-xs font-medium px-2 py-0.5 rounded-full">
+                        Current
+                      </span>
+                    )}
+                    <p className="text-white font-semibold mb-1">{plan.name}</p>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-2xl font-bold text-white">${price}</span>
+                      <span className="text-white/30 text-xs">/mo</span>
+                    </div>
+                    <p className="text-white/35 text-xs">{plan.limit}</p>
+
+                    {selectedPlan === plan.id && loading && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#1a2540]/80">
+                        <div className="w-4 h-4 border-2 border-[#FF6B35] border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {error && <p className="text-red-400 text-sm text-center mt-2">{error}</p>}
+            {billing === 'annual' && (
+              <p className="text-white/25 text-xs text-center mt-3">
+                Billed annually. Cancel anytime.
+              </p>
+            )}
+          </div>
+        )}
+
+        {clientSecret && (
+          <div className="p-6">
+            <button
+              type="button"
+              onClick={() => { setClientSecret(null); setSelectedPlan(null); }}
+              className="text-white/30 text-sm hover:text-white transition-colors mb-4 flex items-center gap-1"
+            >
+              ← Back to plans
+            </button>
+            <EmbeddedCheckoutProvider
+              stripe={stripePromise}
+              options={{ fetchClientSecret }}
+            >
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
+          </div>
+        )}
       </div>
     </div>
   );
-};
-
-
-
-
-
+}

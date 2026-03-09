@@ -34,6 +34,7 @@ import aiRoutes from './routes/ai.js';
 import uploadRoutes from './routes/upload.js';
 import searchRoutes from './routes/search.js';
 import paymentRoutes from './routes/payments.js';
+import stripeRouter from './routes/stripe.js';
 import appraiseRoutes from './routes/appraise.js';
 import v1AppraiseRouter from './routes/v1/appraise.js';
 import apiKeysRoutes from './routes/apiKeys.js';
@@ -220,6 +221,9 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
   }
 });
 
+// Stripe billing webhook needs raw body before JSON parser.
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+
 // Body parsing for all other routes
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -284,6 +288,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/stripe', stripeRouter);
 app.use('/api/v1/appraise', v1AppraiseRouter);
 app.use('/api/appraise', extensionRoutes);
 app.use('/api/appraise', appraiseRoutes);

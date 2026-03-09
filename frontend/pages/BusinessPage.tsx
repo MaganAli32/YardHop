@@ -4,9 +4,10 @@
  * Primary CTA: Join the API Waitlist (submits to Supabase business_waitlist).
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import UpgradeModal from '../components/UpgradeModal';
 
 const USE_CASES = [
   'Estate sale company',
@@ -83,6 +84,8 @@ const TIERS = [
 
 export default function BusinessPage() {
   const [formOpen, setFormOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [user, setUser] = useState<{ id: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     company: '',
@@ -92,6 +95,13 @@ export default function BusinessPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    supabase?.auth.getUser().then(({ data }) => {
+      if (data.user) setUser({ id: data.user.id });
+      else setUser(null);
+    });
+  }, []);
 
   const handleSubmit = async () => {
     if (!formData.name || !formData.email || !formData.company) {
@@ -373,14 +383,14 @@ export default function BusinessPage() {
                 </ul>
                 <button
                   type="button"
-                  onClick={() => setFormOpen(true)}
+                  onClick={() => (user ? setUpgradeOpen(true) : setFormOpen(true))}
                   className={`w-full py-2.5 rounded-full text-sm font-medium transition-colors ${
                     tier.highlight
                       ? 'bg-white text-[#FF6B35] hover:bg-white/90'
                       : 'border border-white/15 text-white hover:border-white/40'
                   }`}
                 >
-                  {tier.cta}
+                  {user ? 'Upgrade Now' : tier.cta}
                 </button>
               </div>
             ))}
@@ -497,6 +507,11 @@ export default function BusinessPage() {
           </div>
         </div>
       )}
+      <UpgradeModal
+        isOpen={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan="free"
+      />
 
       {/* ── FOOTER ────────────────────────────────────────── */}
       <footer className="border-t border-white/[0.08] py-10 px-6">

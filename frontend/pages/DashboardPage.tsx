@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import UpgradeModal from '../components/UpgradeModal';
 
 const PLAN_LIMITS: Record<string, number> = {
   free: 25,
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const [keyVisible, setKeyVisible] = useState(false);
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -67,6 +69,16 @@ export default function DashboardPage() {
       loadDashboard(u.id);
     });
   }, [navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('upgrade') === 'success') {
+      window.history.replaceState({}, '', '/#/dashboard');
+      supabase?.auth.getUser().then(({ data: { user: u } }) => {
+        if (u) loadDashboard(u.id);
+      });
+    }
+  }, []);
 
   const loadDashboard = async (userId: string) => {
     setLoading(true);
@@ -138,6 +150,16 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     if (supabase) await supabase.auth.signOut();
     navigate('/');
+  };
+
+  const openBillingPortal = async () => {
+    const { data: { session } } = await supabase?.auth.getSession() ?? { data: { session: null } };
+    const res = await fetch('/api/stripe/create-portal', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.url) window.open(data.url, '_blank');
   };
 
   const limitDisplay = apiKey?.monthly_limit;
@@ -249,6 +271,15 @@ export default function DashboardPage() {
                     {regenerating ? 'Regenerating…' : 'Regenerate'}
                   </button>
                 </div>
+                {apiKey.plan !== 'free' && (
+                  <button
+                    type="button"
+                    onClick={openBillingPortal}
+                    className="w-full mt-2 py-2.5 rounded-xl border border-white/10 text-white/40 text-sm hover:border-white/25 hover:text-white/70 transition-colors"
+                  >
+                    Manage Billing
+                  </button>
+                )}
 
                 <p className="text-white/20 text-xs mt-3">
                   Include as <span className="font-mono text-white/35">x-api-key</span> header in all requests.
@@ -297,12 +328,13 @@ export default function DashboardPage() {
                   </span>{' '}
                   for {PLAN_NEXT[apiKey.plan]?.price ?? '$99/mo'}.
                 </p>
-                <Link
-                  to="/business#pricing"
-                  className="text-[#FF6B35] text-sm font-medium hover:underline no-underline"
+                <button
+                  type="button"
+                  onClick={() => setUpgradeOpen(true)}
+                  className="text-[#FF6B35] text-sm font-medium hover:underline"
                 >
-                  View plans →
-                </Link>
+                  Upgrade now →
+                </button>
               </div>
             )}
           </div>
@@ -399,6 +431,11 @@ export default function DashboardPage() {
   }'`}
           </pre>
         </div>
+        <UpgradeModal
+          isOpen={upgradeOpen}
+          onClose={() => setUpgradeOpen(false)}
+          currentPlan={apiKey?.plan || 'free'}
+        />
       </div>
     </div>
   );
