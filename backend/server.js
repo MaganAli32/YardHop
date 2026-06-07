@@ -303,7 +303,7 @@ app.use('/api/dashboard', dashboardRoutes);
 
 // Serve static files from frontend/dist (built frontend; npm run build outputs there)
 // Must be before the catch-all route to properly serve CSS/JS assets
-const distPath = join(__dirname, 'frontend', 'dist');
+const distPath = join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(distPath, {
   maxAge: NODE_ENV === 'production' ? '1y' : '0',
   etag: true,
@@ -342,7 +342,7 @@ app.get('*', (req, res, next) => {
   if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
     return res.status(404).send('Not found');
   }
-  res.sendFile(join(__dirname, 'frontend', 'dist', 'index.html'));
+  res.sendFile(join(__dirname, '..', 'frontend', 'dist', 'index.html'));
 });
 
 // Global error handler

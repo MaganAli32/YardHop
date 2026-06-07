@@ -8,18 +8,12 @@
   },
   "scripts": {
     "dev": "cd frontend && vite",
-    "dev:api": "node server.js",
-    "dev:full": "node server.js & cd frontend && vite",
+    "dev:api": "node backend/server.js",
+    "dev:full": "node backend/server.js & cd frontend && vite",
     "build": "cd frontend && vite build",
     "preview": "cd frontend && vite preview",
-    "start": "node server.js",
-    "dev:server": "cd frontend && vite build && cd .. && node server.js",
-    "deploy": "bash deploy.sh",
-    "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop yardfront",
-    "pm2:restart": "pm2 restart yardfront",
-    "pm2:logs": "pm2 logs yardfront",
-    "pm2:status": "pm2 status"
+    "start": "node backend/server.js",
+    "dev:server": "cd frontend && vite build && cd .. && node backend/server.js"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
