@@ -53,10 +53,10 @@ const AppraisalResultsPage: React.FC = () => {
 
   if (data === null) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] font-sans">
+      <div className="min-h-screen bg-[#F5F0E8] font-['Manrope']">
         <Navbar />
         <div className="pt-24 flex items-center justify-center">
-          <p className="text-[#6B6B6B]">Loading...</p>
+          <p className="text-[#5c665f]">Loading...</p>
         </div>
       </div>
     );
@@ -65,143 +65,137 @@ const AppraisalResultsPage: React.FC = () => {
   const { item, pricing, sellerTips } = data;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-[#0A0A0A] font-sans">
+    <div className="min-h-screen bg-[#F5F0E8] text-[#1A1A18] font-['Manrope']">
       <Navbar />
-      <div className="max-w-2xl mx-auto px-6 py-12 md:py-16">
-        {/* Back / Home */}
-        <div className="pt-16" />
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-[#6B6B6B] hover:text-[#0A0A0A] mb-10"
-        >
-          ← Back to home
-        </Link>
+      <div className="max-w-[1200px] mx-auto px-6 py-12 md:py-20">
+        <div className="pt-16 max-w-2xl mx-auto">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#5c665f] hover:text-[#2C4A3E] mb-10"
+          >
+            ← Back to home
+          </Link>
 
-        {/* Card */}
-        <div className="bg-white border border-[#E0E0E0] rounded-[20px] shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center gap-2 px-6 py-4 border-b border-[#E0E0E0] bg-[#F2F2F2]/50">
-            <div className="flex gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#FF5F57]" />
-              <span className="w-2 h-2 rounded-full bg-[#FFBD2E]" />
-              <span className="w-2 h-2 rounded-full bg-[#28C840]" />
-            </div>
-            <span className="text-[13px] text-[#6B6B6B] ml-2">Appraisal</span>
-            <span className="ml-auto text-xs font-semibold text-[#28C840] bg-[#28C840]/10 px-2 py-0.5 rounded-full">
-              Complete
-            </span>
-          </div>
-
-          <div className="p-6 md:p-8">
-            {/* Item name */}
-            <h1 className="font-serif text-[22px] md:text-2xl text-[#0A0A0A] mb-1">
-              {item.name}
-            </h1>
-            {item.description && (
-              <p className="text-[13px] text-[#9A9A9A] mb-6">
-                {item.description}
-              </p>
-            )}
-
-            {/* Price */}
-            <p className="text-[36px] font-bold text-[#0A0A0A] mb-1">
-              ${Math.round(pricing.fair).toLocaleString()}
-            </p>
-            <p className="text-[14px] text-[#9A9A9A] mb-6">
-              ${Math.round(pricing.low).toLocaleString()} – $
-              {Math.round(pricing.high).toLocaleString()}
-            </p>
-
-            {/* Confidence */}
-            <div className="mb-6">
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-[#6B6B6B] font-medium">Confidence</span>
-                <span className="font-semibold text-[#0A0A0A]">
-                  {pricing.confidenceScore}%
-                </span>
+          <div className="bg-[#FAF7F2] border border-[#E8E2D9] rounded-sm shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-6 py-4 border-b border-[#E8E2D9] bg-[#F5F0E8]/80">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FF5F57]" />
+                <span className="w-2 h-2 rounded-full bg-[#FFBD2E]" />
+                <span className="w-2 h-2 rounded-full bg-[#28C840]" />
               </div>
-              <div className="h-1 w-full bg-[#F2F2F2] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#FF6B35] rounded-full transition-all duration-[1.8s] ease-[cubic-bezier(0.25,1,0.5,1)]"
-                  style={{ width: `${pricing.confidenceScore}%` }}
-                />
-              </div>
+              <span className="text-[13px] text-[#5c665f] ml-2">Appraisal</span>
+              <span className="ml-auto text-xs font-semibold text-[#2C4A3E] bg-[#2C4A3E]/10 px-2 py-0.5 rounded-sm border border-[#E8E2D9]">
+                Complete
+              </span>
             </div>
 
-            {/* Sources summary */}
-            {pricing.sourcesSummary && (
-              <p className="text-[14px] text-[#6B6B6B] mb-6">
-                {pricing.sourcesSummary}
-              </p>
-            )}
-
-            {/* Seller tips */}
-            {sellerTips && sellerTips.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-sm font-semibold text-[#0A0A0A] mb-3">
-                  Seller tips
-                </h3>
-                <ul className="space-y-2">
-                  {sellerTips.map((tip, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 text-[14px] text-[#6B6B6B]"
-                    >
-                      <Check
-                        className="shrink-0 mt-0.5 text-[#16A34A]"
-                        size={16}
-                      />
-                      <span>{tip}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  navigate('/marketplace/new', {
-                    state: {
-                      fromAppraisal: true,
-                      appraisalId: data.appraisalId,
-                      title: item.name,
-                      description: item.description || '',
-                      category: item.category || '',
-                      condition: item.condition || '',
-                      recommendedPrice: pricing.fair,
-                      priceLow: pricing.low,
-                      priceHigh: pricing.high,
-                      confidenceScore: pricing.confidenceScore,
-                      sourcesCount: pricing.sourcesCount,
-                    },
-                  });
-                }}
-                className="inline-flex items-center justify-center gap-2 w-full md:w-auto bg-[#0A0A0A] text-white font-semibold text-[15px] py-3.5 px-6 rounded-[100px] hover:opacity-90 transition"
+            <div className="p-6 md:p-8">
+              <h1
+                className="text-[22px] md:text-3xl text-[#1A1A18] mb-1 italic"
+                style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 400 }}
               >
-                List on YardFront
-                <ArrowRight size={18} strokeWidth={2.5} />
-              </button>
-              <Link
-                to="/"
-                state={{ scrollTo: 'upload' }}
-                className="inline-flex items-center justify-center gap-2 w-full md:w-auto border border-[#E0E0E0] text-[#0A0A0A] font-semibold text-[15px] py-3.5 px-6 rounded-[100px] hover:border-[#FF6B35] hover:text-[#FF6B35] transition no-underline"
-              >
-                Try Another Appraisal
-                <ArrowRight size={18} strokeWidth={2.5} />
-              </Link>
-            </div>
+                {item.name}
+              </h1>
+              {item.description && (
+                <p className="text-[13px] text-[#5c665f] mb-6">
+                  {item.description}
+                </p>
+              )}
 
-            {/* Upsell banner */}
-            <div className="mt-8 p-4 bg-[#F2F2F2] rounded-xl text-center">
-              <p className="text-[14px] text-[#6B6B6B]">
-                Want comparable listings and more data sources?{' '}
-                <Link to="/" state={{ scrollTo: 'pricing' }} className="text-[#FF6B35] font-semibold hover:underline">
-                  Upgrade to Pro
+              <p className="text-[36px] font-semibold text-[#1A1A18] mb-1 font-mono tracking-tight">
+                ${Math.round(pricing.fair).toLocaleString()}
+              </p>
+              <p className="text-[14px] text-[#5c665f] mb-6 font-mono">
+                ${Math.round(pricing.low).toLocaleString()} – $
+                {Math.round(pricing.high).toLocaleString()}
+              </p>
+
+              <div className="mb-6">
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-[#5c665f] font-medium">Confidence</span>
+                  <span className="font-semibold text-[#2C4A3E] font-mono">
+                    {pricing.confidenceScore}%
+                  </span>
+                </div>
+                <div className="h-1 w-full bg-[#E8E2D9] rounded-sm overflow-hidden">
+                  <div
+                    className="h-full bg-[#2C4A3E] rounded-sm transition-all duration-[1.8s] ease-[cubic-bezier(0.25,1,0.5,1)]"
+                    style={{ width: `${pricing.confidenceScore}%` }}
+                  />
+                </div>
+              </div>
+
+              {pricing.sourcesSummary && (
+                <p className="text-[14px] text-[#5c665f] mb-6">
+                  {pricing.sourcesSummary}
+                </p>
+              )}
+
+              {sellerTips && sellerTips.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-sm font-semibold text-[#1A1A18] mb-3">
+                    Seller tips
+                  </h3>
+                  <ul className="space-y-2">
+                    {sellerTips.map((tip, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-[14px] text-[#5c665f]"
+                      >
+                        <Check
+                          className="shrink-0 mt-0.5 text-[#2C4A3E]"
+                          size={16}
+                        />
+                        <span>{tip}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate('/marketplace/new', {
+                      state: {
+                        fromAppraisal: true,
+                        appraisalId: data.appraisalId,
+                        title: item.name,
+                        description: item.description || '',
+                        category: item.category || '',
+                        condition: item.condition || '',
+                        recommendedPrice: pricing.fair,
+                        priceLow: pricing.low,
+                        priceHigh: pricing.high,
+                        confidenceScore: pricing.confidenceScore,
+                        sourcesCount: pricing.sourcesCount,
+                      },
+                    });
+                  }}
+                  className="inline-flex items-center justify-center gap-2 w-full md:w-auto bg-[#2C4A3E] text-[#F5F0E8] font-semibold text-[15px] py-3.5 px-6 rounded-sm hover:bg-[#3a5f50] transition-colors"
+                >
+                  List on YardFront
+                  <ArrowRight size={18} strokeWidth={2.5} />
+                </button>
+                <Link
+                  to="/"
+                  state={{ scrollTo: 'upload' }}
+                  className="inline-flex items-center justify-center gap-2 w-full md:w-auto border border-[#2C4A3E] text-[#2C4A3E] font-semibold text-[15px] py-3.5 px-6 rounded-sm hover:bg-[#2C4A3E]/5 transition-colors no-underline"
+                >
+                  Try Another Appraisal
+                  <ArrowRight size={18} strokeWidth={2.5} />
                 </Link>
-              </p>
+              </div>
+
+              <div className="mt-8 p-4 bg-[#F5F0E8] border border-[#E8E2D9] rounded-sm text-center">
+                <p className="text-[14px] text-[#5c665f]">
+                  Want comparable listings and more data sources?{' '}
+                  <Link to="/" state={{ scrollTo: 'pricing' }} className="text-[#2C4A3E] font-semibold hover:text-[#C4622D] underline underline-offset-2">
+                    Upgrade to Pro
+                  </Link>
+                </p>
+              </div>
             </div>
           </div>
         </div>

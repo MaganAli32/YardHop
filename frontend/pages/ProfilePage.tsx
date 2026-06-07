@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
 import { usePersistence } from '../store/PersistenceContext';
-import { productsApi, salesApi, uploadApi } from '../lib/api';
+import { productsApi, uploadApi, dashboardApi } from '../lib/api';
 import { Product, GarageSale } from '../types';
 import { MapPin, CheckCircle2, Shield, Settings, LogOut, Plus, Camera } from 'lucide-react';
 
@@ -13,6 +14,7 @@ const ProfilePage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [myProducts, setMyProducts] = useState<Product[]>([]);
   const [mySales, setMySales] = useState<GarageSale[]>([]);
+  const [appraisals, setAppraisals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [editForm, setEditForm] = useState({
@@ -105,6 +107,15 @@ const ProfilePage: React.FC = () => {
         } catch (err) {
           console.error('Failed to fetch sales:', err);
           setMySales([]);
+        }
+
+        // Fetch user appraisal history
+        try {
+          const appraisalsRes = await dashboardApi.appraisals();
+          setAppraisals(appraisalsRes.appraisals || []);
+        } catch (err) {
+          console.error('Failed to fetch appraisals:', err);
+          setAppraisals([]);
         }
       } catch (err) {
         console.error('Error fetching listings:', err);
@@ -216,26 +227,35 @@ const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#121c32] font-sans">
-      <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-10 py-8 pb-20">
-        
+    <div className="min-h-screen bg-[#F0EAE0] text-[#1A1A18] font-['Manrope'] antialiased">
+      <Navbar />
+      <div className="pt-28 pb-28 px-6 md:px-[56px] max-w-[1220px] mx-auto">
+        <p className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.2em] text-[#9E8B6F] mb-5">
+          My account
+        </p>
+
         {/* Profile Setup Prompt */}
         {needsSetup && (
-          <div className="bg-white border border-slate-200 rounded-lg px-6 py-5 mb-6 shadow-[0_10px_28px_rgba(18,28,50,0.06)]">
+          <div className="bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm px-6 py-5 mb-8 shadow-[0_8px_24px_rgba(26,26,24,0.06)]">
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1">
-                <h3 className="font-semibold text-base text-[#121c32] mb-2">Complete Your Profile</h3>
-                <p className="text-sm text-slate-600 leading-relaxed mb-4">Add a photo, bio, and location to help neighbors get to know you.</p>
+                <h3 className="font-['Cormorant_Garamond'] text-[26px] font-light text-[#1A1A18] mb-2 leading-tight">
+                  Complete your profile
+                </h3>
+                <p className="text-[15px] text-[#6B7A6D] leading-relaxed mb-5 max-w-xl">
+                  Add a photo, bio, and location so buyers and neighbors recognize you on the marketplace.
+                </p>
                 <button
+                  type="button"
                   onClick={() => setIsEditing(true)}
-                  className="px-5 py-2.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm transition-colors"
+                  className="inline-flex items-center justify-center rounded-sm bg-[#1A2A1C] text-[#F0EAE0] px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-[#2A3E2E] transition-colors"
                 >
-                  Get Started
+                  Get started
                 </button>
               </div>
               <div className="shrink-0">
-                <div className="size-12 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center">
-                  <Camera size={20} className="text-slate-400" />
+                <div className="size-12 rounded-sm bg-[#EFE8DD] border border-[#DED3C3] flex items-center justify-center">
+                  <Camera size={20} className="text-[#9E8B6F]" />
                 </div>
               </div>
             </div>
@@ -243,74 +263,83 @@ const ProfilePage: React.FC = () => {
         )}
 
         {/* Profile Info Header */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-[0_10px_28px_rgba(18,28,50,0.06)] p-8 mb-8">
+        <div className="bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm shadow-[0_8px_24px_rgba(26,26,24,0.06)] p-8 mb-10">
            <div className="flex flex-col md:flex-row items-start gap-8">
               <div className="relative shrink-0">
-                 <div 
-                   className="size-32 rounded-lg bg-cover bg-center border border-slate-200 shadow-[0_8px_24px_rgba(18,28,50,0.08)] bg-slate-100" 
-                   style={{backgroundImage: user.avatar ? `url("${user.avatar}")` : 'none'}}
+                 <div
+                   className="size-32 rounded-sm bg-cover bg-center border border-[#DED3C3] shadow-[0_8px_24px_rgba(26,26,24,0.08)] bg-[#EFE8DD]"
+                   style={{ backgroundImage: user.avatar ? `url("${user.avatar}")` : 'none' }}
                  >
                    {!user.avatar && (
                      <div className="w-full h-full flex items-center justify-center">
-                       <Camera size={32} className="text-slate-300" />
+                       <Camera size={32} className="text-[#A49A8C]" />
                      </div>
                    )}
                  </div>
               </div>
               <div className="flex-1 space-y-4">
                  <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    <h1 className="text-3xl font-bold text-[#121c32] tracking-tight">{user.name}</h1>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-semibold rounded-md border border-slate-200">
-                       <CheckCircle2 size={12} className="text-emerald-600 fill-emerald-600" />
-                       Verified Neighbor
+                    <h1 className="font-['Cormorant_Garamond'] text-[clamp(32px,4vw,44px)] font-light text-[#1A1A18] tracking-[-0.02em] leading-tight">
+                      {user.name}
+                    </h1>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EFE8DD] text-[#3D5A40] text-[10px] font-semibold uppercase tracking-[0.14em] rounded-sm border border-[#C5D4C0]">
+                       <CheckCircle2 size={12} className="text-[#3D5A40]" />
+                       Verified
                     </span>
                  </div>
                  {user.bio && (
-                   <p className="text-slate-600 text-base leading-relaxed max-w-2xl">
+                   <p className="text-[#6B7A6D] text-[16px] leading-[1.75] max-w-2xl">
                      {user.bio}
                    </p>
                  )}
-                 <div className="flex items-center gap-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                 <div className="flex items-center gap-6 text-[10px] font-semibold text-[#9E8B6F] uppercase tracking-[0.16em]">
                  {user.location && (
                     <span className="flex items-center gap-1.5">
-                       <MapPin size={14} className="text-[#FF6B35]" />
+                       <MapPin size={14} className="text-[#B54419]" />
                        {user.location}
                     </span>
                  )}
                  </div>
               </div>
               <div className="flex flex-col gap-3 w-full md:w-auto">
-                 <button 
+                 <button
+                   type="button"
                    onClick={() => setIsEditing(true)}
-                   className="px-6 py-3 bg-[#121c32] text-white rounded-md font-semibold text-sm shadow-[0_10px_28px_rgba(18,28,50,0.06)] hover:bg-[#0f1728] transition-colors flex items-center justify-center gap-2"
+                   className="px-6 py-3 bg-[#1A2A1C] text-[#F0EAE0] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] shadow-[0_8px_20px_rgba(26,42,28,0.15)] hover:bg-[#2A3E2E] transition-colors flex items-center justify-center gap-2"
                  >
                     <Settings size={16} />
-                    Edit Profile
+                    Edit profile
                  </button>
-                 <button 
+                 <button
+                  type="button"
                   onClick={handleSignOut}
-                  className="px-6 py-3 border border-slate-200 text-slate-600 rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                  className="px-6 py-3 border border-[#DCCFBE] text-[#5F6E63] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] bg-[#FAF7F2] hover:bg-[#EFE8DD] transition-colors flex items-center justify-center gap-2"
                  >
                     <LogOut size={16} />
-                    Sign Out
+                    Sign out
                  </button>
               </div>
            </div>
         </div>
 
         {/* Dashboard Tabs */}
-        <div className="space-y-8">
-           <div className="flex items-center border-b border-slate-200 pb-2">
-              <div className="flex gap-8">
-                 {['My Garage', 'Safety', 'Saved'].map(tab => (
-                    <button 
+        <div className="space-y-10">
+           <div className="flex items-center border-b border-[#DCCFBE] pb-0 overflow-x-auto">
+              <div className="flex gap-6 md:gap-10 min-w-0">
+                 {['My Garage', 'Appraisals', 'Safety', 'Saved'].map(tab => (
+                    <button
+                       type="button"
                        key={tab}
                        onClick={() => setActiveTab(tab)}
-                       className={`pb-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 relative ${activeTab === tab ? 'text-[#121c32] border-[#FF6B35]' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                       className={`pb-3 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors border-b-2 relative whitespace-nowrap ${
+                         activeTab === tab
+                           ? 'text-[#1A1A18] border-[#B54419]'
+                           : 'text-[#9E8B6F] border-transparent hover:text-[#5F6E63]'
+                       }`}
                     >
                        {tab}
                        {tab === 'My Garage' && totalListings > 0 && (
-                        <span className="absolute -top-1 -right-5 size-5 rounded-md bg-[#FF6B35] text-white text-[9px] flex items-center justify-center font-bold">
+                        <span className="absolute -top-0.5 -right-4 min-w-[1.25rem] h-5 px-1 rounded-sm bg-[#1A2A1C] text-[#F0EAE0] text-[9px] flex items-center justify-center font-bold">
                           {totalListings}
                         </span>
                        )}
@@ -323,13 +352,13 @@ const ProfilePage: React.FC = () => {
               <div>
                  {loading ? (
                     <div className="text-center py-16">
-                       <p className="text-slate-500 font-medium">Loading your listings...</p>
+                       <p className="text-[#6B7A6D] text-[15px]">Loading your listings…</p>
                     </div>
                  ) : totalListings > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                        {/* Display Products */}
                        {activeProducts.map(item => {
-                         // Handle multiple image formats - use same logic as ProductCard
+                         // Handle multiple image formats from API
                          const getImageUrl = (): string => {
                            // If there's a direct image property (string)
                            if (typeof item.image === 'string' && item.image.trim() !== '') {
@@ -363,33 +392,34 @@ const ProfilePage: React.FC = () => {
                          const displayImage = getImageUrl() || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop';
                          
                          return (
-                          <Link 
-                            key={item.id} 
-                            to={`/product/${item.id}`}
-                            className="group bg-white rounded-lg overflow-hidden border border-slate-200 shadow-[0_8px_24px_rgba(18,28,50,0.08)] hover:shadow-[0_12px_32px_rgba(18,28,50,0.12)] transition-shadow relative"
+                          <Link
+                            key={item.id}
+                            to={`/marketplace/${item.id}`}
+                            className="group bg-[#FAF7F2] rounded-sm overflow-hidden border border-[#DCCFBE] shadow-[0_6px_20px_rgba(26,26,24,0.06)] hover:shadow-[0_10px_28px_rgba(26,26,24,0.1)] hover:-translate-y-0.5 transition-all relative"
                           >
-                             <div className="aspect-[4/3] relative bg-slate-100">
-                                <img src={displayImage} alt={item.title} className="w-full h-full object-cover" />
+                             <div className="aspect-[4/3] relative bg-[#EFE8DD] border-b border-[#E2D8C8]">
+                                <img src={displayImage} alt={item.title} className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300" />
                                 <div className="absolute top-3 right-3 z-10">
-                                   <button 
+                                   <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setConfirmMarkSold({ itemId: item.id, itemTitle: item.title });
                                       }}
                                       disabled={markingSold === item.id}
-                                      className="px-3 py-1.5 bg-[#121c32]/90 text-white text-[10px] font-semibold uppercase tracking-wider rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="px-3 py-1.5 bg-[#1A2A1C]/95 text-[#F0EAE0] text-[9px] font-semibold uppercase tracking-[0.12em] rounded-sm hover:bg-[#B54419] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                    >
-                                      {markingSold === item.id ? 'Updating...' : 'Mark Sold'}
+                                      {markingSold === item.id ? 'Updating…' : 'Mark sold'}
                                    </button>
                                 </div>
                              </div>
-                             <div className="p-5 flex justify-between items-center">
+                             <div className="p-5 flex justify-between items-start gap-3">
                                 <div className="flex-1 min-w-0">
-                                   <h4 className="font-bold text-base text-[#121c32] truncate mb-1">{item.title}</h4>
-                                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Neighborhood Find</p>
+                                   <h4 className="font-['Cormorant_Garamond'] text-[22px] font-light text-[#1A1A18] leading-tight truncate mb-1">{item.title}</h4>
+                                   <p className="text-[10px] font-semibold text-[#9E8B6F] uppercase tracking-[0.14em]">Listing</p>
                                 </div>
-                                <span className="text-xl font-extrabold text-[#121c32] ml-4">${item.price}</span>
+                                <span className="text-[19px] font-semibold text-[#1A1A18] shrink-0">${item.price}</span>
                              </div>
                           </Link>
                          );
@@ -453,51 +483,62 @@ const ProfilePage: React.FC = () => {
                          const address = (sale as any).address || sale.display_text || '';
                          
                          return (
-                          <Link key={sale.id} to={`/sales/${sale.id}`} className="group bg-white rounded-lg overflow-hidden border border-slate-200 shadow-[0_8px_24px_rgba(18,28,50,0.08)] hover:shadow-[0_12px_32px_rgba(18,28,50,0.12)] transition-shadow">
-                             <div className="aspect-[4/3] relative bg-slate-100">
+                          <article
+                            key={sale.id}
+                            className="group bg-[#FAF7F2] rounded-sm overflow-hidden border border-[#DCCFBE] shadow-[0_6px_20px_rgba(26,26,24,0.06)]"
+                          >
+                             <div className="aspect-[4/3] relative bg-[#EFE8DD] border-b border-[#E2D8C8]">
                                 <img src={displayImage} alt={sale.title} className="w-full h-full object-cover" />
                                 <div className="absolute top-3 left-3">
-                                   <span className="px-2.5 py-1 bg-[#FF6B35] text-white text-[10px] font-semibold uppercase tracking-wider rounded-md">
-                                      Garage Sale
+                                   <span className="px-2.5 py-1 bg-[#1A2A1C] text-[#F0EAE0] text-[9px] font-semibold uppercase tracking-[0.12em] rounded-sm">
+                                      Garage sale
                                    </span>
                                 </div>
                              </div>
                              <div className="p-5">
-                                <h4 className="font-bold text-base text-[#121c32] mb-2">{sale.title}</h4>
+                                <h4 className="font-['Cormorant_Garamond'] text-[22px] font-light text-[#1A1A18] mb-2 leading-tight">{sale.title}</h4>
                                 {startDate && (
-                                   <p className="text-xs font-semibold text-slate-600 mb-1">
-                                      {startDate} {startTime && `• ${startTime}`}
+                                   <p className="text-[11px] font-medium text-[#6B7A6D] mb-1">
+                                      {startDate} {startTime && `· ${startTime}`}
                                    </p>
                                 )}
                                 {address && (
-                                   <p className="text-xs text-slate-500 truncate">{address}</p>
+                                   <p className="text-[12px] text-[#8D8478] truncate">{address}</p>
                                 )}
                              </div>
-                          </Link>
+                          </article>
                          );
                        })}
                        
-                       <Link to="/sell-hub" className="aspect-[4/3] rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-3 text-slate-400 hover:border-[#FF6B35] hover:text-[#FF6B35] hover:bg-slate-50 transition-colors group">
-                          <div className="size-12 bg-slate-100 rounded-md flex items-center justify-center group-hover:bg-[#FF6B35]/10 transition-colors">
-                            <Plus size={24} className="text-slate-400 group-hover:text-[#FF6B35]" />
+                       <Link
+                         to="/marketplace/new"
+                         className="aspect-[4/3] min-h-[200px] rounded-sm border-2 border-dashed border-[#C9B8A0] flex flex-col items-center justify-center gap-3 text-[#9E8B6F] hover:border-[#B54419] hover:text-[#B54419] hover:bg-[#FAF7F2]/80 transition-colors group"
+                       >
+                          <div className="size-12 bg-[#EFE8DD] border border-[#DED3C3] rounded-sm flex items-center justify-center group-hover:bg-[#1A2A1C]/10 transition-colors">
+                            <Plus size={24} className="text-[#9E8B6F] group-hover:text-[#B54419]" />
                           </div>
-                          <span className="font-semibold text-xs uppercase tracking-wider">List New Item</span>
+                          <span className="font-semibold text-[10px] uppercase tracking-[0.14em]">New listing</span>
                        </Link>
                     </div>
                  ) : (
                     <div className="max-w-md mx-auto py-16 text-center space-y-6">
-                       <div className="size-24 bg-slate-100 rounded-lg flex items-center justify-center mx-auto">
-                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-300">
+                       <div className="size-24 bg-[#EFE8DD] border border-[#DED3C3] rounded-sm flex items-center justify-center mx-auto">
+                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#A49A8C]">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                             <polyline points="9 22 9 12 15 12 15 22"/>
                           </svg>
                        </div>
                        <div className="space-y-2">
-                          <h3 className="text-2xl font-bold text-[#121c32]">Your Garage is Empty</h3>
-                          <p className="text-slate-600 text-sm leading-relaxed">Turn your clutter into neighborhood cash. Start by listing your first item or hosting a full yard sale.</p>
+                          <h3 className="font-['Cormorant_Garamond'] text-[32px] font-light text-[#1A1A18]">Nothing listed yet</h3>
+                          <p className="text-[#6B7A6D] text-[15px] leading-relaxed">
+                            Post your first item on the marketplace when you&apos;re ready.
+                          </p>
                        </div>
-                       <Link to="/sell-hub" className="inline-block px-8 py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm shadow-[0_10px_22px_rgba(255,107,53,0.22)] transition-colors">
-                          Start Selling Today
+                       <Link
+                         to="/marketplace/new"
+                         className="inline-flex items-center justify-center px-8 py-3.5 bg-[#1A2A1C] text-[#F0EAE0] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] hover:bg-[#2A3E2E] transition-colors"
+                       >
+                          Create listing
                        </Link>
                     </div>
                  )}
@@ -506,33 +547,34 @@ const ProfilePage: React.FC = () => {
 
            {activeTab === 'Safety' && (
               <div className="max-w-2xl mx-auto space-y-6">
-                 <div className="bg-white p-8 rounded-lg border border-slate-200 shadow-[0_10px_28px_rgba(18,28,50,0.06)]">
-                    <div className="space-y-1 mb-6">
-                       <h3 className="text-xl font-bold text-[#121c32]">Safety & Privacy</h3>
-                       <p className="text-sm text-slate-600">Control how you interact with neighbors and manage your safety preferences</p>
+                 <div className="bg-[#FAF7F2] p-8 rounded-sm border border-[#DCCFBE] shadow-[0_8px_24px_rgba(26,26,24,0.06)]">
+                    <div className="space-y-1 mb-8">
+                       <h3 className="font-['Cormorant_Garamond'] text-[28px] font-light text-[#1A1A18]">Safety &amp; privacy</h3>
+                       <p className="text-[15px] text-[#6B7A6D] leading-relaxed">
+                         Control how you meet buyers and what we suggest for exchanges.
+                       </p>
                     </div>
-                    
+
                     <div className="space-y-6">
-                       {/* Public Meetups Only Toggle */}
-                       <div className="p-6 bg-slate-50 rounded-lg border border-slate-200">
+                       <div className="p-6 bg-[#F0EAE0]/60 rounded-sm border border-[#DED3C3]">
                           <div className="flex items-start justify-between gap-4">
                              <div className="flex-1 space-y-3">
                                 <div className="flex items-center gap-3">
-                                   <div className="shrink-0 size-10 rounded-lg bg-[#FF6B35]/10 border border-[#FF6B35]/20 flex items-center justify-center">
-                                      <Shield size={18} className="text-[#FF6B35]" />
+                                   <div className="shrink-0 size-10 rounded-sm bg-[#EFE8DD] border border-[#DED3C3] flex items-center justify-center">
+                                      <Shield size={18} className="text-[#B54419]" />
                                    </div>
                                    <div>
-                                      <h4 className="font-semibold text-base text-[#121c32] mb-1">Public Meetups Only</h4>
-                                      <p className="text-sm text-slate-600 leading-relaxed">
-                                         When enabled, YardFront will only suggest public meeting locations (coffee shops, community centers, police stations) for item exchanges. This helps ensure safer transactions with neighbors.
+                                      <h4 className="font-semibold text-[15px] text-[#1A1A18] mb-1">Public meetups only</h4>
+                                      <p className="text-[14px] text-[#6B7A6D] leading-relaxed">
+                                         When on, we only suggest public meeting spots—cafés, community spaces, and similar—for safer local handoffs.
                                       </p>
                                    </div>
                                 </div>
-                                <div className="ml-12 space-y-1">
-                                   <p className="text-xs text-slate-500 font-medium">
-                                      {safeMeetOnly 
-                                         ? "Currently suggesting public locations only" 
-                                         : "You may receive suggestions for private meetups"}
+                                <div className="ml-[52px] space-y-1">
+                                   <p className="text-[12px] text-[#8D8478] font-medium">
+                                      {safeMeetOnly
+                                         ? 'Public locations only'
+                                         : 'Private meetups may be suggested'}
                                    </p>
                                 </div>
                              </div>
@@ -546,31 +588,30 @@ const ProfilePage: React.FC = () => {
                                       className="sr-only peer"
                                    />
                                    <div className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                                      safeMeetOnly ? 'bg-[#FF6B35]' : 'bg-slate-300'
+                                      safeMeetOnly ? 'bg-[#1A2A1C]' : 'bg-[#C9B8A0]'
                                    } ${savingPreference ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                      <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-5 w-5 transition-transform duration-200 ${
+                                      <div className={`absolute top-[2px] left-[2px] bg-[#FAF7F2] rounded-full h-5 w-5 transition-transform duration-200 shadow-sm ${
                                          safeMeetOnly ? 'translate-x-5' : 'translate-x-0'
-                                      }`}></div>
+                                      }`} />
                                    </div>
                                 </label>
                              </div>
                           </div>
                        </div>
 
-                       {/* Profile Verification Info */}
-                       <div className="p-6 bg-slate-50 rounded-lg border border-slate-200">
+                       <div className="p-6 bg-[#F0EAE0]/60 rounded-sm border border-[#DED3C3]">
                           <div className="flex items-start gap-4">
-                             <div className="shrink-0 size-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-                                <CheckCircle2 size={18} className="text-emerald-600 fill-emerald-600" />
+                             <div className="shrink-0 size-10 rounded-sm bg-[#E8F0E9] border border-[#C5D4C0] flex items-center justify-center">
+                                <CheckCircle2 size={18} className="text-[#3D5A40]" />
                              </div>
                              <div className="flex-1">
-                                <h4 className="font-semibold text-base text-[#121c32] mb-1">Profile Verification</h4>
-                                <p className="text-sm text-slate-600 leading-relaxed mb-3">
-                                   Your neighbor status is verified using local map data and community participation. Verified profiles help build trust in the YardFront community.
+                                <h4 className="font-semibold text-[15px] text-[#1A1A18] mb-1">Profile verification</h4>
+                                <p className="text-[14px] text-[#6B7A6D] leading-relaxed mb-4">
+                                   Verified profiles help others trust who they&apos;re buying from on YardFront.
                                 </p>
-                                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-emerald-200 rounded-md">
-                                   <CheckCircle2 size={14} className="text-emerald-600 fill-emerald-600" />
-                                   <span className="text-xs font-semibold text-emerald-700">Verified Neighbor</span>
+                                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F2] border border-[#C5D4C0] rounded-sm">
+                                   <CheckCircle2 size={14} className="text-[#3D5A40]" />
+                                   <span className="text-[10px] font-semibold text-[#3D5A40] uppercase tracking-[0.12em]">Verified</span>
                                 </div>
                              </div>
                           </div>
@@ -580,19 +621,75 @@ const ProfilePage: React.FC = () => {
               </div>
            )}
 
+           {activeTab === 'Appraisals' && (
+              <div>
+                 {appraisals.length > 0 ? (
+                    <div className="space-y-4">
+                       {appraisals.map((a) => (
+                          <div
+                            key={a.id}
+                            className="bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm p-5 shadow-[0_6px_20px_rgba(26,26,24,0.06)]"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div>
+                                <p className="font-['Cormorant_Garamond'] text-[22px] font-light text-[#1A1A18]">{a.item_name || 'Unknown item'}</p>
+                                <p className="text-[11px] text-[#9E8B6F] mt-1 uppercase tracking-[0.08em]">
+                                  {new Date(a.created_at).toLocaleDateString()} · {a.item_category || 'General'} · {a.item_condition || 'Unknown'}
+                                </p>
+                              </div>
+                              <div className="text-left sm:text-right">
+                                <p className="text-[16px] font-semibold text-[#1A1A18]">
+                                  ${Math.round(a.price_low || 0)} – ${Math.round(a.price_high || 0)}
+                                </p>
+                                <p className="text-[12px] text-[#6B7A6D]">Confidence: {a.confidence_score || 0}%</p>
+                              </div>
+                            </div>
+                          </div>
+                       ))}
+                    </div>
+                 ) : (
+                    <div className="max-w-md mx-auto py-16 text-center space-y-6">
+                      <div className="size-24 bg-[#EFE8DD] border border-[#DED3C3] rounded-sm flex items-center justify-center mx-auto">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#A49A8C]">
+                          <path d="M9 11l3 3L22 4"/>
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                        </svg>
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="font-['Cormorant_Garamond'] text-[32px] font-light text-[#1A1A18]">No appraisals yet</h3>
+                        <p className="text-[#6B7A6D] text-[15px] leading-relaxed">
+                          Run your first appraisal from the homepage—no account required to try it.
+                        </p>
+                      </div>
+                      <Link
+                        to="/#try"
+                        className="inline-flex items-center justify-center px-8 py-3.5 bg-[#1A2A1C] text-[#F0EAE0] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] hover:bg-[#2A3E2E] transition-colors"
+                      >
+                        Try it
+                      </Link>
+                    </div>
+                 )}
+              </div>
+           )}
+
            {activeTab === 'Saved' && (
               <div className="max-w-2xl mx-auto py-16 text-center space-y-6">
-                 <div className="size-24 bg-slate-100 rounded-lg flex items-center justify-center mx-auto">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-300">
+                 <div className="size-24 bg-[#EFE8DD] border border-[#DED3C3] rounded-sm flex items-center justify-center mx-auto">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#A49A8C]">
                       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                     </svg>
                  </div>
                  <div className="space-y-2">
-                    <h3 className="text-2xl font-bold text-[#121c32]">No Saved Items</h3>
-                    <p className="text-slate-600 text-sm leading-relaxed">Items you favorite will appear here for easy access.</p>
+                    <h3 className="font-['Cormorant_Garamond'] text-[32px] font-light text-[#1A1A18]">No saved items</h3>
+                    <p className="text-[#6B7A6D] text-[15px] leading-relaxed">
+                      Saved listings will show here once that feature is connected to your account.
+                    </p>
                  </div>
-                 <Link to="/search" className="inline-block px-8 py-3.5 bg-[#FF6B35] hover:bg-[#e85c2e] text-white rounded-md font-semibold text-sm shadow-[0_10px_22px_rgba(255,107,53,0.22)] transition-colors">
-                    Browse Marketplace
+                 <Link
+                   to="/marketplace"
+                   className="inline-flex items-center justify-center px-8 py-3.5 bg-[#1A2A1C] text-[#F0EAE0] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] hover:bg-[#2A3E2E] transition-colors"
+                 >
+                    Browse marketplace
                  </Link>
               </div>
            )}
@@ -601,37 +698,37 @@ const ProfilePage: React.FC = () => {
 
       {/* Edit Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#121c32]/80 backdrop-blur-sm">
-           <div className="bg-white w-full max-w-xl rounded-lg p-8 shadow-[0_14px_40px_rgba(18,28,50,0.25)] border border-slate-200 space-y-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#1A1A18]/75 backdrop-blur-sm">
+           <div className="bg-[#FAF7F2] w-full max-w-xl rounded-sm p-8 shadow-[0_20px_50px_rgba(26,26,24,0.2)] border border-[#DCCFBE] space-y-6">
               <div className="flex justify-between items-center">
-                 <h3 className="text-2xl font-bold text-[#121c32]">Edit Profile</h3>
-                 <button 
-                   onClick={() => setIsEditing(false)} 
-                   className="size-8 rounded-md hover:bg-slate-50 transition-colors flex items-center justify-center"
+                 <h3 className="font-['Cormorant_Garamond'] text-[30px] font-light text-[#1A1A18]">Edit profile</h3>
+                 <button
+                   type="button"
+                   onClick={() => setIsEditing(false)}
+                   className="size-8 rounded-sm hover:bg-[#EFE8DD] transition-colors flex items-center justify-center border border-transparent hover:border-[#DED3C3]"
                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#8D8478]">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
                  </button>
               </div>
-              
-              {/* Avatar Upload */}
+
               <div className="flex items-center gap-6">
                 <div className="relative shrink-0">
-                  <div 
-                    className="size-24 rounded-lg bg-cover bg-center border border-slate-200 shadow-[0_8px_24px_rgba(18,28,50,0.08)]"
-                    style={{backgroundImage: `url("${editForm.avatar || user.avatar || ''}")`}}
+                  <div
+                    className="size-24 rounded-sm bg-cover bg-center border border-[#DED3C3] shadow-[0_6px_20px_rgba(26,26,24,0.08)]"
+                    style={{ backgroundImage: `url("${editForm.avatar || user.avatar || ''}")` }}
                   >
                     {!editForm.avatar && !user.avatar && (
-                      <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center">
-                        <Camera size={32} className="text-slate-300" />
+                      <div className="w-full h-full bg-[#EFE8DD] rounded-sm flex items-center justify-center">
+                        <Camera size={32} className="text-[#A49A8C]" />
                       </div>
                     )}
                   </div>
                   {uploadingAvatar && (
-                    <div className="absolute inset-0 bg-white/80 rounded-lg flex items-center justify-center">
-                      <div className="w-6 h-6 border-2 border-[#FF6B35] border-t-transparent rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 bg-[#FAF7F2]/90 rounded-sm flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-[#1A2A1C] border-t-transparent rounded-full animate-spin" />
                     </div>
                   )}
                 </div>
@@ -646,14 +743,15 @@ const ProfilePage: React.FC = () => {
                   />
                   <label
                     htmlFor="avatar-upload"
-                    className="inline-block px-4 py-2 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="inline-block px-4 py-2 border border-[#DCCFBE] text-[#1A1A18] rounded-sm text-[11px] font-semibold uppercase tracking-[0.08em] bg-[#FAF7F2] hover:bg-[#EFE8DD] transition-colors cursor-pointer"
                   >
-                    {editForm.avatar || user.avatar ? 'Change Photo' : 'Upload Photo'}
+                    {editForm.avatar || user.avatar ? 'Change photo' : 'Upload photo'}
                   </label>
                   {editForm.avatar && editForm.avatar !== user.avatar && (
                     <button
+                      type="button"
                       onClick={() => setEditForm(prev => ({ ...prev, avatar: user?.avatar || '' }))}
-                      className="ml-3 text-xs text-slate-500 hover:text-red-500 font-medium"
+                      className="ml-3 text-[12px] text-[#8D8478] hover:text-[#B54419] font-medium"
                     >
                       Remove
                     </button>
@@ -663,46 +761,48 @@ const ProfilePage: React.FC = () => {
 
               <div className="space-y-5">
                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Name</label>
-                    <input 
-                      type="text" 
-                      value={editForm.name} 
-                      onChange={e => setEditForm({...editForm, name: e.target.value})} 
-                      className="w-full bg-white border border-slate-200 rounded-md py-3 px-4 font-medium text-base focus:outline-none focus:border-[#FF6B35] focus:ring-1 focus:ring-[#FF6B35]" 
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9E8B6F]">Name</label>
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                      className="w-full bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm py-3 px-4 text-[15px] text-[#1A1A18] placeholder:text-[#A49A8C] focus:outline-none focus:border-[#1A2A1C] focus:ring-1 focus:ring-[#1A2A1C]/20"
                     />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Bio</label>
-                    <textarea 
-                      rows={4} 
-                      value={editForm.bio} 
-                      onChange={e => setEditForm({...editForm, bio: e.target.value})} 
-                      className="w-full bg-white border border-slate-200 rounded-md py-3 px-4 font-medium text-base leading-relaxed focus:outline-none focus:border-[#FF6B35] focus:ring-1 focus:ring-[#FF6B35] resize-none" 
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9E8B6F]">Bio</label>
+                    <textarea
+                      rows={4}
+                      value={editForm.bio}
+                      onChange={e => setEditForm({ ...editForm, bio: e.target.value })}
+                      className="w-full bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm py-3 px-4 text-[15px] text-[#1A1A18] leading-relaxed placeholder:text-[#A49A8C] focus:outline-none focus:border-[#1A2A1C] focus:ring-1 focus:ring-[#1A2A1C]/20 resize-none"
                     />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Location</label>
-                    <input 
-                      type="text" 
-                      value={editForm.location} 
-                      onChange={e => setEditForm({...editForm, location: e.target.value})} 
-                      className="w-full bg-white border border-slate-200 rounded-md py-3 px-4 font-medium text-base focus:outline-none focus:border-[#FF6B35] focus:ring-1 focus:ring-[#FF6B35]" 
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9E8B6F]">Location</label>
+                    <input
+                      type="text"
+                      value={editForm.location}
+                      onChange={e => setEditForm({ ...editForm, location: e.target.value })}
+                      className="w-full bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm py-3 px-4 text-[15px] text-[#1A1A18] placeholder:text-[#A49A8C] focus:outline-none focus:border-[#1A2A1C] focus:ring-1 focus:ring-[#1A2A1C]/20"
                     />
                  </div>
               </div>
-              <div className="flex gap-3 pt-4 border-t border-slate-200">
-                 <button 
-                   onClick={() => setIsEditing(false)} 
-                   className="flex-1 py-3 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors"
+              <div className="flex gap-3 pt-4 border-t border-[#DCCFBE]">
+                 <button
+                   type="button"
+                   onClick={() => setIsEditing(false)}
+                   className="flex-1 py-3 border border-[#DCCFBE] text-[#1A1A18] rounded-sm text-[11px] font-semibold uppercase tracking-[0.08em] bg-[#FAF7F2] hover:bg-[#EFE8DD] transition-colors"
                  >
                    Cancel
                  </button>
-                 <button 
+                 <button
+                   type="button"
                    onClick={handleSaveProfile}
                    disabled={uploadingAvatar}
-                   className="flex-1 py-3 bg-[#FF6B35] hover:bg-[#e85c2e] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-md font-semibold text-sm shadow-[0_10px_22px_rgba(255,107,53,0.22)] transition-colors"
+                   className="flex-1 py-3 bg-[#1A2A1C] hover:bg-[#2A3E2E] disabled:bg-[#C9B8A0] disabled:cursor-not-allowed text-[#F0EAE0] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors"
                  >
-                   {uploadingAvatar ? 'Uploading...' : 'Update Profile'}
+                   {uploadingAvatar ? 'Uploading…' : 'Save'}
                  </button>
               </div>
            </div>
@@ -711,26 +811,28 @@ const ProfilePage: React.FC = () => {
 
       {/* Mark Sold Confirmation Modal */}
       {confirmMarkSold && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#121c32]/80 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-lg p-6 shadow-[0_14px_40px_rgba(18,28,50,0.25)] border border-slate-200">
-            <h3 className="text-xl font-bold text-[#121c32] mb-2">Mark Item as Sold?</h3>
-            <p className="text-sm text-slate-600 mb-6">
-              Are you sure you want to mark <span className="font-semibold text-[#121c32]">"{confirmMarkSold.itemTitle}"</span> as sold? This will remove it from your active listings.
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#1A1A18]/75 backdrop-blur-sm">
+          <div className="bg-[#FAF7F2] w-full max-w-md rounded-sm p-6 shadow-[0_20px_50px_rgba(26,26,24,0.2)] border border-[#DCCFBE]">
+            <h3 className="font-['Cormorant_Garamond'] text-[26px] font-light text-[#1A1A18] mb-2">Mark as sold?</h3>
+            <p className="text-[14px] text-[#6B7A6D] mb-6 leading-relaxed">
+              This removes <span className="font-semibold text-[#1A1A18]">&ldquo;{confirmMarkSold.itemTitle}&rdquo;</span> from your active listings.
             </p>
             <div className="flex gap-3">
-              <button 
+              <button
+                type="button"
                 onClick={() => setConfirmMarkSold(null)}
                 disabled={markingSold === confirmMarkSold.itemId}
-                className="flex-1 py-2.5 border border-slate-200 text-[#121c32] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 border border-[#DCCFBE] text-[#1A1A18] rounded-sm text-[11px] font-semibold uppercase tracking-[0.08em] bg-[#FAF7F2] hover:bg-[#EFE8DD] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
-              <button 
+              <button
+                type="button"
                 onClick={handleConfirmMarkSold}
                 disabled={markingSold === confirmMarkSold.itemId}
-                className="flex-1 py-2.5 bg-[#FF6B35] hover:bg-[#e85c2e] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-md font-semibold text-sm transition-colors"
+                className="flex-1 py-2.5 bg-[#1A2A1C] hover:bg-[#2A3E2E] disabled:bg-[#C9B8A0] disabled:cursor-not-allowed text-[#F0EAE0] rounded-sm text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors"
               >
-                {markingSold === confirmMarkSold.itemId ? 'Marking...' : 'Mark as Sold'}
+                {markingSold === confirmMarkSold.itemId ? 'Updating…' : 'Mark sold'}
               </button>
             </div>
           </div>

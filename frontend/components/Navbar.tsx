@@ -1,13 +1,13 @@
 /**
- * YardFront Navbar — shared across all pages
- * Logged out: Logo | Marketplace | How It Works | Pricing | Sign In | Get Started
- * Logged in:  Logo | Marketplace | How It Works | Pricing | Dashboard | [user menu]
+ * YardFront Navbar — editorial mono links + forest CTA (YardFront.html)
  */
 
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { supabase } from '../lib/supabase';
+import { colors as t, fonts as tf } from '../lib/tokens';
+import { scrollToSection } from '../lib/scrollToSection';
 
 export default function Navbar() {
   const location = useLocation();
@@ -19,12 +19,15 @@ export default function Navbar() {
   const isLoggedIn = !!(authToken || user);
 
   const scrollTo = (id: string) => {
+    setMobileOpen(false);
     if (isLanding) {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-      setMobileOpen(false);
-    } else {
-      navigate(`/#${id}`);
+      scrollToSection(id);
+      return;
     }
+    navigate('/');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToSection(id));
+    });
   };
 
   const handleSignOut = async () => {
@@ -33,120 +36,98 @@ export default function Navbar() {
     navigate('/');
   };
 
+  const linkBase =
+    'text-[11px] font-normal uppercase tracking-[0.14em] no-underline transition-opacity duration-200';
+  const linkIdle = 'text-[color:var(--ink)] opacity-[0.78] hover:opacity-100 hover:text-[color:var(--terra)]';
+  const linkStyle = { fontFamily: '"DM Mono", ui-monospace, monospace', ['--ink' as string]: t.ink, ['--terra' as string]: t.terracotta } as React.CSSProperties;
+
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-[100] h-16 px-6 md:px-[56px] flex items-center justify-between"
+      className="fixed top-0 left-0 right-0 z-[100] h-[72px] px-6 md:px-12 flex items-center justify-between"
       style={{
-        background: 'rgba(255,255,255,0.85)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
+        background: `${t.chalk}E6`,
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: `0.5px solid ${t.mist}`,
       }}
     >
-      {/* Logo */}
       <Link
         to="/"
-        className="text-[18px] font-bold text-[#0A0A0A] tracking-[-0.3px] no-underline"
+        className="flex items-center gap-2.5 no-underline"
+        style={{ fontFamily: tf.serif }}
+        onClick={() => setMobileOpen(false)}
       >
-        Yard<span className="text-[#FF6B35]">Front</span>
+        <span
+          className="rounded-full shrink-0"
+          style={{ width: 9, height: 9, background: t.terracotta }}
+        />
+        <span className="text-[22px] font-normal tracking-[-0.01em]" style={{ color: t.ink }}>
+          YardFront
+        </span>
       </Link>
 
-      {/* Desktop Nav */}
-      <div className="hidden md:flex items-center gap-8">
-        <Link
-          to="/marketplace"
-          className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors no-underline"
-        >
+      <div className="hidden lg:flex items-center gap-7">
+        <Link to="/about" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
+          About
+        </Link>
+        <Link to="/business" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
+          For Business
+        </Link>
+        <Link to="/marketplace" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
           Marketplace
         </Link>
-        <Link
-          to="/business"
-          className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#FF6B35] transition-colors no-underline flex items-center gap-1.5"
-        >
-          For Business
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#FF6B35]/80">API</span>
-        </Link>
 
-        {isLanding ? (
-          <>
-            <button
-              type="button"
-              onClick={() => scrollTo('steps')}
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors"
-            >
-              How It Works
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollTo('pricing')}
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors"
-            >
-              Pricing
-            </button>
-          </>
-        ) : (
-          <>
-            <Link
-              to="/#steps"
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors no-underline"
-            >
-              How It Works
-            </Link>
-            <Link
-              to="/#pricing"
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors no-underline"
-            >
-              Pricing
-            </Link>
-          </>
-        )}
+        <>
+          <button type="button" onClick={() => scrollTo('how')} className={`${linkBase} ${linkIdle} bg-transparent border-0 cursor-pointer`} style={linkStyle}>
+            How it works
+          </button>
+          <button type="button" onClick={() => scrollTo('pricing')} className={`${linkBase} ${linkIdle} bg-transparent border-0 cursor-pointer`} style={linkStyle}>
+            Pricing
+          </button>
+        </>
 
         {isLoggedIn ? (
           <>
-            <Link
-              to="/dashboard"
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors no-underline"
-            >
-              Dashboard
+            <Link to="/account" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
+              My Account
             </Link>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors"
-            >
+            <Link to="/dashboard" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
+              API Dashboard
+            </Link>
+            <button type="button" onClick={handleSignOut} className={`${linkBase} ${linkIdle} bg-transparent border-0 cursor-pointer`} style={linkStyle}>
               Sign Out
             </button>
           </>
         ) : (
           <>
-            <Link
-              to="/login"
-              className="text-[14px] font-medium text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors no-underline"
-            >
+            <Link to="/login" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
               Sign In
             </Link>
-            {isLanding ? (
-              <button
-                type="button"
-                onClick={() => scrollTo('upload')}
-                className="py-2 px-5 bg-[#0A0A0A] text-white rounded-[100px] text-[13px] font-semibold hover:opacity-80 transition-opacity"
-              >
-                Get Started
-              </button>
-            ) : (
-              <Link
-                to="/signup"
-                className="py-2 px-5 bg-[#0A0A0A] text-white rounded-[100px] text-[13px] font-semibold hover:opacity-80 transition-opacity no-underline inline-block"
-              >
-                Sign Up
-              </Link>
-            )}
+            <button
+              type="button"
+              onClick={() => scrollTo('try')}
+              className="border-0 cursor-pointer transition-colors duration-200 text-[11px] uppercase tracking-[0.14em] px-4 py-2.5"
+              style={{
+                fontFamily: '"DM Mono", ui-monospace, monospace',
+                background: t.forest,
+                color: t.chalk,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = t.terracotta;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = t.forest;
+              }}
+            >
+              Try it free
+            </button>
           </>
         )}
       </div>
 
-      {/* Mobile Nav Toggle */}
       <button
-        className="md:hidden p-2 text-[#0A0A0A]"
+        className="lg:hidden p-2"
+        style={{ color: t.ink }}
         onClick={() => setMobileOpen(!mobileOpen)}
         aria-label="Menu"
       >
@@ -161,75 +142,57 @@ export default function Navbar() {
         )}
       </button>
 
-      {/* Mobile Menu */}
       {mobileOpen && (
         <div
-          className="absolute top-16 left-0 right-0 bg-white border-t border-[#F0F0F0] shadow-sm md:hidden"
-          style={{ backdropFilter: 'blur(24px)' }}
+          className="absolute top-[72px] left-0 right-0 lg:hidden shadow-lg"
+          style={{
+            background: t.chalk,
+            borderTop: `0.5px solid ${t.mist}`,
+            borderBottom: `0.5px solid ${t.mist}`,
+          }}
         >
           <div className="flex flex-col p-6 gap-4">
-            <Link
-              to="/marketplace"
-              onClick={() => setMobileOpen(false)}
-              className="text-[15px] font-medium text-[#0A0A0A] no-underline"
-            >
+            <Link to="/about" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
+              About
+            </Link>
+            <Link to="/business" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.sage }}>
+              For Business
+            </Link>
+            <Link to="/marketplace" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
               Marketplace
             </Link>
-            <Link
-              to="/business"
-              onClick={() => setMobileOpen(false)}
-              className="text-[15px] font-medium text-[#6B6B6B] no-underline flex items-center gap-1.5"
-            >
-              For Business <span className="text-[10px] font-semibold text-[#FF6B35]">API</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => scrollTo('steps')}
-              className="text-[15px] font-medium text-[#6B6B6B] text-left"
-            >
-              How It Works
+            <button type="button" onClick={() => scrollTo('how')} className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer" style={{ color: t.sage }}>
+              How it works
             </button>
-            <button
-              type="button"
-              onClick={() => scrollTo('pricing')}
-              className="text-[15px] font-medium text-[#6B6B6B] text-left"
-            >
+            <button type="button" onClick={() => scrollTo('pricing')} className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer" style={{ color: t.sage }}>
               Pricing
             </button>
 
             {isLoggedIn ? (
               <>
-                <Link
-                  to="/dashboard"
-                  onClick={() => setMobileOpen(false)}
-                  className="text-[15px] font-medium text-[#0A0A0A] no-underline"
-                >
-                  Dashboard
+                <Link to="/account" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
+                  My Account
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="text-[15px] font-medium text-[#C0392B] text-left"
-                >
+                <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
+                  API Dashboard
+                </Link>
+                <button type="button" onClick={handleSignOut} className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer" style={{ color: t.terracotta }}>
                   Sign Out
                 </button>
               </>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="text-[15px] font-medium text-[#0A0A0A] no-underline"
-                >
+                <Link to="/login" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
                   Sign In
                 </Link>
-                <Link
-                  to="/signup"
-                  onClick={() => setMobileOpen(false)}
-                  className="block text-center py-3 bg-[#0A0A0A] text-white rounded-[100px] text-[13px] font-semibold no-underline"
+                <button
+                  type="button"
+                  onClick={() => scrollTo('try')}
+                  className="block text-center py-3 border-0 text-[11px] uppercase tracking-[0.14em] cursor-pointer"
+                  style={{ background: t.forest, color: t.chalk, fontFamily: '"DM Mono", monospace' }}
                 >
-                  Sign Up
-                </Link>
+                  Try it free
+                </button>
               </>
             )}
           </div>

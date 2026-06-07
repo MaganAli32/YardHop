@@ -1,0 +1,1483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YardFront — Price intelligence for everything else</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --parchment: #F0EAE0;
+    --chalk: #FFFDF7;
+    --forest: #1A2A1C;
+    --forest-hair: #263A28;
+    --forest-muted: #7A9A7C;
+    --forest-soft: #4A6B4E;
+    --forest-faint: #3D5C3F;
+    --terracotta: #B54419;
+    --terracotta-warm: #C65A2F;
+    --terracotta-cream: #FFF8F3;
+    --terracotta-soft: #F5D5C4;
+    --bark: #9E8B6F;
+    --sage: #6B7A6D;
+    --mist: #C9BFA9;
+    --mist-thin: rgba(201,191,169,0.55);
+    --ink: #2A2822;
+
+    --serif: "Cormorant Garamond", "Times New Roman", serif;
+    --sans: "Manrope", system-ui, sans-serif;
+    --mono: "DM Mono", ui-monospace, Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    font-weight: 400;
+    color: var(--ink);
+    background: var(--parchment);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* Shared primitives */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 400;
+    margin: 0;
+  }
+  .rule {
+    width: 36px;
+    height: 0.5px;
+    background: var(--mist);
+    border: 0;
+    margin: 20px 0;
+  }
+  .headline {
+    font-family: var(--serif);
+    font-weight: 300;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .headline em {
+    font-style: italic;
+    color: var(--terracotta);
+    font-weight: 400;
+  }
+  .body-lede {
+    font-family: var(--sans);
+    font-weight: 300;
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--sage);
+    max-width: 52ch;
+    text-wrap: pretty;
+  }
+
+  button { font-family: inherit; cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+
+  section { position: relative; }
+  .container { max-width: 1240px; margin: 0 auto; padding: 0 48px; }
+
+  /* Reveal */
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity .8s ease, transform .8s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* Selection */
+  ::selection { background: var(--terracotta); color: #fff; }
+
+  /* Scrollbar taming on dark sections */
+  .dark-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+
+  /* ------- NAV ------- */
+  .nav {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 26px 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    z-index: 30;
+  }
+  .nav-mark {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--serif); font-size: 22px; font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+  .nav-mark .dot { width: 9px; height: 9px; background: var(--terracotta); border-radius: 50%; }
+  .nav-links {
+    display: flex; gap: 28px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink);
+  }
+  .nav-links a { opacity: 0.78; transition: opacity .2s; }
+  .nav-links a:hover { opacity: 1; color: var(--terracotta); }
+  .nav-cta {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; padding: 10px 16px;
+    background: var(--forest); color: var(--chalk); border: 0;
+    transition: background .2s;
+  }
+  .nav-cta:hover { background: var(--terracotta); }
+
+  /* ------- HERO ------- */
+  .hero { background: var(--parchment); padding: 140px 0 100px; min-height: 100vh; position: relative; }
+  .hero-grid { display: grid; grid-template-columns: 1fr; gap: 56px; align-items: end; }
+  .hero-editorial { text-align: center; max-width: 920px; margin: 0 auto; }
+  .hero-editorial .eyebrow { color: var(--bark); margin-bottom: 24px; }
+  .hero-editorial h1 { font-size: clamp(44px, 6.2vw, 84px); }
+  .hero-editorial .rule { margin: 28px auto; }
+  .hero-editorial .body-lede { margin: 0 auto; }
+  .hero-meta {
+    margin-top: 28px;
+    display: flex; justify-content: center; gap: 36px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--bark);
+  }
+  .hero-meta span::before { content: "— "; color: var(--terracotta); }
+
+  /* Hero layout variants via data-attr on body */
+  body[data-hero="asym"] .hero-editorial { text-align: left; margin: 0; max-width: 720px; }
+  body[data-hero="asym"] .hero-editorial .rule { margin-left: 0; }
+  body[data-hero="asym"] .hero-meta { justify-content: flex-start; }
+
+  /* Safari browser mockup */
+  .browser {
+    width: 100%; max-width: 1080px; margin: 72px auto 0;
+    background: #E8E2D6;
+    border-radius: 12px 12px 8px 8px;
+    box-shadow: 0 40px 80px -30px rgba(26,42,28,0.28), 0 12px 28px -12px rgba(26,42,28,0.18);
+    overflow: hidden;
+    border: 0.5px solid var(--mist);
+  }
+  .browser-chrome {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px 10px;
+    background: linear-gradient(to bottom, #EAE3D4, #DFD6C4);
+    border-bottom: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .traffic { display: flex; gap: 7px; }
+  .traffic i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .traffic i:nth-child(1) { background: #E2685A; }
+  .traffic i:nth-child(2) { background: #E6B640; }
+  .traffic i:nth-child(3) { background: #5BB552; }
+  .url {
+    flex: 1; margin: 0 12px;
+    background: #F5EFE2;
+    border: 0.5px solid rgba(0,0,0,0.08);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--sage);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .url svg { width: 10px; height: 10px; opacity: 0.55; }
+  .browser-body { background: var(--chalk); min-height: 540px; }
+
+  /* App inside browser */
+  .app-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 22px; border-bottom: 0.5px solid var(--mist);
+  }
+  .app-brand { display: flex; align-items: center; gap: 8px; font-family: var(--serif); font-size: 17px; }
+  .app-brand .dot { width: 7px; height: 7px; background: var(--terracotta); border-radius: 50%; }
+  .app-nav { display: flex; gap: 22px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--sage); }
+  .app-nav a.active { color: var(--terracotta); }
+  .app-user { width: 26px; height: 26px; border-radius: 50%; background: var(--forest); color: var(--chalk); display: grid; place-items: center; font-family: var(--mono); font-size: 10px; }
+
+  .app-body {
+    display: grid;
+    grid-template-columns: 1.05fr 1.3fr;
+    gap: 0;
+    min-height: 500px;
+  }
+  .app-left {
+    padding: 32px 36px;
+    border-right: 0.5px solid var(--mist);
+    display: flex; flex-direction: column; gap: 22px;
+  }
+  .app-left .eyebrow { color: var(--bark); }
+  .app-item-title { font-family: var(--serif); font-size: 26px; font-weight: 400; line-height: 1.15; }
+  .app-item-title em { font-style: italic; color: var(--terracotta); }
+  .item-photo {
+    width: 100%; aspect-ratio: 4/3; border-radius: 4px;
+    background:
+      linear-gradient(135deg, #E8DFCC 25%, transparent 25%) 0 0,
+      linear-gradient(135deg, transparent 75%, #E8DFCC 75%) 0 0,
+      linear-gradient(135deg, #D9CEB5, #CCBE9E);
+    background-size: 14px 14px, 14px 14px, 100% 100%;
+    background-repeat: repeat, repeat, no-repeat;
+    position: relative;
+    border: 0.5px solid var(--mist);
+    overflow: hidden;
+  }
+  .item-photo::after {
+    content: "Lounge chair · walnut & leather";
+    position: absolute; left: 12px; bottom: 10px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--forest);
+    background: rgba(240,234,224,0.88); padding: 4px 8px; border-radius: 2px;
+  }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 4px 8px;
+    background: transparent; border: 0.5px solid var(--mist);
+    color: var(--sage); border-radius: 2px;
+  }
+  .tag.hot { color: var(--terracotta); border-color: var(--terracotta); }
+
+  .app-right {
+    padding: 32px 36px;
+    background: linear-gradient(180deg, var(--chalk), #FBF6EA);
+    display: flex; flex-direction: column; gap: 22px;
+  }
+  .price-block { }
+  .price-eyebrow {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--bark);
+  }
+  .price-eyebrow .pill {
+    background: var(--forest); color: var(--chalk);
+    padding: 3px 8px; border-radius: 2px; letter-spacing: 0.14em;
+  }
+  .price-range {
+    font-family: var(--serif); font-weight: 300;
+    font-size: 64px; line-height: 1;
+    margin: 16px 0 8px; letter-spacing: -0.02em;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .price-range .low { color: var(--ink); }
+  .price-range .sep { color: var(--mist); font-size: 40px; }
+  .price-range .high { color: var(--terracotta); font-style: italic; }
+  .price-median { font-family: var(--mono); font-size: 11px; color: var(--sage); letter-spacing: 0.1em; }
+
+  /* Confidence visualization */
+  .conf-card { border-top: 0.5px solid var(--mist); padding-top: 18px; }
+  .conf-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .conf-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bark); }
+  .conf-value { font-family: var(--serif); font-size: 22px; font-weight: 400; color: var(--forest); }
+  .conf-value em { color: var(--terracotta); font-style: italic; }
+
+  /* Variant A: bar */
+  .conf-bar {
+    position: relative; height: 4px; background: var(--mist); border-radius: 0; overflow: hidden;
+  }
+  .conf-bar-fill {
+    position: absolute; inset: 0 auto 0 0;
+    background: var(--terracotta);
+    width: var(--conf, 0%);
+    transition: width 1.2s cubic-bezier(.2,.7,.2,1);
+  }
+  .conf-ticks {
+    display: flex; justify-content: space-between; margin-top: 8px;
+    font-family: var(--mono); font-size: 9px; color: var(--bark); letter-spacing: 0.14em;
+  }
+
+  /* Variant B: dots (12 pips) */
+  .conf-dots { display: flex; gap: 4px; }
+  .conf-dots i {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--mist); display: block;
+    transition: background .05s linear;
+  }
+  .conf-dots i.on { background: var(--terracotta); }
+
+  /* Variant C: radial arc */
+  .conf-arc { display: flex; align-items: center; gap: 18px; }
+  .conf-arc svg { width: 88px; height: 88px; flex: 0 0 88px; }
+  .conf-arc .arc-bg { stroke: var(--mist); }
+  .conf-arc .arc-fg { stroke: var(--terracotta); stroke-dasharray: 0 300; transition: stroke-dasharray 1.2s cubic-bezier(.2,.7,.2,1); }
+  .conf-arc .arc-num { font-family: var(--serif); font-size: 26px; fill: var(--forest); }
+
+  /* Data-density variants: minimal hides methodology list */
+  body[data-density="minimal"] .dens-hide { display: none; }
+  body[data-density="dense"] .conf-methodology { display: block; }
+
+  .conf-methodology { margin-top: 14px; font-family: var(--mono); font-size: 10px; color: var(--sage); letter-spacing: 0.06em; line-height: 1.7; }
+  .conf-methodology .row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 0.5px dashed var(--mist-thin); }
+  .conf-methodology .row:last-child { border-bottom: 0; }
+
+  /* Comparable sales strip */
+  .comps-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .comps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .comp {
+    border: 0.5px solid var(--mist); padding: 8px; background: var(--chalk);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .comp-thumb {
+    aspect-ratio: 1/1; background: linear-gradient(135deg, #E8DFCC, #D4C7AD);
+    position: relative; overflow: hidden;
+  }
+  .comp-thumb.c2 { background: linear-gradient(135deg, #DDD1B6, #C6B58F); }
+  .comp-thumb.c3 { background: linear-gradient(135deg, #E2D4BA, #BFA77F); }
+  .comp-thumb.c4 { background: linear-gradient(135deg, #D6C7A6, #A89069); }
+  .comp-thumb::after {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(0,0,0,0.035) 8px 9px);
+  }
+  .comp-price { font-family: var(--serif); font-size: 18px; font-weight: 400; }
+  .comp-meta { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; color: var(--bark); text-transform: uppercase; display: flex; justify-content: space-between; }
+  .comp-meta .sold { color: var(--forest); }
+
+  /* Source badges */
+  .sources { display: flex; gap: 6px; flex-wrap: wrap; }
+  .source-pill {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+    padding: 3px 7px; border: 0.5px solid var(--mist); text-transform: uppercase;
+    color: var(--sage);
+  }
+  .source-pill .cnt { color: var(--terracotta); margin-left: 4px; }
+
+  .hero-meta-note {
+    text-align: center; margin-top: 18px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em;
+    color: var(--bark); text-transform: uppercase;
+  }
+
+  /* ------- PULL QUOTE ------- */
+  .pq { background: var(--forest); color: var(--chalk); padding: 140px 0; }
+  .pq .eyebrow { color: var(--forest-muted); }
+  .pq-quote {
+    font-family: var(--serif); font-weight: 300;
+    font-size: clamp(32px, 4.2vw, 58px); line-height: 1.12;
+    letter-spacing: -0.01em; max-width: 22ch; margin: 28px 0 48px;
+    color: var(--chalk);
+  }
+  .pq-quote em { font-style: italic; color: var(--terracotta-warm); font-weight: 400; }
+  .pq-rule { width: 36px; height: 0.5px; background: var(--forest-soft); border: 0; margin: 0 0 48px; }
+  .pq-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 48px; margin-top: 72px;
+    border-top: 0.5px solid var(--forest-hair); padding-top: 40px;
+  }
+  .pq-stat .n { font-family: var(--serif); font-size: 56px; font-weight: 300; line-height: 1; color: var(--chalk); }
+  .pq-stat .n em { color: var(--terracotta-warm); font-style: italic; }
+  .pq-stat .l { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--forest-muted); margin-top: 12px; }
+  .pq-stat .d { font-family: var(--sans); font-weight: 300; font-size: 14px; color: var(--forest-muted); margin-top: 10px; max-width: 28ch; line-height: 1.5; }
+
+  /* ------- HOW IT WORKS ------- */
+  .hiw { background: var(--chalk); padding: 140px 0; }
+  .hiw .eyebrow { color: var(--bark); }
+  .hiw-head { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: end; margin-bottom: 72px; }
+  .hiw-head h2 { font-size: clamp(38px, 4.4vw, 60px); }
+  .hiw-panel { display: grid; grid-template-columns: 340px 1fr; gap: 40px; border-top: 0.5px solid var(--mist); padding-top: 40px; }
+  .hiw-tabs { display: flex; flex-direction: column; }
+  .hiw-tab {
+    text-align: left; background: transparent; border: 0; padding: 20px 0;
+    border-bottom: 0.5px solid var(--mist); cursor: pointer;
+    display: flex; flex-direction: column; gap: 6px; position: relative;
+    transition: opacity .3s;
+  }
+  .hiw-tab .step { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; color: var(--bark); text-transform: uppercase; }
+  .hiw-tab .title { font-family: var(--serif); font-size: 24px; font-weight: 400; color: var(--sage); }
+  .hiw-tab.active .title { color: var(--ink); }
+  .hiw-tab.active .step { color: var(--terracotta); }
+  .hiw-tab .progress { position: absolute; left: 0; bottom: -0.5px; height: 1px; background: var(--terracotta); width: 0%; }
+  .hiw-tab.active .progress { width: var(--tabp, 0%); transition: width .1s linear; }
+
+  .hiw-stage { background: var(--parchment); border: 0.5px solid var(--mist); min-height: 420px; padding: 40px; position: relative; overflow: hidden; }
+  .hiw-stage-inner { position: absolute; inset: 40px; }
+  .hiw-slide { position: absolute; inset: 0; opacity: 0; transform: translateY(12px); transition: opacity .5s, transform .5s; }
+  .hiw-slide.active { opacity: 1; transform: none; }
+
+  /* Stage visuals */
+  .stage-upload { display: grid; grid-template-rows: auto 1fr; gap: 18px; height: 100%; }
+  .stage-upload .dropzone {
+    border: 0.75px dashed var(--bark); padding: 40px; text-align: center;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--bark);
+    text-transform: uppercase; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .stage-upload .dropzone .glyph { font-family: var(--serif); font-size: 40px; color: var(--terracotta); }
+  .stage-upload .progress-line { height: 2px; background: var(--mist); position: relative; }
+  .stage-upload .progress-line::after { content: ""; position: absolute; inset: 0 auto 0 0; background: var(--terracotta); width: 64%; }
+
+  .stage-ident { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; height: 100%; }
+  .stage-ident .shot {
+    background: linear-gradient(135deg, #E2D7BF, #C9B994);
+    border: 0.5px solid var(--mist); position: relative;
+  }
+  .stage-ident .shot::after {
+    content: "SPECIMEN"; position: absolute; left: 10px; top: 10px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: rgba(26,42,28,0.6);
+  }
+  .stage-ident .ident-list { display: flex; flex-direction: column; gap: 0; }
+  .stage-ident .ident-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 0.5px solid var(--mist); padding: 12px 0;
+    font-family: var(--sans); font-weight: 400; font-size: 14px;
+  }
+  .stage-ident .ident-row .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--bark); }
+  .stage-ident .ident-row .v { color: var(--ink); }
+  .stage-ident .ident-row .v em { color: var(--terracotta); font-style: italic; }
+
+  .stage-search { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+  .stage-search .row {
+    display: grid; grid-template-columns: 140px 1fr 80px 70px;
+    align-items: center; gap: 16px;
+    padding: 10px 0; border-bottom: 0.5px solid var(--mist);
+    font-family: var(--mono); font-size: 11px; color: var(--sage); letter-spacing: 0.04em;
+  }
+  .stage-search .row .src { color: var(--ink); text-transform: uppercase; letter-spacing: 0.2em; font-size: 10px; }
+  .stage-search .row .bar { height: 2px; background: var(--mist); position: relative; }
+  .stage-search .row .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; background: var(--terracotta); width: var(--w,50%); transition: width .8s; }
+  .stage-search .row .n { color: var(--forest); text-align: right; }
+  .stage-search .row .s { color: var(--bark); text-align: right; text-transform: uppercase; letter-spacing: 0.18em; font-size: 9px; }
+
+  .stage-result { height: 100%; display: grid; grid-template-rows: auto auto 1fr; gap: 16px; }
+  .stage-result .big {
+    font-family: var(--serif); font-size: 68px; font-weight: 300; line-height: 1; color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+  .stage-result .big em { color: var(--terracotta); font-style: italic; }
+  .stage-result .hist {
+    display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px; align-items: end;
+    height: 90px;
+  }
+  .stage-result .hist b { background: var(--bark); display: block; opacity: 0.45; }
+  .stage-result .hist b.in { background: var(--terracotta); opacity: 1; }
+  .stage-result .meta {
+    display: flex; justify-content: space-between; align-items: end;
+    border-top: 0.5px solid var(--mist); padding-top: 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--bark);
+  }
+
+  /* ------- EXTENSION ------- */
+  .ext { background: var(--forest); color: var(--chalk); padding: 140px 0; }
+  .ext .eyebrow { color: var(--forest-muted); }
+  .ext-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 80px; align-items: center; }
+  .ext h2 { color: var(--chalk); font-size: clamp(38px, 4.4vw, 56px); }
+  .ext h2 em { color: var(--terracotta-warm); }
+  .ext .body-lede { color: var(--forest-muted); }
+  .ext-rule { background: var(--forest-soft); }
+  .ext-feature { display: flex; gap: 12px; padding: 12px 0; border-bottom: 0.5px solid var(--forest-hair); }
+  .ext-feature::before { content: ""; width: 4px; height: 4px; background: var(--terracotta-warm); border-radius: 50%; margin-top: 9px; flex: 0 0 auto; }
+  .ext-feature .ef-t { font-size: 15px; color: var(--chalk); }
+  .ext-feature .ef-d { font-size: 13px; color: var(--forest-muted); margin-top: 4px; }
+
+  .listing {
+    background: #223424;
+    border: 0.5px solid var(--forest-hair);
+    padding: 24px; position: relative;
+  }
+  .listing-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; color: var(--forest-muted); text-transform: uppercase; }
+  .listing-img {
+    aspect-ratio: 4/3;
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0 10px, transparent 10px 20px),
+      linear-gradient(180deg, #2E4330, #1E2F20);
+    position: relative; border: 0.5px solid var(--forest-hair);
+  }
+  .listing-img::after {
+    content: "VINYL · FIRST PRESS"; position: absolute; left: 12px; bottom: 12px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--forest-muted);
+  }
+  .listing-title { font-family: var(--serif); font-size: 22px; margin-top: 16px; color: var(--chalk); }
+  .listing-price { font-family: var(--serif); font-size: 32px; color: var(--chalk); margin-top: 4px; font-weight: 300; }
+  .listing-price .strike { color: var(--forest-muted); text-decoration: line-through; font-size: 16px; margin-left: 12px; }
+
+  .overlay {
+    position: absolute; right: -28px; top: 120px;
+    background: var(--chalk); color: var(--ink);
+    width: 280px; padding: 18px 20px;
+    box-shadow: 0 30px 50px -16px rgba(0,0,0,0.45);
+    border-radius: 4px;
+    border-top: 3px solid var(--terracotta);
+  }
+  .overlay .ov-e { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; color: var(--bark); text-transform: uppercase; }
+  .overlay .ov-t { font-family: var(--serif); font-size: 22px; font-weight: 400; margin-top: 6px; line-height: 1.15; }
+  .overlay .ov-t em { color: var(--terracotta); font-style: italic; }
+  .overlay .ov-range { display: flex; justify-content: space-between; margin-top: 10px; font-family: var(--mono); font-size: 10px; color: var(--sage); letter-spacing: 0.1em; }
+  .overlay .ov-bar { height: 3px; background: var(--mist); margin-top: 6px; position: relative; }
+  .overlay .ov-bar::after { content: ""; position: absolute; inset: 0; background: var(--terracotta); width: 78%; }
+  .overlay .ov-verdict { margin-top: 12px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--terracotta); border-top: 0.5px solid var(--mist); padding-top: 10px; }
+
+  /* ------- TRY IT ------- */
+  .tryit { background: var(--parchment); padding: 140px 0; }
+  .tryit-head { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: end; margin-bottom: 56px; }
+  .tryit-head .eyebrow { color: var(--bark); }
+  .tryit-head h2 { font-size: clamp(38px, 4.4vw, 60px); }
+  .tryit-app {
+    background: var(--chalk); border: 0.5px solid var(--mist);
+    display: grid; grid-template-columns: 1fr 1.3fr;
+    min-height: 520px;
+  }
+  .ti-left { padding: 40px; display: flex; flex-direction: column; gap: 24px; border-right: 0.5px solid var(--mist); }
+  .ti-dropzone {
+    border: 0.75px dashed var(--bark);
+    aspect-ratio: 1/1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; text-align: center; cursor: pointer; transition: all .2s;
+    padding: 20px; background: var(--parchment);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bark);
+  }
+  .ti-dropzone:hover { border-color: var(--terracotta); color: var(--terracotta); background: #F4EEE3; }
+  .ti-dropzone .g { font-family: var(--serif); font-size: 56px; color: var(--terracotta); font-weight: 300; line-height: 1; }
+  .ti-dropzone .g.thumb {
+    font-family: var(--mono); width: 100%; aspect-ratio: 4/3;
+    background: linear-gradient(135deg, #E8DFCC, #C9B994); font-size: 9px;
+    display: grid; place-items: center; color: var(--forest); letter-spacing: 0.2em;
+    position: relative; border: 0.5px solid var(--mist);
+  }
+  .ti-samples { display: flex; flex-direction: column; gap: 8px; }
+  .ti-samples .eyebrow { color: var(--bark); margin-bottom: 6px; }
+  .ti-sample {
+    display: flex; align-items: center; gap: 12px; padding: 8px;
+    border: 0.5px solid var(--mist); cursor: pointer; transition: all .2s;
+    background: var(--chalk);
+  }
+  .ti-sample:hover { border-color: var(--terracotta); background: #FFF8F1; }
+  .ti-sample.active { border-color: var(--terracotta); background: #FFF8F1; }
+  .ti-sample .sm-thumb { width: 44px; height: 44px; background: linear-gradient(135deg, #E2D4BA, #BFA77F); flex: 0 0 44px; border: 0.5px solid var(--mist); }
+  .ti-sample .sm-thumb.s2 { background: linear-gradient(135deg, #D6C7A6, #A89069); }
+  .ti-sample .sm-thumb.s3 { background: linear-gradient(135deg, #DDD1B6, #C6B58F); }
+  .ti-sample .sm-thumb.s4 { background: linear-gradient(135deg, #E8DFCC, #CCBE9E); }
+  .ti-sample .sm-name { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+  .ti-sample .sm-type { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--bark); margin-top: 2px; }
+
+  .ti-right { padding: 40px; display: flex; flex-direction: column; gap: 20px; background: linear-gradient(180deg, var(--chalk), #FBF6EA); position: relative; overflow: hidden; }
+  .ti-empty { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 18px; }
+  .ti-empty .e-title { font-family: var(--serif); font-size: 26px; color: var(--sage); font-weight: 300; font-style: italic; }
+  .ti-empty .e-sub { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: var(--bark); text-transform: uppercase; }
+
+  .ti-loading { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 20px 0; }
+  .ti-loading .step-row {
+    display: grid; grid-template-columns: 20px 1fr auto;
+    align-items: center; gap: 14px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--sage); text-transform: uppercase;
+  }
+  .ti-loading .step-row .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--mist); border: 0.5px solid var(--mist);
+  }
+  .ti-loading .step-row.done .dot { background: var(--terracotta); border-color: var(--terracotta); }
+  .ti-loading .step-row.active .dot { background: var(--chalk); border: 1px solid var(--terracotta); animation: pulse 1.2s infinite; }
+  .ti-loading .step-row.done .label, .ti-loading .step-row.active .label { color: var(--ink); }
+  .ti-loading .step-row .t { font-size: 10px; color: var(--bark); }
+  @keyframes pulse { 0%,100%{ transform: scale(1); } 50% { transform: scale(1.4); } }
+
+  .ti-result { display: flex; flex-direction: column; gap: 18px; }
+  .ti-result .ident { display: flex; justify-content: space-between; align-items: baseline; }
+  .ti-result .ident-t { font-family: var(--serif); font-size: 24px; font-weight: 400; }
+  .ti-result .ident-t em { color: var(--terracotta); font-style: italic; }
+  .ti-result .big-price {
+    font-family: var(--serif); font-size: 56px; font-weight: 300; line-height: 1;
+    letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 8px;
+  }
+  .ti-result .big-price .low { color: var(--ink); }
+  .ti-result .big-price .sep { color: var(--mist); font-size: 32px; }
+  .ti-result .big-price .high { color: var(--terracotta); font-style: italic; }
+  .ti-result .result-meta { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--bark); letter-spacing: 0.18em; text-transform: uppercase; padding-top: 8px; border-top: 0.5px solid var(--mist); }
+
+  /* ------- WHO ------- */
+  .wif { background: var(--terracotta); color: var(--terracotta-cream); padding: 160px 0; }
+  .wif .eyebrow { color: var(--terracotta-soft); }
+  .wif h2 { color: var(--terracotta-cream); font-size: clamp(42px, 5vw, 68px); margin-bottom: 72px; max-width: 20ch; }
+  .wif h2 em { color: var(--forest); font-style: italic; }
+  .wif-rule { background: rgba(255,248,243,0.25); }
+  .wif-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; border-top: 0.5px solid rgba(255,248,243,0.25); padding-top: 56px; }
+  .wif-col h3 { font-family: var(--serif); font-weight: 300; font-size: 36px; color: var(--terracotta-cream); margin: 0 0 8px; }
+  .wif-col .sub { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--terracotta-soft); }
+  .wif-col .desc { margin: 20px 0 32px; font-family: var(--sans); font-weight: 300; font-size: 16px; line-height: 1.55; color: var(--terracotta-soft); max-width: 38ch; }
+  .wif-list { margin: 0; padding: 0; list-style: none; }
+  .wif-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 0.5px solid rgba(255,248,243,0.2); font-size: 15px; color: var(--terracotta-cream); }
+  .wif-item::before { content: ""; width: 4px; height: 4px; background: var(--forest); border-radius: 50%; margin-top: 9px; flex: 0 0 auto; }
+  .wif-item em { color: var(--forest); font-style: italic; font-family: var(--serif); font-weight: 400; font-size: 17px; }
+
+  /* ------- DEVELOPER ------- */
+  .dev { background: var(--parchment); padding: 140px 0; }
+  .dev .eyebrow { color: var(--bark); }
+  .dev-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 64px; align-items: start; }
+  .dev h2 { font-size: clamp(38px, 4.4vw, 58px); }
+  .dev-feats { margin: 32px 0 0; padding: 0; list-style: none; }
+  .dev-feats li { padding: 12px 0; border-bottom: 0.5px solid var(--mist); display: flex; gap: 12px; font-size: 15px; color: var(--ink); }
+  .dev-feats li::before { content: ""; width: 4px; height: 4px; background: var(--terracotta); border-radius: 50%; margin-top: 9px; flex: 0 0 auto; }
+
+  .codeblock {
+    background: var(--forest); color: #C8D4C9;
+    font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    padding: 24px 28px; border-radius: 2px;
+    position: relative; overflow: hidden;
+  }
+  .codeblock .cb-head { display: flex; justify-content: space-between; align-items: center; font-size: 10px; letter-spacing: 0.18em; color: var(--forest-muted); text-transform: uppercase; margin-bottom: 18px; border-bottom: 0.5px solid var(--forest-hair); padding-bottom: 12px; }
+  .codeblock .cb-head .copy { background: transparent; border: 0.5px solid var(--forest-hair); color: var(--forest-muted); padding: 4px 10px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; cursor: pointer; text-transform: uppercase; }
+  .codeblock .kw { color: #D28F6E; }
+  .codeblock .str { color: #B6C9B7; }
+  .codeblock .num { color: #E0B26E; }
+  .codeblock .dim { color: var(--forest-soft); }
+  .codeblock pre { margin: 0; white-space: pre; }
+
+  .dev-response { margin-top: 24px; background: #112014; color: #B4C5B6; padding: 20px 24px; font-family: var(--mono); font-size: 11px; line-height: 1.7; border-top: 2px solid var(--terracotta); }
+  .dev-response .l { color: var(--forest-muted); }
+  .dev-response .s { color: var(--terracotta-warm); }
+  .dev-response .n { color: #E0B26E; }
+
+  /* ------- CLOSING ------- */
+  .clo { background: var(--chalk); padding: 180px 0; text-align: center; }
+  .clo .eyebrow { color: var(--bark); }
+  .clo h2 { font-size: clamp(48px, 7vw, 100px); margin-top: 28px; max-width: 18ch; margin-left: auto; margin-right: auto; }
+  .clo h2 em { display: block; }
+  .clo-rule { margin: 40px auto; }
+  .clo .body-lede { margin: 0 auto 40px; }
+  .clo-actions { display: flex; gap: 14px; justify-content: center; }
+  .btn-primary {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase; padding: 16px 28px;
+    background: var(--forest); color: var(--chalk); border: 0;
+    transition: background .2s;
+  }
+  .btn-primary:hover { background: var(--terracotta); }
+  .btn-ghost {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase; padding: 16px 28px;
+    background: transparent; color: var(--forest); border: 0.5px solid var(--forest);
+    transition: all .2s;
+  }
+  .btn-ghost:hover { background: var(--forest); color: var(--chalk); }
+
+  /* ------- FOOTER ------- */
+  .ft { background: var(--forest); color: var(--forest-muted); padding: 80px 0 40px; }
+  .ft-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 64px; padding-bottom: 56px; border-bottom: 0.5px solid var(--forest-hair); }
+  .ft-brand { display: flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 26px; color: var(--chalk); font-weight: 300; }
+  .ft-brand .dot { width: 9px; height: 9px; background: var(--terracotta); border-radius: 50%; }
+  .ft-tag { margin-top: 14px; font-size: 13px; max-width: 32ch; line-height: 1.55; color: var(--forest-muted); }
+  .ft-col h5 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--forest-muted); margin: 0 0 18px; font-weight: 400; }
+  .ft-col a { display: block; padding: 6px 0; font-size: 14px; color: var(--chalk); opacity: 0.78; transition: all .2s; }
+  .ft-col a:hover { color: var(--terracotta-warm); opacity: 1; }
+  .ft-legal { display: flex; justify-content: space-between; padding-top: 28px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--forest-muted); }
+
+  /* ------- TWEAKS PANEL ------- */
+  .tw-panel {
+    position: fixed; right: 24px; bottom: 24px; z-index: 100;
+    background: var(--chalk); border: 0.5px solid var(--mist);
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.25);
+    padding: 20px; width: 280px; display: none;
+    font-family: var(--sans); color: var(--ink);
+  }
+  .tw-panel.on { display: block; }
+  .tw-panel h4 { font-family: var(--serif); font-size: 18px; font-weight: 400; margin: 0 0 4px; }
+  .tw-panel .tw-e { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bark); margin-bottom: 16px; }
+  .tw-group { border-top: 0.5px solid var(--mist); padding: 14px 0 10px; }
+  .tw-group:first-of-type { border-top: 0; padding-top: 0; }
+  .tw-group .k { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--bark); margin-bottom: 8px; }
+  .tw-choices { display: flex; gap: 6px; }
+  .tw-choice {
+    flex: 1; padding: 8px 10px; border: 0.5px solid var(--mist); background: transparent;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sage);
+    cursor: pointer; transition: all .15s;
+  }
+  .tw-choice:hover { border-color: var(--terracotta); color: var(--terracotta); }
+  .tw-choice.on { background: var(--forest); color: var(--chalk); border-color: var(--forest); }
+</style>
+</head>
+<body data-hero="centered" data-density="dense" data-conf="bar">
+
+<script>
+  // TWEAK DEFAULTS — persisted via edit mode
+  window.TWEAKS = /*EDITMODE-BEGIN*/{
+    "heroLayout": "centered",
+    "confidenceViz": "dots",
+    "resultDensity": "dense"
+  }/*EDITMODE-END*/;
+</script>
+
+<!-- ============ HERO ============ -->
+<section class="hero" data-screen-label="01 Hero">
+  <nav class="nav">
+    <div class="nav-mark"><span class="dot"></span>YardFront</div>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#extension">Extension</a>
+      <a href="#api">For developers</a>
+      <a href="#who">Who it's for</a>
+    </div>
+    <button class="nav-cta">Try it free</button>
+  </nav>
+
+  <div class="container">
+    <div class="hero-editorial reveal">
+      <p class="eyebrow">Volume 01 · Issue 04 · Price intelligence</p>
+      <h1 class="headline">What's it <em>actually</em> worth?<br/>Photograph it. We'll tell&nbsp;you.</h1>
+      <hr class="rule" />
+      <p class="body-lede">YardFront identifies any secondhand item from a single photo, then searches seven marketplaces at once to return a defensible price range &mdash; with the comparable sales to back it up.</p>
+      <div class="hero-meta">
+        <span>7 marketplaces</span>
+        <span>Median 2.4s</span>
+        <span>Confidence per estimate</span>
+      </div>
+    </div>
+
+    <!-- Browser + App -->
+    <div class="browser reveal">
+      <div class="browser-chrome">
+        <div class="traffic"><i></i><i></i><i></i></div>
+        <div class="url">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          yardfront.app/appraise/lot-7412
+        </div>
+        <div style="font-family: var(--mono); font-size: 10px; color: var(--sage); letter-spacing: 0.14em;">⟵  ⟶  ⟲</div>
+      </div>
+      <div class="browser-body">
+        <div class="app-top">
+          <div class="app-brand"><span class="dot"></span>YardFront</div>
+          <div class="app-nav">
+            <a class="active">Appraise</a>
+            <a>History</a>
+            <a>Collections</a>
+            <a>API</a>
+          </div>
+          <div class="app-user">MA</div>
+        </div>
+
+        <div class="app-body">
+          <div class="app-left">
+            <div>
+              <p class="eyebrow">Lot 7412 &middot; uploaded 14:22</p>
+              <div class="item-photo" style="margin-top: 14px;"></div>
+            </div>
+            <div>
+              <h3 class="app-item-title">Walnut <em>lounge chair</em> &amp; ottoman, c. 1958</h3>
+              <p style="font-family: var(--mono); font-size: 11px; color: var(--bark); letter-spacing: 0.12em; margin: 10px 0 0; text-transform: uppercase;">Identified — 94% match</p>
+            </div>
+            <div>
+              <p class="eyebrow" style="color: var(--bark); margin-bottom: 10px;">Attributes</p>
+              <div class="tag-row">
+                <span class="tag">Mid-century</span>
+                <span class="tag">Walnut veneer</span>
+                <span class="tag">Aniline leather</span>
+                <span class="tag hot">Authenticated</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="app-right">
+            <div class="price-block">
+              <div class="price-eyebrow">
+                <span>Estimated resale value</span>
+                <span class="pill">LIVE</span>
+              </div>
+              <div class="price-range">
+                <span class="low">$2,850</span>
+                <span class="sep">/</span>
+                <span class="high">$3,420</span>
+              </div>
+              <div class="price-median">Median $3,120 &middot; 142 comparable sales, past 90 days</div>
+            </div>
+
+            <!-- Confidence area, swappable -->
+            <div class="conf-card" id="confCard">
+              <div class="conf-head">
+                <span class="conf-label">Confidence</span>
+                <span class="conf-value"><em>High</em> · 87%</span>
+              </div>
+              <!-- Bar (default) -->
+              <div class="conf-viz conf-viz-bar">
+                <div class="conf-bar"><div class="conf-bar-fill" style="--conf: 87%"></div></div>
+                <div class="conf-ticks"><span>Speculative</span><span>Defensible</span><span>Ironclad</span></div>
+              </div>
+              <!-- Dots -->
+              <div class="conf-viz conf-viz-dots" style="display:none">
+                <div class="conf-dots" data-filled="10">
+                  <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+                  <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+                  <i></i><i></i>
+                </div>
+                <div class="conf-ticks" style="margin-top:10px;"><span>10 of 12 signals aligned</span><span>High</span></div>
+              </div>
+              <!-- Arc -->
+              <div class="conf-viz conf-viz-arc" style="display:none">
+                <div class="conf-arc">
+                  <svg viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke-width="2" class="arc-bg"/>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke-width="2" class="arc-fg"
+                      style="stroke-dasharray: calc(87 * 2.64) 300; transform: rotate(-90deg); transform-origin: 50% 50%;"/>
+                    <text x="50" y="55" text-anchor="middle" class="arc-num">87</text>
+                  </svg>
+                  <div>
+                    <div style="font-family: var(--serif); font-size: 18px; color: var(--forest); line-height: 1.2;">Defensible range</div>
+                    <div style="font-family: var(--mono); font-size: 10px; color: var(--sage); letter-spacing: 0.14em; text-transform: uppercase; margin-top: 4px;">± 9% tolerance</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="conf-methodology dens-hide">
+                <div class="row"><span>Image clarity</span><span>Excellent</span></div>
+                <div class="row"><span>Brand signals</span><span>Herman Miller, Eames</span></div>
+                <div class="row"><span>Condition cues</span><span>Light patina</span></div>
+                <div class="row"><span>Sample size</span><span>n = 142</span></div>
+                <div class="row"><span>Price dispersion</span><span>σ = $184</span></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="comps-head">
+                <span class="conf-label">Recent comparables</span>
+                <span class="conf-label" style="color: var(--sage);">Last 90 days</span>
+              </div>
+              <div class="comps-grid dens-hide">
+                <div class="comp">
+                  <div class="comp-thumb c1"></div>
+                  <div class="comp-price">$3,200</div>
+                  <div class="comp-meta"><span>eBay</span><span class="sold">Sold</span></div>
+                </div>
+                <div class="comp">
+                  <div class="comp-thumb c2"></div>
+                  <div class="comp-price">$2,950</div>
+                  <div class="comp-meta"><span>Chairish</span><span class="sold">Sold</span></div>
+                </div>
+                <div class="comp">
+                  <div class="comp-thumb c3"></div>
+                  <div class="comp-price">$3,420</div>
+                  <div class="comp-meta"><span>1stDibs</span><span class="sold">Sold</span></div>
+                </div>
+                <div class="comp">
+                  <div class="comp-thumb c4"></div>
+                  <div class="comp-price">$2,890</div>
+                  <div class="comp-meta"><span>Mercari</span><span class="sold">Sold</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sources">
+              <span class="source-pill">eBay <span class="cnt">58</span></span>
+              <span class="source-pill">Chairish <span class="cnt">31</span></span>
+              <span class="source-pill">1stDibs <span class="cnt">24</span></span>
+              <span class="source-pill">Mercari <span class="cnt">18</span></span>
+              <span class="source-pill">OfferUp <span class="cnt">7</span></span>
+              <span class="source-pill">Craigslist <span class="cnt">4</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PULL QUOTE ============ -->
+<section class="pq" id="how" data-screen-label="02 PullQuote">
+  <div class="container">
+    <p class="eyebrow reveal">The thesis</p>
+    <h2 class="pq-quote reveal">Kelley Blue Book, but&nbsp;for <em>everything else</em>.</h2>
+    <hr class="rule pq-rule reveal" />
+    <p class="body-lede reveal" style="color: var(--forest-muted); max-width: 56ch;">
+      Every year, Americans resell about $50B of used goods &mdash; mostly by guessing. YardFront turns a single photograph into a defensible number, backed by sales data from the places people actually buy things.
+    </p>
+
+    <div class="pq-stats">
+      <div class="pq-stat reveal">
+        <div class="n"><em>7</em></div>
+        <div class="l">Marketplaces, in parallel</div>
+        <div class="d">eBay, Mercari, Chairish, StockX, Grailed, GOAT, OfferUp &mdash; queried on every lookup.</div>
+      </div>
+      <div class="pq-stat reveal">
+        <div class="n"><em>2.4<span style="font-size:28px;">s</span></em></div>
+        <div class="l">Median response</div>
+        <div class="d">From upload to confidence-scored range. Fast enough for a checkout line.</div>
+      </div>
+      <div class="pq-stat reveal">
+        <div class="n"><em>142</em></div>
+        <div class="l">Comps per estimate, avg.</div>
+        <div class="d">Real sold-for prices. Not asking prices &mdash; wishful thinking doesn't count.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="hiw" data-screen-label="03 HowItWorks">
+  <div class="container">
+    <div class="hiw-head reveal">
+      <div>
+        <p class="eyebrow">Method &middot; 00 / 04</p>
+        <h2 class="headline" style="margin-top: 20px;">Four steps,<br/>one <em>defensible</em> number.</h2>
+      </div>
+      <p class="body-lede" style="color: var(--sage);">Every lookup runs the same pipeline &mdash; identification first, then parallel market search, then synthesis. No black boxes; each step shows its work.</p>
+    </div>
+
+    <div class="hiw-panel">
+      <div class="hiw-tabs" id="hiwTabs">
+        <button class="hiw-tab active" data-i="0">
+          <span class="step">Step 01</span>
+          <span class="title">Upload</span>
+          <span class="progress"></span>
+        </button>
+        <button class="hiw-tab" data-i="1">
+          <span class="step">Step 02</span>
+          <span class="title">Identify</span>
+          <span class="progress"></span>
+        </button>
+        <button class="hiw-tab" data-i="2">
+          <span class="step">Step 03</span>
+          <span class="title">Search</span>
+          <span class="progress"></span>
+        </button>
+        <button class="hiw-tab" data-i="3">
+          <span class="step">Step 04</span>
+          <span class="title">Synthesize</span>
+          <span class="progress"></span>
+        </button>
+      </div>
+
+      <div class="hiw-stage">
+        <div class="hiw-stage-inner">
+          <!-- 01 Upload -->
+          <div class="hiw-slide active" data-i="0">
+            <div class="stage-upload">
+              <div class="dropzone">
+                <div class="glyph">＋</div>
+                <div>Drop a photograph, paste a URL, or tap to browse</div>
+                <div style="font-size:9px; letter-spacing:0.3em; color: var(--mist);">JPG · PNG · HEIC · MAX 20MB</div>
+              </div>
+              <div>
+                <p class="eyebrow" style="color: var(--bark);">Ingesting · 1 of 1 · 1.8 MB</p>
+                <div class="progress-line" style="margin-top: 10px;"></div>
+              </div>
+            </div>
+          </div>
+          <!-- 02 Identify -->
+          <div class="hiw-slide" data-i="1">
+            <div class="stage-ident">
+              <div class="shot"></div>
+              <div class="ident-list">
+                <div class="ident-row"><span class="k">Category</span><span class="v">Furniture · Seating</span></div>
+                <div class="ident-row"><span class="k">Form</span><span class="v">Lounge chair + ottoman</span></div>
+                <div class="ident-row"><span class="k">Likely maker</span><span class="v"><em>Herman Miller</em> · Eames 670/671</span></div>
+                <div class="ident-row"><span class="k">Materials</span><span class="v">Rosewood shell · aniline leather</span></div>
+                <div class="ident-row"><span class="k">Period</span><span class="v">c. 1956 – 1971</span></div>
+                <div class="ident-row"><span class="k">Condition</span><span class="v">Honest, age-appropriate</span></div>
+                <div class="ident-row"><span class="k">Match confidence</span><span class="v"><em>94%</em></span></div>
+              </div>
+            </div>
+          </div>
+          <!-- 03 Search -->
+          <div class="hiw-slide" data-i="2">
+            <div class="stage-search">
+              <div class="row"><span class="src">eBay</span><span class="bar" style="--w: 88%"></span><span class="n">58</span><span class="s">sold</span></div>
+              <div class="row"><span class="src">Chairish</span><span class="bar" style="--w: 72%"></span><span class="n">31</span><span class="s">sold</span></div>
+              <div class="row"><span class="src">1stDibs</span><span class="bar" style="--w: 64%"></span><span class="n">24</span><span class="s">sold</span></div>
+              <div class="row"><span class="src">Mercari</span><span class="bar" style="--w: 48%"></span><span class="n">18</span><span class="s">sold</span></div>
+              <div class="row"><span class="src">Grailed</span><span class="bar" style="--w: 28%"></span><span class="n">9</span><span class="s">active</span></div>
+              <div class="row"><span class="src">OfferUp</span><span class="bar" style="--w: 22%"></span><span class="n">7</span><span class="s">active</span></div>
+              <div class="row"><span class="src">Craigslist</span><span class="bar" style="--w: 12%"></span><span class="n">4</span><span class="s">active</span></div>
+            </div>
+          </div>
+          <!-- 04 Synthesize -->
+          <div class="hiw-slide" data-i="3">
+            <div class="stage-result">
+              <div>
+                <p class="eyebrow" style="color: var(--bark); margin-bottom: 10px;">Estimated range · past 90d</p>
+                <div class="big">$2,850<span style="color: var(--mist); margin: 0 6px;">/</span><em>$3,420</em></div>
+              </div>
+              <div class="hist">
+                <b style="height:22%"></b><b style="height:34%"></b><b style="height:44%"></b>
+                <b class="in" style="height:58%"></b><b class="in" style="height:72%"></b><b class="in" style="height:85%"></b>
+                <b class="in" style="height:96%"></b><b class="in" style="height:92%"></b><b class="in" style="height:78%"></b>
+                <b class="in" style="height:68%"></b><b class="in" style="height:54%"></b><b class="in" style="height:44%"></b>
+                <b style="height:38%"></b><b style="height:28%"></b><b style="height:20%"></b>
+                <b style="height:18%"></b><b style="height:14%"></b><b style="height:10%"></b>
+                <b style="height:8%"></b><b style="height:6%"></b>
+              </div>
+              <div class="meta">
+                <span>Median · $3,120</span>
+                <span>n = 142</span>
+                <span>σ = $184</span>
+                <span>Confidence · 87%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EXTENSION ============ -->
+<section class="ext" id="extension" data-screen-label="04 Extension">
+  <div class="container">
+    <div class="ext-grid">
+      <div class="reveal">
+        <p class="eyebrow">Browser extension &middot; Beta</p>
+        <h2 class="headline" style="margin-top: 20px;">A <em>second opinion</em><br/>on every listing.</h2>
+        <hr class="rule ext-rule" />
+        <p class="body-lede">Install once, then scroll Facebook Marketplace, Craigslist, or eBay the way you already do. YardFront quietly annotates each listing with what the item actually sold for &mdash; everywhere else.</p>
+        <div style="margin-top: 32px;">
+          <div class="ext-feature">
+            <div>
+              <div class="ef-t">Live overlays on 11 marketplaces</div>
+              <div class="ef-d">Verdict pill, range, and source count, without leaving the page.</div>
+            </div>
+          </div>
+          <div class="ext-feature">
+            <div>
+              <div class="ef-t">Bulk scan a search results page</div>
+              <div class="ef-d">Sort by overpay/underpay to surface the deals fast.</div>
+            </div>
+          </div>
+          <div class="ext-feature">
+            <div>
+              <div class="ef-t">One-click "save for later"</div>
+              <div class="ef-d">Watchlists sync with your YardFront web account.</div>
+            </div>
+          </div>
+        </div>
+        <button class="nav-cta" style="margin-top: 36px; background: var(--terracotta);">Request beta access</button>
+      </div>
+
+      <div class="reveal" style="position: relative;">
+        <div class="listing">
+          <div class="listing-header">
+            <span>facebook marketplace · seattle</span>
+            <span>Posted 3d ago</span>
+          </div>
+          <div class="listing-img"></div>
+          <div class="listing-title">Miles Davis &mdash; Kind of Blue, original 1959 Columbia pressing</div>
+          <div class="listing-price">$1,600<span class="strike">$2,000</span></div>
+          <div style="margin-top: 14px; font-family: var(--mono); font-size: 10px; color: var(--forest-muted); letter-spacing: 0.14em; text-transform: uppercase;">Seller: vintage_wax_seattle &middot; ★ 4.9</div>
+        </div>
+        <div class="overlay">
+          <div class="ov-e">YardFront &middot; Market value</div>
+          <div class="ov-t"><em>$1,200</em> – $1,450</div>
+          <div class="ov-range"><span>Median $1,320</span><span>n = 38</span></div>
+          <div class="ov-bar"></div>
+          <div class="ov-verdict">Likely overpriced · 18%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRY IT ============ -->
+<section class="tryit" id="try" data-screen-label="05 TryIt">
+  <div class="container">
+    <div class="tryit-head reveal">
+      <div>
+        <p class="eyebrow">Demonstration</p>
+        <h2 class="headline" style="margin-top: 20px;">Try it on something<br/>you've been <em>wondering about</em>.</h2>
+      </div>
+      <p class="body-lede" style="color: var(--sage);">Upload a photograph or choose one of the samples. The pipeline runs live &mdash; identification, parallel marketplace search, and a confidence-scored range.</p>
+    </div>
+
+    <div class="tryit-app reveal">
+      <div class="ti-left">
+        <div class="ti-dropzone" id="tiDrop">
+          <div class="g" id="tiDropGlyph">＋</div>
+          <div>Drop a photo or click to upload</div>
+          <div style="font-size: 9px; letter-spacing: 0.3em; color: var(--mist);">JPG · PNG · HEIC · 20MB</div>
+        </div>
+        <div class="ti-samples">
+          <p class="eyebrow">Or try a sample</p>
+          <div class="ti-sample" data-sample="chair">
+            <div class="sm-thumb"></div>
+            <div>
+              <div class="sm-name">Eames lounge chair</div>
+              <div class="sm-type">Herman Miller · 1963</div>
+            </div>
+          </div>
+          <div class="ti-sample" data-sample="camera">
+            <div class="sm-thumb s2"></div>
+            <div>
+              <div class="sm-name">Leica M6 rangefinder</div>
+              <div class="sm-type">Black paint · 1988</div>
+            </div>
+          </div>
+          <div class="ti-sample" data-sample="sneakers">
+            <div class="sm-thumb s3"></div>
+            <div>
+              <div class="sm-name">Air Jordan 1 · Chicago</div>
+              <div class="sm-type">2015 retro · size 10.5</div>
+            </div>
+          </div>
+          <div class="ti-sample" data-sample="record">
+            <div class="sm-thumb s4"></div>
+            <div>
+              <div class="sm-name">Kind of Blue LP</div>
+              <div class="sm-type">Columbia · 1959 first press</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ti-right" id="tiRight">
+        <!-- Empty state -->
+        <div class="ti-empty" id="tiEmpty">
+          <div style="font-family: var(--serif); font-size: 48px; color: var(--mist); font-weight: 300;">$—</div>
+          <div class="e-title">Awaiting specimen.</div>
+          <div class="e-sub">Pick a sample to the left, or drop a photo.</div>
+        </div>
+
+        <!-- Loading state -->
+        <div class="ti-loading" id="tiLoading" style="display: none;">
+          <div class="step-row" data-step="0"><span class="dot"></span><span class="label">Ingesting image</span><span class="t">0.2s</span></div>
+          <div class="step-row" data-step="1"><span class="dot"></span><span class="label">Identifying object</span><span class="t">0.6s</span></div>
+          <div class="step-row" data-step="2"><span class="dot"></span><span class="label">Searching 7 marketplaces</span><span class="t">1.4s</span></div>
+          <div class="step-row" data-step="3"><span class="dot"></span><span class="label">Synthesizing range</span><span class="t">0.2s</span></div>
+        </div>
+
+        <!-- Result state -->
+        <div class="ti-result" id="tiResult" style="display: none;">
+          <div class="ident">
+            <div>
+              <div class="ident-t" id="resName">Walnut <em>lounge chair</em></div>
+              <div class="conf-label" style="margin-top: 4px;" id="resSub">Herman Miller · c. 1963 · 94% match</div>
+            </div>
+            <div class="conf-value" style="font-size: 16px;">94%</div>
+          </div>
+          <div>
+            <div class="conf-label" style="margin-bottom: 8px;">Estimated resale value</div>
+            <div class="big-price">
+              <span class="low" id="resLow">$0</span>
+              <span class="sep">/</span>
+              <span class="high" id="resHigh">$0</span>
+            </div>
+          </div>
+          <div class="conf-card" style="padding-top: 0; border-top: 0;">
+            <div class="conf-head">
+              <span class="conf-label">Confidence</span>
+              <span class="conf-value"><em id="resConf">87%</em> · <span id="resConfLabel">High</span></span>
+            </div>
+            <div class="conf-bar"><div class="conf-bar-fill" id="resBarFill" style="--conf: 0%"></div></div>
+            <div class="conf-ticks"><span>Speculative</span><span>Defensible</span><span>Ironclad</span></div>
+          </div>
+          <div class="result-meta">
+            <span id="resCount">n = 142</span>
+            <span id="resMedian">Median $3,120</span>
+            <span id="resTime">Resolved in 2.4s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHO IT'S FOR ============ -->
+<section class="wif" id="who" data-screen-label="06 WhoItsFor">
+  <div class="container">
+    <p class="eyebrow reveal">Audience</p>
+    <h2 class="headline reveal" style="margin-top: 20px;">For people who<br/>don't want to <em>guess</em>.</h2>
+
+    <div class="wif-cols">
+      <div class="wif-col reveal">
+        <p class="sub">For consumers</p>
+        <h3>Before you list, buy, or give away.</h3>
+        <p class="desc">A photo is cheaper than regret. Check what your thing is worth before the garage sale, before the lowball offer, before you hand it to the thrift store.</p>
+        <ul class="wif-list">
+          <li class="wif-item"><div><em>Estate cleanouts.</em> &mdash; Price a house full of belongings in an afternoon.</div></li>
+          <li class="wif-item"><div><em>Moving sales.</em> &mdash; Know which piece of furniture is the $40 one and which is the $1,400 one.</div></li>
+          <li class="wif-item"><div><em>Thrift & resell.</em> &mdash; Scan shelves in-store; surface the arbitrage.</div></li>
+          <li class="wif-item"><div><em>Inherited collections.</em> &mdash; Cameras, records, coins, watches &mdash; without becoming an expert.</div></li>
+        </ul>
+      </div>
+      <div class="wif-col reveal">
+        <p class="sub">For businesses</p>
+        <h3>A single API. Every category.</h3>
+        <p class="desc">One REST endpoint returns a priced, confidence-scored estimate for any item your customers or operators photograph. Fair pricing, at scale, without a category specialist on payroll.</p>
+        <ul class="wif-list">
+          <li class="wif-item"><div><em>Estate sale companies.</em> &mdash; Price entire inventories overnight, consistently.</div></li>
+          <li class="wif-item"><div><em>Thrift chains.</em> &mdash; Replace guesswork at the intake counter with a number.</div></li>
+          <li class="wif-item"><div><em>Insurance appraisers.</em> &mdash; Back every claim with comparable sales, not a spreadsheet.</div></li>
+          <li class="wif-item"><div><em>Resale platforms.</em> &mdash; Suggest fair list prices the moment a seller uploads.</div></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEVELOPER ============ -->
+<section class="dev" id="api" data-screen-label="07 Developer">
+  <div class="container">
+    <div class="dev-grid">
+      <div class="reveal">
+        <p class="eyebrow">For developers</p>
+        <h2 class="headline" style="margin-top: 20px;">One endpoint.<br/>Every&nbsp;<em>category</em>.</h2>
+        <hr class="rule" />
+        <p class="body-lede">POST an image URL, receive a priced, sourced, confidence-scored estimate in under three seconds. Typed SDKs for TypeScript, Python, and Go. Pay per successful lookup.</p>
+        <ul class="dev-feats">
+          <li>REST &amp; streaming endpoints &mdash; poll, or subscribe to incremental results as marketplaces return.</li>
+          <li>Provenance included &mdash; every estimate ships with the underlying sold-for sample it came from.</li>
+          <li>Webhook replays &mdash; re-run estimates when new comps arrive, no extra charge.</li>
+          <li>SOC 2 Type II, GDPR, and rate-limited by keys; enterprise SLAs available.</li>
+        </ul>
+        <div style="display: flex; gap: 12px; margin-top: 32px;">
+          <button class="btn-primary">Read the docs</button>
+          <button class="btn-ghost">Get an API key</button>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="codeblock">
+          <div class="cb-head"><span>POST · /v1/appraise</span><button class="copy">Copy</button></div>
+<pre><span class="dim">// TypeScript · @yardfront/sdk</span>
+<span class="kw">import</span> { YardFront } <span class="kw">from</span> <span class="str">"@yardfront/sdk"</span>;
+
+<span class="kw">const</span> yf = <span class="kw">new</span> YardFront({ apiKey: process.env.YF_KEY });
+
+<span class="kw">const</span> estimate = <span class="kw">await</span> yf.appraise({
+  image_url: <span class="str">"https://cdn.acme.com/lot-7412.jpg"</span>,
+  context: { zip: <span class="str">"98103"</span>, condition: <span class="str">"good"</span> },
+  marketplaces: [<span class="str">"ebay"</span>, <span class="str">"chairish"</span>, <span class="str">"1stdibs"</span>],
+});
+
+console.log(estimate.range, estimate.confidence);
+</pre>
+        </div>
+        <div class="dev-response">
+<pre>{
+  <span class="l">"lot_id":</span>       <span class="s">"apr_01HX9K2..."</span>,
+  <span class="l">"identified":</span>   <span class="s">"Herman Miller 670/671"</span>,
+  <span class="l">"range":</span>        [<span class="n">2850</span>, <span class="n">3420</span>],
+  <span class="l">"median":</span>       <span class="n">3120</span>,
+  <span class="l">"currency":</span>     <span class="s">"USD"</span>,
+  <span class="l">"confidence":</span>   <span class="n">0.87</span>,
+  <span class="l">"sample_size":</span>  <span class="n">142</span>,
+  <span class="l">"resolved_in":</span>  <span class="n">2.41</span>,
+  <span class="l">"comps_url":</span>    <span class="s">"/v1/appraise/apr_01HX9K2/comps"</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CLOSING ============ -->
+<section class="clo" data-screen-label="08 Closing">
+  <div class="container">
+    <p class="eyebrow reveal">Take a photograph</p>
+    <h2 class="headline reveal">Know what it's <em>actually worth.</em></h2>
+    <hr class="rule clo-rule reveal" />
+    <p class="body-lede reveal" style="margin: 0 auto 40px;">Free for the first hundred lookups. No card until you start loving it.</p>
+    <div class="clo-actions reveal">
+      <button class="btn-primary">Try it free</button>
+      <button class="btn-ghost">Talk to sales</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="ft" data-screen-label="09 Footer">
+  <div class="container">
+    <div class="ft-grid">
+      <div>
+        <div class="ft-brand"><span class="dot"></span>YardFront</div>
+        <div class="ft-tag">Price intelligence for the $50B secondhand market. One photograph in. A defensible number out.</div>
+        <div style="margin-top: 24px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--forest-soft);">Est. 2025 · Seattle</div>
+      </div>
+      <div class="ft-col">
+        <h5>Product</h5>
+        <a>Appraise</a><a>Chrome extension</a><a>Collections</a><a>Pricing</a>
+      </div>
+      <div class="ft-col">
+        <h5>Developers</h5>
+        <a>API docs</a><a>SDKs</a><a>Status</a><a>Changelog</a>
+      </div>
+      <div class="ft-col">
+        <h5>Company</h5>
+        <a>About</a><a>Manifesto</a><a>Careers</a><a>Contact</a>
+      </div>
+    </div>
+    <div class="ft-legal">
+      <span>© 2026 YardFront, Inc.</span>
+      <span>Privacy &middot; Terms &middot; Responsible sourcing</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ============ TWEAKS PANEL ============ -->
+<div class="tw-panel" id="twPanel">
+  <h4>Tweaks</h4>
+  <div class="tw-e">Editor · YardFront</div>
+
+  <div class="tw-group">
+    <div class="k">Hero layout</div>
+    <div class="tw-choices" data-tw="heroLayout">
+      <button class="tw-choice" data-v="centered">Centered</button>
+      <button class="tw-choice" data-v="asym">Asymmetric</button>
+    </div>
+  </div>
+
+  <div class="tw-group">
+    <div class="k">Confidence visualization</div>
+    <div class="tw-choices" data-tw="confidenceViz">
+      <button class="tw-choice" data-v="bar">Bar</button>
+      <button class="tw-choice" data-v="dots">Dots</button>
+      <button class="tw-choice" data-v="arc">Arc</button>
+    </div>
+  </div>
+
+  <div class="tw-group">
+    <div class="k">Result density</div>
+    <div class="tw-choices" data-tw="resultDensity">
+      <button class="tw-choice" data-v="minimal">Minimal</button>
+      <button class="tw-choice" data-v="dense">Dense</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== Scroll reveals =====
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // ===== How it works auto-cycle =====
+  const hiwTabs = document.querySelectorAll('.hiw-tab');
+  const hiwSlides = document.querySelectorAll('.hiw-slide');
+  let hiwIdx = 0;
+  let hiwTimer = null;
+  let hiwProgress = 0;
+  const HIW_DUR = 5200;
+
+  function setHiw(i) {
+    hiwIdx = i;
+    hiwProgress = 0;
+    hiwTabs.forEach((t, j) => t.classList.toggle('active', i === j));
+    hiwSlides.forEach((s, j) => s.classList.toggle('active', i === j));
+    hiwTabs[i].style.setProperty('--tabp', '0%');
+  }
+  function tickHiw() {
+    hiwProgress += 60;
+    const pct = Math.min(100, (hiwProgress / HIW_DUR) * 100);
+    hiwTabs[hiwIdx].style.setProperty('--tabp', pct + '%');
+    if (hiwProgress >= HIW_DUR) setHiw((hiwIdx + 1) % 4);
+  }
+  function startHiw() { if (hiwTimer) clearInterval(hiwTimer); hiwTimer = setInterval(tickHiw, 60); }
+  hiwTabs.forEach((t, i) => t.addEventListener('click', () => { setHiw(i); startHiw(); }));
+
+  // Start only when visible
+  const hiwEl = document.querySelector('.hiw-panel');
+  const hiwIO = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { startHiw(); } else { if (hiwTimer) { clearInterval(hiwTimer); hiwTimer = null; } } });
+  }, { threshold: 0.3 });
+  hiwIO.observe(hiwEl);
+
+  // ===== Try it interactive =====
+  const SAMPLES = {
+    chair:    { name: 'Walnut <em>lounge chair</em>', sub: 'Herman Miller · c. 1963 · 94% match', low: 2850, high: 3420, median: 3120, conf: 87, label: 'High', n: 142, time: 2.4 },
+    camera:   { name: 'Leica <em>M6</em> rangefinder', sub: 'Black paint · 1988 · 96% match', low: 3600, high: 4250, median: 3940, conf: 91, label: 'High', n: 88, time: 1.9 },
+    sneakers: { name: 'Air Jordan 1 <em>Chicago</em>', sub: '2015 retro · size 10.5 · 98% match', low: 620, high: 840, median: 730, conf: 82, label: 'High', n: 214, time: 1.4 },
+    record:   { name: '<em>Kind of Blue</em> LP', sub: 'Columbia 1959 · 1st press · 89% match', low: 1200, high: 1450, median: 1320, conf: 76, label: 'Medium', n: 38, time: 2.1 },
+  };
+
+  const tiSamples = document.querySelectorAll('.ti-sample');
+  const tiEmpty = document.getElementById('tiEmpty');
+  const tiLoading = document.getElementById('tiLoading');
+  const tiResult = document.getElementById('tiResult');
+  const stepRows = document.querySelectorAll('#tiLoading .step-row');
+
+  function runSample(key) {
+    const data = SAMPLES[key];
+    tiSamples.forEach(s => s.classList.toggle('active', s.dataset.sample === key));
+    tiEmpty.style.display = 'none';
+    tiResult.style.display = 'none';
+    tiLoading.style.display = 'flex';
+    stepRows.forEach(r => r.classList.remove('done', 'active'));
+
+    const sequence = [200, 600, 1400, 200];
+    let t = 0;
+    sequence.forEach((dur, i) => {
+      setTimeout(() => { stepRows[i].classList.add('active'); }, t);
+      t += dur;
+      setTimeout(() => { stepRows[i].classList.remove('active'); stepRows[i].classList.add('done'); }, t);
+    });
+
+    setTimeout(() => {
+      tiLoading.style.display = 'none';
+      tiResult.style.display = 'flex';
+      document.getElementById('resName').innerHTML = data.name;
+      document.getElementById('resSub').textContent = data.sub;
+      document.getElementById('resConf').textContent = data.conf + '%';
+      document.getElementById('resConfLabel').textContent = data.label;
+      document.getElementById('resCount').textContent = 'n = ' + data.n;
+      document.getElementById('resMedian').textContent = 'Median $' + data.median.toLocaleString();
+      document.getElementById('resTime').textContent = 'Resolved in ' + data.time + 's';
+      // Animate price
+      const lowEl = document.getElementById('resLow');
+      const highEl = document.getElementById('resHigh');
+      animateNumber(lowEl, 0, data.low, 900, v => '$' + Math.round(v).toLocaleString());
+      animateNumber(highEl, 0, data.high, 900, v => '$' + Math.round(v).toLocaleString());
+      // Animate bar
+      setTimeout(() => { document.getElementById('resBarFill').style.setProperty('--conf', data.conf + '%'); }, 80);
+    }, t + 120);
+  }
+
+  function animateNumber(el, from, to, dur, fmt) {
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - start) / dur);
+      const ease = 1 - Math.pow(1 - t, 3);
+      el.textContent = fmt(from + (to - from) * ease);
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  tiSamples.forEach(s => s.addEventListener('click', () => runSample(s.dataset.sample)));
+  document.getElementById('tiDrop').addEventListener('click', () => runSample('chair'));
+
+  // ===== Tweaks =====
+  function applyTweak(key, val) {
+    if (key === 'heroLayout') {
+      document.body.dataset.hero = val;
+    }
+    if (key === 'confidenceViz') {
+      document.body.dataset.conf = val;
+      const map = { bar: '.conf-viz-bar', dots: '.conf-viz-dots', arc: '.conf-viz-arc' };
+      document.querySelectorAll('.conf-viz').forEach(v => v.style.display = 'none');
+      const sel = document.querySelector(map[val]);
+      if (sel) sel.style.display = 'block';
+      // Re-animate dots for vibe
+      if (val === 'dots') {
+        const dots = document.querySelectorAll('.conf-dots i');
+        dots.forEach((d, i) => { d.classList.remove('on'); setTimeout(() => { if (i < 10) d.classList.add('on'); }, i * 60); });
+      }
+    }
+    if (key === 'resultDensity') {
+      document.body.dataset.density = val;
+    }
+    window.TWEAKS[key] = val;
+    // update button states
+    document.querySelectorAll('.tw-choices').forEach(group => {
+      const k = group.dataset.tw;
+      group.querySelectorAll('.tw-choice').forEach(b => b.classList.toggle('on', b.dataset.v === window.TWEAKS[k]));
+    });
+  }
+
+  // Init tweak UI
+  document.querySelectorAll('.tw-choices').forEach(group => {
+    const k = group.dataset.tw;
+    group.querySelectorAll('.tw-choice').forEach(btn => {
+      btn.classList.toggle('on', btn.dataset.v === window.TWEAKS[k]);
+      btn.addEventListener('click', () => {
+        applyTweak(k, btn.dataset.v);
+        window.parent && window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: btn.dataset.v } }, '*');
+      });
+    });
+  });
+
+  // Apply initial tweaks on load
+  Object.entries(window.TWEAKS).forEach(([k, v]) => applyTweak(k, v));
+
+  // Edit mode wiring
+  window.addEventListener('message', (e) => {
+    if (!e.data || typeof e.data !== 'object') return;
+    if (e.data.type === '__activate_edit_mode') document.getElementById('twPanel').classList.add('on');
+    if (e.data.type === '__deactivate_edit_mode') document.getElementById('twPanel').classList.remove('on');
+  });
+  window.parent && window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+</script>
+
+</body>
+</html>

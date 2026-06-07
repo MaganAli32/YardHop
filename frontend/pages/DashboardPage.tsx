@@ -4,9 +4,10 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import UpgradeModal from '../components/UpgradeModal';
+import Navbar from '../components/Navbar';
 
 const PLAN_LIMITS: Record<string, number> = {
   free: 25,
@@ -174,63 +175,52 @@ export default function DashboardPage() {
 
   if (loading && !apiKey) {
     return (
-      <div className="min-h-screen bg-[#0f1929] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#FF6B35] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F0EAE0] flex items-center justify-center font-['Manrope']">
+        <div className="w-6 h-6 border-2 border-[#1A2A1C] border-t-transparent rounded-sm animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1929] text-white">
-      {/* ── NAV ───────────────────────────────────────────── */}
-      <nav className="border-b border-white/[0.08] px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="text-white font-serif italic text-xl no-underline">
-              YardFront
-            </Link>
-            <span className="text-white/20 text-sm">/</span>
-            <span className="text-white/50 text-sm">Dashboard</span>
+    <div className="min-h-screen bg-[#F0EAE0] text-[#1A1A18] font-['Manrope'] antialiased">
+      <Navbar />
+
+      <div className="pt-28 pb-28 px-6 md:px-[56px] max-w-[1220px] mx-auto">
+        {/* ── PAGE HEADER ───────────────────────────────── */}
+        <div className="mb-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <p className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.2em] text-[#9E8B6F] mb-3">
+              API dashboard
+            </p>
+            <h1 className="font-['Cormorant_Garamond'] text-[clamp(34px,4.5vw,48px)] font-light text-[#1A1A18] leading-tight tracking-[-0.02em]">
+              Your pricing engine.
+            </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-white/30 text-sm hidden sm:block">
-              {user?.email}
-            </span>
+          <div className="text-right">
+            <p className="text-[12px] text-[#6B7A6D] hidden sm:block">{user?.email}</p>
             <button
               type="button"
               onClick={handleSignOut}
-              className="text-white/30 text-sm hover:text-white transition-colors"
+              className="mt-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#9E8B6F] hover:text-[#B54419] transition-colors"
             >
               Sign out
             </button>
           </div>
         </div>
-      </nav>
-
-      <div className="max-w-5xl mx-auto px-6 py-12">
-        {/* ── PAGE HEADER ───────────────────────────────── */}
-        <div className="mb-10">
-          <p className="text-[#FF6B35] text-xs font-semibold tracking-widest uppercase mb-2">
-            API Dashboard
-          </p>
-          <h1 className="font-serif italic text-4xl text-white">
-            Your pricing engine.
-          </h1>
-        </div>
 
         {/* ── TOP GRID: Key + Usage ──────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           {/* API Key Card */}
-          <div className="bg-[#1a2540] border border-white/[0.08] rounded-2xl p-6">
+          <div className="bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-white/40 text-xs font-semibold tracking-widest uppercase">
+              <p className="text-[#5c665f] text-xs font-semibold tracking-widest uppercase">
                 API Key
               </p>
               <span
-                className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${
+                className={`text-xs font-semibold px-2 py-0.5 rounded-sm capitalize border border-[#DCCFBE] ${
                   apiKey?.plan === 'free'
-                    ? 'bg-white/[0.08] text-white/50'
-                    : 'bg-[#FF6B35]/15 text-[#FF6B35]'
+                    ? 'bg-[#EFE8DD] text-[#5c665f]'
+                    : 'bg-[#2C4A3E]/10 text-[#2C4A3E]'
                 }`}
               >
                 {apiKey?.plan ?? 'free'} plan
@@ -238,17 +228,17 @@ export default function DashboardPage() {
             </div>
 
             {!apiKey ? (
-              <p className="text-white/40 text-sm">No API key found. Sign out and sign back in to generate one.</p>
+              <p className="text-[#5c665f] text-sm">No API key found. Sign out and sign back in to generate one.</p>
             ) : (
               <>
-                <div className="bg-black/20 border border-white/[0.08] rounded-xl px-4 py-3 font-mono text-sm text-white/70 mb-4 flex items-center justify-between gap-3">
+                <div className="bg-[#EFE8DD] border border-[#DCCFBE] rounded-sm px-4 py-3 font-mono text-sm text-[#2C4A3E] mb-4 flex items-center justify-between gap-3">
                   <span className="truncate">
                     {keyVisible ? apiKey.key : maskedKey}
                   </span>
                   <button
                     type="button"
                     onClick={() => setKeyVisible(!keyVisible)}
-                    className="text-white/30 hover:text-white transition-colors text-xs shrink-0"
+                    className="text-[#5c665f] hover:text-[#2C4A3E] transition-colors text-xs shrink-0"
                   >
                     {keyVisible ? 'hide' : 'show'}
                   </button>
@@ -258,7 +248,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={copyKey}
-                    className="flex-1 py-2.5 rounded-xl bg-[#FF6B35] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                    className="flex-1 py-2.5 rounded-sm bg-[#2C4A3E] text-[#F0EAE0] text-sm font-medium hover:bg-[#3a5f50] transition-colors"
                   >
                     {copied ? 'Copied ✓' : 'Copy Key'}
                   </button>
@@ -266,7 +256,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={regenerateKey}
                     disabled={regenerating}
-                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/50 text-sm hover:border-white/25 hover:text-white transition-colors disabled:opacity-40"
+                    className="flex-1 py-2.5 rounded-sm border border-[#2C4A3E] text-[#2C4A3E] text-sm hover:bg-[#2C4A3E]/5 transition-colors disabled:opacity-40"
                   >
                     {regenerating ? 'Regenerating…' : 'Regenerate'}
                   </button>
@@ -275,55 +265,55 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={openBillingPortal}
-                    className="w-full mt-2 py-2.5 rounded-xl border border-white/10 text-white/40 text-sm hover:border-white/25 hover:text-white/70 transition-colors"
+                    className="w-full mt-2 py-2.5 rounded-sm border border-[#DCCFBE] text-[#5c665f] text-sm hover:border-[#2C4A3E] hover:text-[#2C4A3E] transition-colors"
                   >
                     Manage Billing
                   </button>
                 )}
 
-                <p className="text-white/20 text-xs mt-3">
-                  Include as <span className="font-mono text-white/35">x-api-key</span> header in all requests.
+                <p className="text-[#5c665f]/80 text-xs mt-3">
+                  Include as <span className="font-mono text-[#2C4A3E]">x-api-key</span> header in all requests.
                 </p>
               </>
             )}
           </div>
 
           {/* Usage Card */}
-          <div className="bg-[#1a2540] border border-white/[0.08] rounded-2xl p-6">
-            <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">
+          <div className="bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm p-6 shadow-sm">
+            <p className="text-[#5c665f] text-xs font-semibold tracking-widest uppercase mb-4">
               Usage This Month
             </p>
 
             <div className="flex items-end gap-2 mb-2">
-              <span className="text-5xl font-bold text-white">{usageCount}</span>
-              <span className="text-white/30 text-lg mb-1.5">
+              <span className="text-5xl font-bold text-[#1A1A18] font-mono">{usageCount}</span>
+              <span className="text-[#5c665f] text-lg mb-1.5 font-mono">
                 / {isUnlimited ? '∞' : apiKey?.monthly_limit ?? 25}
               </span>
             </div>
-            <p className="text-white/30 text-sm mb-5">appraisals</p>
+            <p className="text-[#5c665f] text-sm mb-5">appraisals</p>
 
             {!isUnlimited && (
               <>
-                <div className="h-2 bg-white/[0.08] rounded-full overflow-hidden mb-2">
+                <div className="h-2 bg-[#DCCFBE] rounded-sm overflow-hidden mb-2">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
+                    className="h-full rounded-sm transition-all duration-500"
                     style={{
                       width: `${usagePct}%`,
-                      backgroundColor: usagePct > 80 ? '#FF6B35' : '#22c55e',
+                      backgroundColor: usagePct > 80 ? '#C4622D' : '#2C4A3E',
                     }}
                   />
                 </div>
-                <p className="text-white/20 text-xs">
+                <p className="text-[#5c665f]/70 text-xs">
                   Resets on the 1st of each month
                 </p>
               </>
             )}
 
             {apiKey && apiKey.plan !== 'enterprise' && usagePct > 60 && !isUnlimited && (
-              <div className="mt-5 border border-[#FF6B35]/20 bg-[#FF6B35]/5 rounded-xl p-4">
-                <p className="text-white/70 text-sm mb-2">
+              <div className="mt-5 border border-[#DCCFBE] bg-[#EFE8DD] rounded-sm p-4">
+                <p className="text-[#2C4A3E] text-sm mb-2">
                   Running low? Upgrade to{' '}
-                  <span className="text-[#FF6B35] font-semibold">
+                  <span className="text-[#C4622D] font-semibold">
                     {PLAN_NEXT[apiKey.plan]?.name ?? 'Starter'}
                   </span>{' '}
                   for {PLAN_NEXT[apiKey.plan]?.price ?? '$99/mo'}.
@@ -331,7 +321,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setUpgradeOpen(true)}
-                  className="text-[#FF6B35] text-sm font-medium hover:underline"
+                  className="text-[#2C4A3E] text-sm font-medium underline underline-offset-2 hover:text-[#C4622D]"
                 >
                   Upgrade now →
                 </button>
@@ -341,66 +331,66 @@ export default function DashboardPage() {
         </div>
 
         {/* ── RECENT APPRAISAL LOG ───────────────────────── */}
-        <div className="bg-[#1a2540] border border-white/[0.08] rounded-2xl p-6">
-          <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-6">
+        <div className="bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm p-6 shadow-sm">
+          <p className="text-[#5c665f] text-xs font-semibold tracking-widest uppercase mb-6">
             Recent API Calls
           </p>
 
           {recentLogs.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-white/20 text-sm mb-2">No API calls yet.</p>
-              <p className="text-white/15 text-xs">
-                Make your first request to <span className="font-mono">POST /api/v1/appraise</span>
+              <p className="text-[#5c665f] text-sm mb-2">No API calls yet.</p>
+              <p className="text-[#5c665f]/70 text-xs">
+                Make your first request to <span className="font-mono text-[#2C4A3E]">POST /api/v1/appraise</span>
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.06]">
-                    <th className="text-left text-white/[0.25] font-medium pb-3 pr-6">Item</th>
-                    <th className="text-left text-white/[0.25] font-medium pb-3 pr-6">Price Range</th>
-                    <th className="text-left text-white/[0.25] font-medium pb-3 pr-6">Confidence</th>
-                    <th className="text-left text-white/[0.25] font-medium pb-3 pr-6">Status</th>
-                    <th className="text-left text-white/[0.25] font-medium pb-3">Date</th>
+                  <tr className="border-b border-[#DCCFBE]">
+                    <th className="text-left text-[#5c665f] font-medium pb-3 pr-6">Item</th>
+                    <th className="text-left text-[#5c665f] font-medium pb-3 pr-6">Price Range</th>
+                    <th className="text-left text-[#5c665f] font-medium pb-3 pr-6">Confidence</th>
+                    <th className="text-left text-[#5c665f] font-medium pb-3 pr-6">Status</th>
+                    <th className="text-left text-[#5c665f] font-medium pb-3">Date</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentLogs.map((log) => (
-                    <tr key={log.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                      <td className="py-3 pr-6 text-white/70 max-w-[180px] truncate">
-                        {log.item_name ?? <span className="text-white/20 italic">Unknown</span>}
+                    <tr key={log.id} className="border-b border-[#DCCFBE]/60 hover:bg-[#EFE8DD]/80 transition-colors">
+                      <td className="py-3 pr-6 text-[#2C4A3E] max-w-[180px] truncate">
+                        {log.item_name ?? <span className="text-[#5c665f] italic">Unknown</span>}
                       </td>
-                      <td className="py-3 pr-6 text-white/50 font-mono text-xs">
+                      <td className="py-3 pr-6 text-[#5c665f] font-mono text-xs">
                         {log.price_low != null && log.price_high != null
                           ? `$${log.price_low} – $${log.price_high}`
-                          : <span className="text-white/20">—</span>}
+                          : <span className="text-[#C9B8A0]">—</span>}
                       </td>
                       <td className="py-3 pr-6">
                         {log.confidence != null ? (
                           <span
-                            className={`text-xs font-medium ${
-                              log.confidence >= 7 ? 'text-green-400' : log.confidence >= 4 ? 'text-yellow-400' : 'text-red-400'
+                            className={`text-xs font-medium font-mono ${
+                              log.confidence >= 7 ? 'text-[#2C4A3E]' : log.confidence >= 4 ? 'text-[#C4622D]' : 'text-red-700'
                             }`}
                           >
                             {log.confidence}/10
                           </span>
                         ) : (
-                          <span className="text-white/20">—</span>
+                          <span className="text-[#C9B8A0]">—</span>
                         )}
                       </td>
                       <td className="py-3 pr-6">
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${
+                          className={`text-xs px-2 py-0.5 rounded-sm border ${
                             log.status === 'success'
-                              ? 'bg-green-500/10 text-green-400'
-                              : 'bg-red-500/10 text-red-400'
+                              ? 'border-[#DCCFBE] bg-[#EFE8DD] text-[#2C4A3E]'
+                              : 'border-red-200 bg-red-50 text-red-800'
                           }`}
                         >
                           {log.status}
                         </span>
                       </td>
-                      <td className="py-3 text-white/[0.25] text-xs">
+                      <td className="py-3 text-[#5c665f] text-xs font-mono">
                         {new Date(log.created_at).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
@@ -417,11 +407,11 @@ export default function DashboardPage() {
         </div>
 
         {/* ── QUICK START ───────────────────────────────── */}
-        <div className="mt-4 bg-[#1a2540] border border-white/[0.08] rounded-2xl p-6">
-          <p className="text-white/40 text-xs font-semibold tracking-widest uppercase mb-4">
+        <div className="mt-4 bg-[#FAF7F2] border border-[#DCCFBE] rounded-sm p-6 shadow-sm">
+          <p className="text-[#5c665f] text-xs font-semibold tracking-widest uppercase mb-4">
             Quick Start
           </p>
-          <pre className="text-white/60 text-sm font-mono leading-relaxed overflow-x-auto bg-black/20 rounded-xl p-4">
+          <pre className="text-[#2C4A3E] text-sm font-mono leading-relaxed overflow-x-auto bg-[#EFE8DD] border border-[#DCCFBE] rounded-sm p-4">
             {`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/v1/appraise \\
   -H "x-api-key: ${apiKey?.key ?? 'your_api_key'}" \\
   -H "Content-Type: application/json" \\

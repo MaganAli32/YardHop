@@ -1,7 +1,3 @@
-/**
- * ListingDetailPage — single listing detail with price intelligence
- */
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
@@ -52,15 +48,15 @@ export default function ListingDetailPage() {
 
   if (loading || !listing) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex items-center justify-center">
-        <p className="text-[#6B6B6B]">Loading...</p>
+      <div className="min-h-screen bg-[#F0EAE0] flex items-center justify-center">
+        <p className="text-[#6B7A6D]">Loading...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF]">
+      <div className="min-h-screen bg-[#F0EAE0]">
         <Navbar />
         <div className="pt-24 px-6 text-center">
           <p className="text-[18px] text-[#6B6B6B]">{error}</p>
@@ -86,21 +82,21 @@ export default function ListingDetailPage() {
     : 'unverified';
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#1A1A1A] font-sans antialiased">
+    <div className="min-h-screen bg-[#F0EAE0] text-[#1A1A1A] font-sans antialiased">
       <Navbar />
-      <div className="pt-24 pb-32 px-6 md:px-12 max-w-[1200px] mx-auto">
+      <div className="pt-28 pb-28 px-6 md:px-[56px] max-w-[1220px] mx-auto">
         <Link
           to="/marketplace"
-          className="inline-flex items-center gap-1 text-[12px] text-[#888] no-underline mt-8 mb-6 hover:text-[#0A0A0A]"
+          className="inline-flex items-center gap-1 text-[12px] text-[#8D8478] no-underline mt-8 mb-6 hover:text-[#1A1A18]"
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
           Marketplace
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-14">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-14">
           {/* Left column */}
           <div>
-            <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-[#F7F7F7]">
+            <div className="w-full aspect-[4/3] rounded-sm overflow-hidden bg-[#EDE4D7] border border-[#DED3C3]">
               {images[0] ? (
                 <img src={images[0]} alt={listing.title} className="w-full h-full object-cover" />
               ) : (
@@ -110,7 +106,7 @@ export default function ListingDetailPage() {
             {images.length > 1 && (
               <div className="flex gap-1.5 mt-1.5">
                 {images.map((url: string, i: number) => (
-                  <button key={i} type="button" className="w-16 h-16 rounded-lg overflow-hidden shrink-0 opacity-50 hover:opacity-100 focus:opacity-100 transition-opacity bg-[#F7F7F7]">
+                  <button key={i} type="button" className="w-16 h-16 rounded-sm overflow-hidden shrink-0 opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity bg-[#EDE4D7] border border-[#DED3C3]">
                     <img src={url} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
@@ -119,8 +115,8 @@ export default function ListingDetailPage() {
 
             {listing.description && (
               <div className="mt-10">
-                <div className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#AAA] mb-3">Description</div>
-                <p className="text-[15px] leading-[1.8] text-[#666] whitespace-pre-wrap">
+                <div className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#9E8B6F] mb-3">Description</div>
+                <p className="text-[15px] leading-[1.8] text-[#6B7A6D] whitespace-pre-wrap">
                   {listing.description}
                 </p>
               </div>
@@ -146,16 +142,16 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Right column — sticky, no box */}
-          <div className="lg:sticky lg:top-20 lg:self-start">
-            <h1 className="font-serif text-[28px] font-normal text-[#0A0A0A] leading-tight tracking-[-0.02em]">
+          <div className="lg:sticky lg:top-24 lg:self-start rounded-sm border border-[#DED3C3] bg-[#FAF7F2] p-6">
+            <h1 className="font-['Cormorant_Garamond'] text-[42px] font-light text-[#1A1A18] leading-[0.95] tracking-[-0.02em]">
               {listing.title}
             </h1>
-            <p className="text-[12px] text-[#888] mt-1">
+            <p className="text-[12px] text-[#8D8478] mt-2">
               {listing.condition} · {listing.category}
             </p>
 
             <div className="mt-6">
-              <div className="text-[40px] font-semibold text-[#0A0A0A] tracking-[-0.04em]">
+              <div className="text-[44px] font-semibold text-[#1A1A18] tracking-[-0.04em]">
                 ${Math.round(listing.asking_price).toLocaleString()}
               </div>
               <div className="text-[13px] font-semibold mt-1">
@@ -174,15 +170,15 @@ export default function ListingDetailPage() {
                 askingPrice={listing.asking_price}
               />
             ) : (
-              <div className="pt-6 mt-6 border-t border-[#ECECEC]">
-                <p className="text-[14px] text-[#666] mb-3">Price not verified</p>
-                <Link to="/#upload" className="inline-block py-2 px-4 rounded-[100px] bg-[#FF6B35] text-white text-[13px] font-semibold hover:opacity-90 no-underline">
+              <div className="pt-6 mt-6 border-t border-[#DED3C3]">
+                <p className="text-[14px] text-[#6B7A6D] mb-3">Price not verified</p>
+                <Link to="/#try" className="inline-block py-2 px-4 rounded-sm bg-[#1A2A1C] text-[#F0EAE0] text-[12px] uppercase tracking-[0.08em] font-semibold hover:opacity-90 no-underline">
                   Request an Appraisal
                 </Link>
               </div>
             )}
 
-            <div className="mt-7 pt-6 border-t border-[#ECECEC] flex flex-col gap-2.5">
+            <div className="mt-7 pt-6 border-t border-[#DED3C3] flex flex-col gap-2.5">
               {listing.location && (
                 <div className="flex items-center gap-2 text-[13px] text-[#666]">
                   <MapPin className="w-3.5 h-3.5 text-[#AAA]" />
@@ -200,10 +196,10 @@ export default function ListingDetailPage() {
             </div>
 
             <div className="mt-7 flex flex-col gap-2">
-              <button type="button" className="w-full py-3.5 rounded-[100px] bg-[#0A0A0A] text-white text-[14px] font-semibold hover:opacity-85">
+              <button type="button" className="w-full py-3.5 rounded-sm bg-[#1A2A1C] text-[#F0EAE0] text-[12px] uppercase tracking-[0.08em] font-semibold hover:opacity-90">
                 Message Seller
               </button>
-              <button type="button" className="w-full py-3 rounded-[100px] border border-[#D4D4D4] text-[14px] font-semibold text-[#0A0A0A] hover:border-[#888]">
+              <button type="button" className="w-full py-3 rounded-sm border border-[#D4C9B9] text-[12px] uppercase tracking-[0.08em] font-semibold text-[#1A1A18] hover:border-[#A49A8C]">
                 Save
               </button>
             </div>
