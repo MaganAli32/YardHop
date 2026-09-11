@@ -1,9 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ListingCard, { type ListingCardData } from '../components/ListingCard';
+import Reveal from '../components/Reveal';
 import { marketplaceApi } from '../lib/api';
+import { getAllDemoListings, type DemoListing } from '../lib/demoStore';
 import { Search } from 'lucide-react';
+
+type MarketplaceCard = ListingCardData & { userListed?: boolean };
+
+function demoToCard(d: DemoListing): MarketplaceCard {
+  return {
+    id: d.id,
+    title: d.title,
+    condition: d.condition,
+    category: d.category,
+    asking_price: d.asking_price,
+    images: d.images,
+    location: d.location,
+    created_at: new Date(d.posted_at).toISOString(),
+    appraisal: {
+      price_low: d.price_low,
+      price_high: d.price_high,
+      confidence_score: d.confidence,
+    },
+    userListed: d.userListed,
+  };
+}
 
 const CATEGORIES = [
   'Electronics',
@@ -27,6 +50,7 @@ const SORT_OPTIONS = [
 ];
 
 export default function MarketplacePage() {
+  const location = useLocation();
   const [listings, setListings] = useState<ListingCardData[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(0);
@@ -38,6 +62,32 @@ export default function MarketplacePage() {
   const [priceMin, setPriceMin] = useState<number | ''>('');
   const [priceMax, setPriceMax] = useState<number | ''>('');
   const [sort, setSort] = useState('newest');
+
+  // Demo listings (seed + anything published from the appraiser) merged with API results.
+  // Re-read when navigating here so freshly listed items show up.
+  const demoListings = useMemo(() => getAllDemoListings().map(demoToCard), [location.key]);
+
+  const filteredDemo = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    let items = demoListings.filter((l) => {
+      if (term && !l.title.toLowerCase().includes(term)) return false;
+      if (category && l.category !== category) return false;
+      if (condition && l.condition !== condition) return false;
+      if (priceMin !== '' && l.asking_price < Number(priceMin)) return false;
+      if (priceMax !== '' && l.asking_price > Number(priceMax)) return false;
+      return true;
+    });
+    if (sort === 'price_asc' || sort === 'best_deals') {
+      items = [...items].sort((a, b) => a.asking_price - b.asking_price);
+    } else if (sort === 'price_desc') {
+      items = [...items].sort((a, b) => b.asking_price - a.asking_price);
+    } else {
+      items = [...items].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+    return items;
+  }, [demoListings, search, category, condition, priceMin, priceMax, sort]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,44 +217,59 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        {/* Results */}
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6 mt-8 pb-24">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-square rounded-sm bg-[#E8DED0]" />
-                <div className="pt-3 space-y-2">
-                  <div className="h-3.5 bg-[#ECECEC] rounded w-4/5" />
-                  <div className="h-3 bg-[#ECECEC] rounded w-1/2" />
-                  <div className="h-5 bg-[#ECECEC] rounded w-1/3" />
-                </div>
+        {/* Results — demo listings render instantly; API listings merge in when loaded */}
+        {(() => {
+          const displayed: MarketplaceCard[] =
+            page === 1 ? [...filteredDemo, ...listings] : listings;
+          if (loading && displayed.length === 0) {
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6 mt-8 pb-24">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-square rounded-sm bg-[#E8DED0]" />
+                    <div className="pt-3 space-y-2">
+                      <div className="h-3.5 bg-[#ECECEC] rounded w-4/5" />
+                      <div className="h-3 bg-[#ECECEC] rounded w-1/2" />
+                      <div className="h-5 bg-[#ECECEC] rounded w-1/3" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : listings.length === 0 ? (
-          <div className="text-center py-20 px-6 mt-8 border border-[#E2D8C8] rounded-sm bg-[#FAF7F2]">
-            <p className="text-[18px] font-medium text-[#1A1A18] mb-2">
-              No listings yet
-            </p>
-            <p className="text-[15px] text-[#6B7A6D] mb-6 max-w-md mx-auto">
-              Be the first to list something! Get an AI appraisal, then list it on YardFront.
-            </p>
-            <Link
-              to="/#try"
-              className="inline-flex py-3 px-6 bg-[#1A2A1C] text-[#F0EAE0] rounded-sm font-semibold text-[12px] uppercase tracking-[0.1em] hover:opacity-90 transition-opacity no-underline"
-            >
-              Try an Appraisal
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6 mt-8 pb-24">
-            {listings.map((listing, i) => (
-              <div key={listing.id} className="scroll-reveal">
-                <ListingCard listing={listing} animationDelay={i * 50} />
+            );
+          }
+          if (!loading && displayed.length === 0) {
+            return (
+              <div className="text-center py-20 px-6 mt-8 border border-[#E2D8C8] rounded-sm bg-[#FAF7F2]">
+                <p className="text-[18px] font-medium text-[#1A1A18] mb-2">
+                  No listings match
+                </p>
+                <p className="text-[15px] text-[#6B7A6D] mb-6 max-w-md mx-auto">
+                  Try clearing a filter — or get an AI appraisal and list something yourself.
+                </p>
+                <Link
+                  to="/"
+                  className="inline-flex py-3 px-6 bg-[#1A2A1C] text-[#F0EAE0] rounded-sm font-semibold text-[12px] uppercase tracking-[0.1em] hover:opacity-90 transition-opacity no-underline"
+                >
+                  Try an Appraisal
+                </Link>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          }
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6 mt-8 pb-24">
+              {displayed.map((listing, i) => (
+                <Reveal key={listing.id} delay={(i % 4) * 80} distance={24} className="relative">
+                  {listing.userListed && (
+                    <span className="absolute top-2.5 right-2.5 z-10 font-['DM_Mono'] text-[9px] uppercase tracking-[0.14em] py-1 px-2 bg-[#B54419] text-[#FFFDF7] pointer-events-none">
+                      Listed by you
+                    </span>
+                  )}
+                  <ListingCard listing={listing} />
+                </Reveal>
+              ))}
+            </div>
+          );
+        })()}
 
         {!loading && pages > 1 && (
           <div className="flex justify-center gap-2 mt-12">

@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, GarageSale, CommunityPost, UserProfile, Chat, Message } from '../types';
+import { Product, CommunityPost, UserProfile, Chat, Message } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface PersistenceContextType {
@@ -8,13 +8,11 @@ interface PersistenceContextType {
   loading: boolean;
   authToken: string | null;
   products: Product[];
-  sales: GarageSale[];
   posts: CommunityPost[];
   chats: Chat[];
   coords: { lat: number; lng: number } | null;
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
   addProduct: (product: Product) => void;
-  addSale: (sale: GarageSale) => void;
   addPost: (post: CommunityPost) => void;
   markAsSold: (productId: string) => void;
   signOut: () => Promise<void>;
@@ -30,7 +28,6 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loading, setLoading] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [sales, setSales] = useState<GarageSale[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -191,7 +188,6 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const addProduct = (p: Product) => setProducts(prev => [p, ...prev]);
-  const addSale = (s: GarageSale) => setSales(prev => [s, ...prev]);
   const addPost = (post: CommunityPost) => setPosts(prev => [post, ...prev]);
   const markAsSold = (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
   
@@ -252,8 +248,8 @@ export const PersistenceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   return (
     <PersistenceContext.Provider value={{ 
-      user, loading, authToken, products, sales, posts, chats, coords,
-      updateUser, addProduct, addSale, addPost, markAsSold, signOut,
+      user, loading, authToken, products, posts, chats, coords,
+      updateUser, addProduct, addPost, markAsSold, signOut,
       sendMessage, getOrCreateChat 
     }}>
       {children}

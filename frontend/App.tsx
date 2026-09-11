@@ -13,6 +13,9 @@ import SignupPage from './pages/SignupPage';
 import ExtensionAuthPage from './pages/ExtensionAuthPage';
 import BusinessPage from './pages/BusinessPage';
 import AboutPage from './pages/AboutPage';
+import DevelopersPage from './pages/DevelopersPage';
+import ExtensionPage from './pages/ExtensionPage';
+import BetaPage from './pages/BetaPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import { PersistenceProvider } from './store/PersistenceContext';
@@ -128,6 +131,9 @@ const App: React.FC = () => {
               <Route path="/extension-auth" element={<ExtensionAuthPage />} />
               <Route path="/business" element={<BusinessPage />} />
               <Route path="/about" element={<AboutPage />} />
+              <Route path="/developers" element={<DevelopersPage />} />
+              <Route path="/extension" element={<ExtensionPage />} />
+              <Route path="/beta" element={<BetaPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
               {/* Old marketplace UI — redirect to new product (appraisal) homepage */}
@@ -139,14 +145,11 @@ const App: React.FC = () => {
               <Route path="/checkout" element={<Navigate to="/" replace />} />
               <Route path="/orders" element={<Navigate to="/" replace />} />
               <Route path="/create" element={<Navigate to="/" replace />} />
-              <Route path="/create-sale" element={<Navigate to="/" replace />} />
               <Route path="/profile" element={<Navigate to="/account" replace />} />
               <Route path="/inbox" element={<Navigate to="/" replace />} />
               <Route path="/scanner" element={<Navigate to="/" replace />} />
               <Route path="/sell-hub" element={<Navigate to="/" replace />} />
               <Route path="/product/:id" element={<Navigate to="/" replace />} />
-              <Route path="/sales" element={<Navigate to="/" replace />} />
-              <Route path="/sales/:id" element={<Navigate to="/" replace />} />
               <Route path="/how-it-works" element={<Navigate to="/" replace />} />
               <Route path="/community" element={<Navigate to="/" replace />} />
               <Route path="/live-advisor" element={<Navigate to="/" replace />} />

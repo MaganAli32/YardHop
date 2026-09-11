@@ -7,146 +7,32 @@ import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import { fetchAllPricingSources, describePricingSources, computeMarketPrice } from '../services/pricing.js';
 
 const router = express.Router();
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+
+// temperature 0 makes identification/synthesis deterministic for a given input.
+const DETERMINISTIC_CONFIG = { temperature: 0, topP: 0, topK: 1 };
 const supabaseAdmin = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY)
   : null;
 
 const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'http://localhost:5173';
 
+const FREE_MONTHLY_LIMIT = 3;
+
+// Start of the current calendar month (UTC) — free limit resets monthly.
+function startOfMonthIso() {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
 // --- Duplicated helpers (from appraise flow, not importing to avoid touching appraise.js) ---
-
-async function fetchEbaySoldListings(itemName) {
-  const encodedItem = encodeURIComponent(itemName);
-  const url = `https://svcs.ebay.com/services/search/FindingService/v1` +
-    `?OPERATION-NAME=findCompletedItems` +
-    `&SERVICE-VERSION=1.0.0` +
-    `&SECURITY-APPNAME=${process.env.EBAY_APP_ID}` +
-    `&RESPONSE-DATA-FORMAT=JSON` +
-    `&keywords=${encodedItem}` +
-    `&itemFilter(0).name=SoldItemsOnly` +
-    `&itemFilter(0).value=true` +
-    `&sortOrder=EndTimeSoonest` +
-    `&paginationInput.entriesPerPage=20`;
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    const items = data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || [];
-    const prices = items
-      .map(i => parseFloat(i?.sellingStatus?.[0]?.currentPrice?.[0]?.__value__))
-      .filter(p => !isNaN(p) && p > 0);
-    if (prices.length === 0) return null;
-    return {
-      source: 'eBay Sold Listings',
-      prices,
-      count: prices.length,
-      avg: prices.reduce((a, b) => a + b, 0) / prices.length,
-      low: Math.min(...prices),
-      high: Math.max(...prices),
-    };
-  } catch (err) {
-    console.error('Extension eBay API error:', err.message);
-    return null;
-  }
-}
-
-async function fetchGoogleShopping(query) {
-  try {
-    const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(query)}&api_key=${process.env.SERPAPI_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!data.shopping_results || data.shopping_results.length === 0) return null;
-    const prices = data.shopping_results.map(r => parseFloat(r.extracted_price)).filter(p => !isNaN(p));
-    if (prices.length === 0) return null;
-    const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
-    return {
-      source: 'google_shopping',
-      prices,
-      count: prices.length,
-      avg,
-      low: Math.min(...prices),
-      high: Math.max(...prices),
-    };
-  } catch (err) {
-    console.error('Extension Google Shopping error:', err.message);
-    return null;
-  }
-}
-
-async function fetchCraigslistPrices(itemName) {
-  const query = encodeURIComponent(itemName);
-  const url = `https://www.craigslist.org/search/sss?query=${query}&hasPic=1&postedToday=0&bundleDuplicates=0`;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-    });
-    const html = await res.text();
-    const priceRegex = /\$[\d,]+/g;
-    const matches = html.match(priceRegex) || [];
-    const prices = matches
-      .map(p => parseFloat(p.replace(/[$,]/g, '')))
-      .filter(p => !isNaN(p) && p > 0 && p < 100000);
-    if (prices.length === 0) return null;
-    const unique = [...new Set(prices)].sort((a, b) => a - b);
-    const mid = unique.slice(
-      Math.floor(unique.length * 0.1),
-      Math.floor(unique.length * 0.9),
-    );
-    return {
-      source: 'Craigslist',
-      prices: mid,
-      count: mid.length,
-      avg: mid.reduce((a, b) => a + b, 0) / mid.length,
-      low: Math.min(...mid),
-      high: Math.max(...mid),
-    };
-  } catch (err) {
-    console.error('Extension Craigslist error:', err.message);
-    return null;
-  }
-}
-
-async function fetchMercariPrices(itemName) {
-  const query = encodeURIComponent(itemName);
-  const url = `https://www.mercari.com/search/?keyword=${query}&status=sold_out`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-    });
-    const html = await res.text();
-    const priceRegex = /\$[\d,]+(?:\.\d{2})?/g;
-    const matches = html.match(priceRegex) || [];
-    const prices = matches
-      .map(p => parseFloat(p.replace(/[$,]/g, '')))
-      .filter(p => !isNaN(p) && p > 0 && p < 50000);
-    if (prices.length === 0) return null;
-    const sorted = [...new Set(prices)].sort((a, b) => a - b);
-    const trimmed = sorted.slice(
-      Math.floor(sorted.length * 0.1),
-      Math.floor(sorted.length * 0.9),
-    );
-    return {
-      source: 'Mercari',
-      prices: trimmed,
-      count: trimmed.length,
-      avg: trimmed.reduce((a, b) => a + b, 0) / trimmed.length,
-      low: Math.min(...trimmed),
-      high: Math.max(...trimmed),
-    };
-  } catch (err) {
-    console.error('Extension Mercari error:', err.message);
-    return null;
-  }
-}
 
 async function identifyItemWithGemini(input) {
   if (!genAI) return null;
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
   const prompt = `You are an expert appraiser. Analyze this item and return ONLY a JSON object with no markdown, no explanation, just raw JSON.
 Return this exact structure:
 {
@@ -188,46 +74,65 @@ Return this exact structure:
 
 async function synthesizeAppraisalWithGemini(itemData, pricingSources) {
   if (!genAI) return null;
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const sourceSummary = pricingSources.length
-    ? pricingSources
-        .filter(Boolean)
-        .map(s => `${s.source}: $${s.low.toFixed(0)}–$${s.high.toFixed(0)} (${s.count} data points, avg $${s.avg.toFixed(0)})`)
-        .join('\n')
-    : 'No comparable sales data found.';
-  const prompt = `You are an expert secondhand market appraiser. Based on the pricing data below, provide a final appraisal.
+  // Prices computed deterministically; LLM only writes summary + tips.
+  const computed = computeMarketPrice(pricingSources, itemData.condition);
+  if (!computed) return null;
+
+  const defaultSummary = `Based on ${computed.sourcesCount} comparable listing${computed.sourcesCount === 1 ? '' : 's'} from live market search.`;
+  const defaultTips = [
+    'Use clear, well-lit photos from multiple angles to support your price.',
+    'Mention brand, model, and condition details buyers search for.',
+    `Price near $${computed.priceFair.toLocaleString()} for a quicker sale.`,
+  ];
+  const withComputed = (extra) => ({
+    priceFair: computed.priceFair,
+    priceLow: computed.priceLow,
+    priceHigh: computed.priceHigh,
+    confidenceScore: computed.confidenceScore,
+    sourcesCount: computed.sourcesCount,
+    sourcesSummary: defaultSummary,
+    sellerTips: defaultTips,
+    ...extra,
+  });
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
+  const sourceSummary = describePricingSources(pricingSources.filter(Boolean));
+  const prompt = `The recommended price has ALREADY been computed: fair $${computed.priceFair}, range $${computed.priceLow}–$${computed.priceHigh}, from ${computed.sourcesCount} data points.
 
 Item: ${itemData.name}
 Condition: ${itemData.condition}
 Category: ${itemData.category}
 
-Pricing data found:
+Comparable listings:
 ${sourceSummary}
 
-Return ONLY a JSON object with no markdown:
+Write ONLY a JSON object, no markdown. Do NOT change the prices:
 {
-  "priceFair": <number>,
-  "priceLow": <number>,
-  "priceHigh": <number>,
-  "confidenceScore": <integer 0-100>,
-  "sourcesSummary": "One sentence",
-  "sourcesCount": <number>,
-  "sellerTips": ["tip 1", "tip 2", "tip 3"]
+  "sourcesSummary": "One factual sentence about what the estimate is based on.",
+  "sellerTips": ["specific tip 1", "tip 2", "tip 3"]
 }`;
   try {
     const result = await model.generateContent(prompt);
-    if (!result?.response) return null;
+    if (!result?.response) return withComputed();
     const text = (result.response.text() || '').trim().replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    return withComputed({
+      sourcesSummary: typeof parsed?.sourcesSummary === 'string' && parsed.sourcesSummary.trim()
+        ? parsed.sourcesSummary.trim()
+        : defaultSummary,
+      sellerTips: Array.isArray(parsed?.sellerTips) && parsed.sellerTips.length
+        ? parsed.sellerTips.slice(0, 3)
+        : defaultTips,
+    });
   } catch (err) {
     console.error('Extension Gemini synthesis error:', err.message);
-    return null;
+    return withComputed();
   }
 }
 
 async function synthesizeAppraisalFromKnowledgeOnly(itemData) {
   if (!genAI) return null;
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
   const prompt = `You are a secondhand market appraiser. We have NO live pricing data. Estimate a fair resale price.
 
 Item: ${itemData.name}
@@ -294,22 +199,22 @@ function verdictFromPrice(askingPrice, low, high) {
  */
 router.post('/extension', requireAuth, async (req, res) => {
   try {
-    // Check daily usage limit
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Service not configured' });
+    }
+    // Check monthly usage limit (resets each calendar month)
     const { count, error: countError } = await supabaseAdmin
       .from('appraisals')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', req.user.id)
-      .gte('created_at', today.toISOString());
-    const dailyLimit = 3;
+      .gte('created_at', startOfMonthIso());
     const usage = count ?? 0;
-    if (usage >= dailyLimit) {
+    if (usage >= FREE_MONTHLY_LIMIT) {
       return res.status(429).json({
-        error: 'Daily limit reached',
-        message: `You've used ${usage} of ${dailyLimit} free appraisals today. Upgrade to Pro for unlimited.`,
+        error: 'Monthly limit reached',
+        message: `You've used ${usage} of ${FREE_MONTHLY_LIMIT} free appraisals this month. Upgrade to Pro for unlimited.`,
         usage,
-        limit: dailyLimit,
+        limit: FREE_MONTHLY_LIMIT,
         upgradeUrl: 'https://yardfront.com/#pricing',
       });
     }
@@ -346,19 +251,7 @@ router.post('/extension', requireAuth, async (req, res) => {
     if (title && !itemData.name) itemData.name = title;
 
     const query = itemData.searchQuery || itemData.name || title;
-    const [ebayData, googleData, craigslistData, mercariData] = await Promise.allSettled([
-      fetchEbaySoldListings(query),
-      fetchGoogleShopping(query),
-      fetchCraigslistPrices(query),
-      fetchMercariPrices(query),
-    ]);
-
-    const pricingSources = [
-      ebayData.status === 'fulfilled' ? ebayData.value : null,
-      googleData.status === 'fulfilled' ? googleData.value : null,
-      craigslistData.status === 'fulfilled' ? craigslistData.value : null,
-      mercariData.status === 'fulfilled' ? mercariData.value : null,
-    ].filter(Boolean);
+    const pricingSources = await fetchAllPricingSources(query);
 
     let synthesis =
       pricingSources.length > 0
@@ -428,22 +321,22 @@ router.post('/extension', requireAuth, async (req, res) => {
  */
 router.post('/quick', requireAuth, async (req, res) => {
   try {
-    // Check daily usage limit
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Service not configured' });
+    }
+    // Check monthly usage limit (resets each calendar month)
     const { count, error: countError } = await supabaseAdmin
       .from('appraisals')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', req.user.id)
-      .gte('created_at', today.toISOString());
-    const dailyLimit = 3;
+      .gte('created_at', startOfMonthIso());
     const usage = count ?? 0;
-    if (usage >= dailyLimit) {
+    if (usage >= FREE_MONTHLY_LIMIT) {
       return res.status(429).json({
-        error: 'Daily limit reached',
-        message: `You've used ${usage} of ${dailyLimit} free appraisals today. Upgrade to Pro for unlimited.`,
+        error: 'Monthly limit reached',
+        message: `You've used ${usage} of ${FREE_MONTHLY_LIMIT} free appraisals this month. Upgrade to Pro for unlimited.`,
         usage,
-        limit: dailyLimit,
+        limit: FREE_MONTHLY_LIMIT,
         upgradeUrl: 'https://yardfront.com/#pricing',
       });
     }
@@ -457,7 +350,7 @@ router.post('/quick', requireAuth, async (req, res) => {
       return res.status(503).json({ error: 'Quick appraisal not configured' });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     const prompt = `Secondhand price range for "${title}" in USD. Return ONLY JSON: {"low":number,"high":number}`;
     const result = await model.generateContent(prompt);
     const rawText = result?.response?.text() || '{}';
@@ -534,27 +427,26 @@ router.post('/refine', requireAuth, async (req, res) => {
     let dataPoints = 0;
     const sources = [];
 
-    // Google Shopping via SerpAPI (retail prices → apply secondhand factor)
-    const googleData = await fetchGoogleShopping(searchQuery);
-    if (googleData && googleData.prices && googleData.prices.length > 0) {
-      const sorted = [...googleData.prices].sort((a, b) => a - b);
-      const retailLow = sorted[Math.floor(sorted.length * 0.15)] ?? sorted[0];
-      const retailHigh = sorted[Math.floor(sorted.length * 0.85)] ?? sorted[sorted.length - 1];
-      priceLow = Math.round(retailLow * 0.3);
-      priceHigh = Math.round(retailHigh * 0.6);
-      dataPoints += googleData.prices.length;
-      sources.push('google_shopping');
-    }
-
-    // eBay sold listings (actual secondhand prices — use directly)
-    const ebayData = await fetchEbaySoldListings(searchQuery);
-    if (ebayData && ebayData.prices && ebayData.prices.length > 0) {
-      const ebayLow = ebayData.low;
-      const ebayHigh = ebayData.high;
-      if (priceLow === null || ebayLow < priceLow) priceLow = Math.round(ebayLow);
-      if (priceHigh === null || ebayHigh > priceHigh) priceHigh = Math.round(ebayHigh);
-      dataPoints += ebayData.prices.length;
-      sources.push('ebay');
+    const pricingSources = await fetchAllPricingSources(searchQuery);
+    for (const data of pricingSources) {
+      if (!data?.prices?.length) continue;
+      if (data.comps) {
+        // Grounded live-market comps are actual secondhand prices — use directly
+        if (priceLow === null || data.low < priceLow) priceLow = Math.round(data.low);
+        if (priceHigh === null || data.high > priceHigh) priceHigh = Math.round(data.high);
+        sources.push('live_market_search');
+      } else {
+        // Google Shopping is new retail — apply secondhand factor
+        const sorted = [...data.prices].sort((a, b) => a - b);
+        const retailLow = sorted[Math.floor(sorted.length * 0.15)] ?? sorted[0];
+        const retailHigh = sorted[Math.floor(sorted.length * 0.85)] ?? sorted[sorted.length - 1];
+        const usedLow = Math.round(retailLow * 0.3);
+        const usedHigh = Math.round(retailHigh * 0.6);
+        if (priceLow === null || usedLow < priceLow) priceLow = usedLow;
+        if (priceHigh === null || usedHigh > priceHigh) priceHigh = usedHigh;
+        sources.push('google_shopping');
+      }
+      dataPoints += data.prices.length;
     }
 
     if (priceLow === null || priceHigh === null) {

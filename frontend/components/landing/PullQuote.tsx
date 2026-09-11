@@ -1,6 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 import { colors as c, fonts as f } from '../../lib/tokens'
 
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
+
+/** Counts from 0 to `target` with a cubic ease-out once `run` is true. Plays once. */
+function useCountUp(target: number, run: boolean, duration = 1100, delay = 0) {
+  const [val, setVal] = useState(0)
+  useEffect(() => {
+    if (!run) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setVal(target)
+      return
+    }
+    let raf = 0
+    const timer = window.setTimeout(() => {
+      const start = performance.now()
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration)
+        setVal(target * (1 - (1 - t) ** 3))
+        if (t < 1) raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+    }, delay)
+    return () => {
+      clearTimeout(timer)
+      cancelAnimationFrame(raf)
+    }
+  }, [target, run, duration, delay])
+  return val
+}
+
 /** Matches YardFront.html `.pq` + shared `.eyebrow`, `.headline`-adjacent quote, `.body-lede`, `.pq-stats` */
 const css = `
   .pq-root {
@@ -95,11 +124,32 @@ const css = `
   .pq-reveal {
     opacity: 0;
     transform: translateY(22px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition: opacity 0.8s ${EASE_OUT}, transform 0.8s ${EASE_OUT};
   }
   .pq-reveal.in {
     opacity: 1;
     transform: none;
+  }
+  .pq-rule.pq-reveal {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  .pq-rule.pq-reveal.in { transform: scaleX(1); }
+  .pq-stat {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.7s ${EASE_OUT}, transform 0.7s ${EASE_OUT};
+  }
+  .pq-stat.in { opacity: 1; transform: none; }
+  .pq-stat:nth-child(1) { transition-delay: 0.24s; }
+  .pq-stat:nth-child(2) { transition-delay: 0.3s; }
+  .pq-stat:nth-child(3) { transition-delay: 0.36s; }
+  @media (prefers-reduced-motion: reduce) {
+    .pq-reveal, .pq-stat {
+      transform: none;
+      transition: opacity 0.3s ease;
+    }
+    .pq-rule.pq-reveal { transform: none; }
   }
   @media (max-width: 900px) {
     .pq-container { padding: 0 24px; }
@@ -110,6 +160,10 @@ const css = `
 export function PullQuote() {
   const rootRef = useRef<HTMLDivElement>(null)
   const [revealed, setRevealed] = useState(false)
+
+  const marketplaces = useCountUp(7, revealed, 900, 400)
+  const seconds = useCountUp(2.4, revealed, 1100, 480)
+  const comps = useCountUp(142, revealed, 1300, 560)
 
   useEffect(() => {
     const obs = new IntersectionObserver(
@@ -144,26 +198,26 @@ export function PullQuote() {
             Every year, Americans resell about $50B of used goods — mostly by guessing. YardFront turns a single photograph into a defensible number, backed by sales data from the places people actually buy things.
           </p>
 
-          <div className={`pq-stats pq-reveal ${inCls}`} style={{ transitionDelay: revealed ? '0.2s' : undefined }}>
-            <div className="pq-stat">
+          <div className="pq-stats">
+            <div className={`pq-stat ${inCls}`}>
               <div className="n">
-                <em>7</em>
+                <em>{Math.round(marketplaces)}</em>
               </div>
               <div className="l">Marketplaces, in parallel</div>
               <p className="d">eBay, Mercari, Chairish, StockX, Grailed, GOAT, OfferUp — queried on every lookup.</p>
             </div>
-            <div className="pq-stat">
+            <div className={`pq-stat ${inCls}`}>
               <div className="n">
                 <em>
-                  2.4<span style={{ fontSize: 28 }}>s</span>
+                  {seconds.toFixed(1)}<span style={{ fontSize: 28 }}>s</span>
                 </em>
               </div>
               <div className="l">Median response</div>
               <p className="d">From upload to confidence-scored range. Fast enough for a checkout line.</p>
             </div>
-            <div className="pq-stat">
+            <div className={`pq-stat ${inCls}`}>
               <div className="n">
-                <em>142</em>
+                <em>{Math.round(comps)}</em>
               </div>
               <div className="l">Comps per estimate, avg.</div>
               <p className="d">Real sold-for prices. Not asking prices — wishful thinking doesn&apos;t count.</p>

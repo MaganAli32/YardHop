@@ -23,7 +23,6 @@ import morgan from 'morgan';
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profiles.js';
 import productRoutes from './routes/products.js';
-import garageSaleRoutes from './routes/garageSales.js';
 import favoriteRoutes from './routes/favorites.js';
 import cartRoutes from './routes/cart.js';
 import orderRoutes from './routes/orders.js';
@@ -89,8 +88,6 @@ const productionCriticalEnv = [
   'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
   'GEMINI_API_KEY',
-  'EBAY_APP_ID',
-  'SERPAPI_KEY',
 ];
 
 const missingCriticalEnv = productionCriticalEnv.filter((k) => !process.env[k]);
@@ -270,7 +267,6 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/profiles', profileRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/sales', garageSaleRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);

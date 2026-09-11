@@ -1,13 +1,20 @@
 /**
- * YardFront Navbar — editorial mono links + forest CTA (YardFront.html)
+ * YardFront Navbar — brand mark, page links left (About · Extension · Marketplace),
+ * account + Try-it CTA right. Editorial mono links, forest CTA.
  */
 
-import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { usePersistence } from '../store/PersistenceContext';
 import { supabase } from '../lib/supabase';
 import { colors as t, fonts as tf } from '../lib/tokens';
 import { scrollToSection } from '../lib/scrollToSection';
+
+const PAGE_LINKS = [
+  { to: '/about', label: 'About' },
+  { to: '/extension', label: 'Extension' },
+  { to: '/marketplace', label: 'Marketplace' },
+];
 
 export default function Navbar() {
   const location = useLocation();
@@ -15,18 +22,27 @@ export default function Navbar() {
   const { user, authToken } = usePersistence();
   const isLanding = location.pathname === '/';
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const isLoggedIn = !!(authToken || user);
+  const accountName = (user?.email || '').split('@')[0] || 'Account';
 
-  const scrollTo = (id: string) => {
+  const goToTryIt = () => {
     setMobileOpen(false);
     if (isLanding) {
-      scrollToSection(id);
+      scrollToSection('try');
       return;
     }
     navigate('/');
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToSection(id));
+      requestAnimationFrame(() => scrollToSection('try'));
     });
   };
 
@@ -37,23 +53,34 @@ export default function Navbar() {
   };
 
   const linkBase =
-    'text-[11px] font-normal uppercase tracking-[0.14em] no-underline transition-opacity duration-200';
-  const linkIdle = 'text-[color:var(--ink)] opacity-[0.78] hover:opacity-100 hover:text-[color:var(--terra)]';
-  const linkStyle = { fontFamily: '"DM Mono", ui-monospace, monospace', ['--ink' as string]: t.ink, ['--terra' as string]: t.terracotta } as React.CSSProperties;
+    'text-[11px] font-normal uppercase tracking-[0.14em] no-underline whitespace-nowrap transition-opacity duration-200 bg-transparent border-0 cursor-pointer';
+  const linkStyle = {
+    fontFamily: '"DM Mono", ui-monospace, monospace',
+  } as React.CSSProperties;
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `${linkBase} ${
+      isActive
+        ? 'text-[#B54419] opacity-100'
+        : 'text-[#2A2822] opacity-[0.78] hover:opacity-100 hover:text-[#B54419]'
+    }`;
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-[100] h-[72px] px-6 md:px-12 flex items-center justify-between"
+      className="fixed top-0 left-0 right-0 z-[100] h-[72px] px-6 md:px-12 flex items-center"
       style={{
         background: `${t.chalk}E6`,
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: `0.5px solid ${t.mist}`,
+        borderBottom: `0.5px solid ${scrolled ? t.mist : 'transparent'}`,
+        boxShadow: scrolled ? '0 8px 24px -18px rgba(26,42,28,0.35)' : 'none',
+        transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
       }}
     >
+      {/* Brand */}
       <Link
         to="/"
-        className="flex items-center gap-2.5 no-underline"
+        className="flex items-center gap-2.5 no-underline shrink-0"
         style={{ fontFamily: tf.serif }}
         onClick={() => setMobileOpen(false)}
       >
@@ -66,67 +93,98 @@ export default function Navbar() {
         </span>
       </Link>
 
-      <div className="hidden lg:flex items-center gap-7">
-        <Link to="/about" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
-          About
-        </Link>
-        <Link to="/business" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
-          For Business
-        </Link>
-        <Link to="/marketplace" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
-          Marketplace
-        </Link>
+      {/* Left: page links */}
+      <div className="hidden min-[720px]:flex items-center gap-5 lg:gap-8 ml-8 lg:ml-12">
+        {PAGE_LINKS.map((l) => (
+          <NavLink key={l.to} to={l.to} className={navLinkClass} style={linkStyle}>
+            {l.label}
+          </NavLink>
+        ))}
+      </div>
 
-        <>
-          <button type="button" onClick={() => scrollTo('how')} className={`${linkBase} ${linkIdle} bg-transparent border-0 cursor-pointer`} style={linkStyle}>
-            How it works
-          </button>
-          <button type="button" onClick={() => scrollTo('pricing')} className={`${linkBase} ${linkIdle} bg-transparent border-0 cursor-pointer`} style={linkStyle}>
-            Pricing
-          </button>
-        </>
-
+      {/* Right: beta + account + CTA */}
+      <div className="hidden min-[720px]:flex items-center gap-5 lg:gap-7 ml-auto">
+        <NavLink
+          to="/beta"
+          className={({ isActive }) =>
+            `${linkBase} flex items-center gap-1.5 ${
+              isActive
+                ? 'text-[#B54419] opacity-100'
+                : 'text-[#B54419] opacity-[0.85] hover:opacity-100'
+            }`
+          }
+          style={linkStyle}
+        >
+          <span
+            className="inline-block rounded-full shrink-0"
+            style={{ width: 5, height: 5, background: t.terracotta }}
+          />
+          Join beta
+        </NavLink>
         {isLoggedIn ? (
           <>
-            <Link to="/account" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
-              My Account
-            </Link>
-            <Link to="/dashboard" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
-              API Dashboard
-            </Link>
-            <button type="button" onClick={handleSignOut} className={`${linkBase} ${linkIdle} bg-transparent border-0 cursor-pointer`} style={linkStyle}>
-              Sign Out
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className={`${linkBase} ${linkIdle}`} style={linkStyle}>
-              Sign In
+            <Link
+              to="/account"
+              className={`${linkBase} text-[#2A2822] opacity-[0.78] hover:opacity-100 hover:text-[#B54419] flex items-center gap-2`}
+              style={linkStyle}
+              title={user?.email || 'My account'}
+            >
+              <span
+                className="inline-flex items-center justify-center rounded-full shrink-0"
+                style={{
+                  width: 24,
+                  height: 24,
+                  background: t.forest,
+                  color: t.chalk,
+                  fontSize: 9,
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {accountName.slice(0, 2).toUpperCase()}
+              </span>
+              {accountName}
             </Link>
             <button
               type="button"
-              onClick={() => scrollTo('try')}
-              className="border-0 cursor-pointer transition-colors duration-200 text-[11px] uppercase tracking-[0.14em] px-4 py-2.5"
-              style={{
-                fontFamily: '"DM Mono", ui-monospace, monospace',
-                background: t.forest,
-                color: t.chalk,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = t.terracotta;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = t.forest;
-              }}
+              onClick={handleSignOut}
+              className={`${linkBase} text-[#2A2822] opacity-[0.78] hover:opacity-100 hover:text-[#B54419]`}
+              style={linkStyle}
             >
-              Try it free
+              Sign out
             </button>
           </>
+        ) : (
+          <Link
+            to="/login"
+            className={`${linkBase} text-[#2A2822] opacity-[0.78] hover:opacity-100 hover:text-[#B54419]`}
+            style={linkStyle}
+          >
+            Sign in
+          </Link>
         )}
+        <button
+          type="button"
+          onClick={goToTryIt}
+          className="border-0 cursor-pointer transition duration-150 ease-out active:scale-[0.97] motion-reduce:transform-none text-[11px] uppercase tracking-[0.14em] whitespace-nowrap px-4 py-2.5"
+          style={{
+            fontFamily: '"DM Mono", ui-monospace, monospace',
+            background: t.forest,
+            color: t.chalk,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = t.terracotta;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = t.forest;
+          }}
+        >
+          Try it free
+        </button>
       </div>
 
+      {/* Mobile hamburger */}
       <button
-        className="lg:hidden p-2"
+        className="min-[720px]:hidden p-2 ml-auto bg-transparent border-0 cursor-pointer"
         style={{ color: t.ink }}
         onClick={() => setMobileOpen(!mobileOpen)}
         aria-label="Menu"
@@ -144,7 +202,7 @@ export default function Navbar() {
 
       {mobileOpen && (
         <div
-          className="absolute top-[72px] left-0 right-0 lg:hidden shadow-lg"
+          className="absolute top-[72px] left-0 right-0 min-[720px]:hidden shadow-lg"
           style={{
             background: t.chalk,
             borderTop: `0.5px solid ${t.mist}`,
@@ -152,49 +210,63 @@ export default function Navbar() {
           }}
         >
           <div className="flex flex-col p-6 gap-4">
-            <Link to="/about" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
-              About
+            {PAGE_LINKS.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                onClick={() => setMobileOpen(false)}
+                className="text-[15px] font-medium no-underline"
+                style={{ color: t.ink }}
+              >
+                {l.label}
+              </Link>
+            ))}
+            <Link
+              to="/beta"
+              onClick={() => setMobileOpen(false)}
+              className="text-[15px] font-medium no-underline"
+              style={{ color: t.terracotta }}
+            >
+              Join the beta
             </Link>
-            <Link to="/business" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.sage }}>
-              For Business
-            </Link>
-            <Link to="/marketplace" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
-              Marketplace
-            </Link>
-            <button type="button" onClick={() => scrollTo('how')} className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer" style={{ color: t.sage }}>
-              How it works
-            </button>
-            <button type="button" onClick={() => scrollTo('pricing')} className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer" style={{ color: t.sage }}>
-              Pricing
-            </button>
 
             {isLoggedIn ? (
               <>
-                <Link to="/account" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
-                  My Account
-                </Link>
-                <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
-                  API Dashboard
-                </Link>
-                <button type="button" onClick={handleSignOut} className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer" style={{ color: t.terracotta }}>
-                  Sign Out
-                </button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" onClick={() => setMobileOpen(false)} className="text-[15px] font-medium no-underline" style={{ color: t.ink }}>
-                  Sign In
+                <Link
+                  to="/account"
+                  onClick={() => setMobileOpen(false)}
+                  className="text-[15px] font-medium no-underline"
+                  style={{ color: t.ink }}
+                >
+                  My account
                 </Link>
                 <button
                   type="button"
-                  onClick={() => scrollTo('try')}
-                  className="block text-center py-3 border-0 text-[11px] uppercase tracking-[0.14em] cursor-pointer"
-                  style={{ background: t.forest, color: t.chalk, fontFamily: '"DM Mono", monospace' }}
+                  onClick={handleSignOut}
+                  className="text-[15px] font-medium text-left bg-transparent border-0 cursor-pointer"
+                  style={{ color: t.terracotta }}
                 >
-                  Try it free
+                  Sign out
                 </button>
               </>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setMobileOpen(false)}
+                className="text-[15px] font-medium no-underline"
+                style={{ color: t.ink }}
+              >
+                Sign in
+              </Link>
             )}
+            <button
+              type="button"
+              onClick={goToTryIt}
+              className="block text-center py-3 border-0 text-[11px] uppercase tracking-[0.14em] cursor-pointer"
+              style={{ background: t.forest, color: t.chalk, fontFamily: '"DM Mono", monospace' }}
+            >
+              Try it free
+            </button>
           </div>
         </div>
       )}

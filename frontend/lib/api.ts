@@ -193,51 +193,6 @@ export const productsApi = {
 };
 
 // ============================================================
-// GARAGE SALES API
-// ============================================================
-export const salesApi = {
-  list: (params?: {
-    date?: string;
-    latitude?: number;
-    longitude?: number;
-    radius?: number;
-    status?: string;
-    is_multi_family?: boolean;
-    page?: number;
-    limit?: number;
-  }) => {
-    const searchParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, String(value));
-        }
-      });
-    }
-    const query = searchParams.toString();
-    return apiFetch<{ sales: any[]; pagination: any }>(`/sales${query ? `?${query}` : ''}`);
-  },
-
-  get: (id: string) =>
-    apiFetch<any>(`/sales/${id}`),
-
-  create: (data: any, _authToken?: string | null) =>
-    apiFetch<any>('/sales', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: string, data: any) =>
-    apiFetch<any>(`/sales/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: string) =>
-    apiFetch<{ message: string }>(`/sales/${id}`, { method: 'DELETE' }),
-};
-
-// ============================================================
 // AI API
 // ============================================================
 export const aiApi = {
@@ -613,7 +568,7 @@ export const communityApi = {
 export const searchApi = {
   search: (params: {
     q?: string;
-    type?: 'all' | 'products' | 'sales';
+    type?: 'all' | 'products';
     category?: string;
     min_price?: number;
     max_price?: number;
@@ -629,7 +584,7 @@ export const searchApi = {
         searchParams.append(key, String(value));
       }
     });
-    return apiFetch<{ products: any[]; sales: any[] }>(`/search?${searchParams.toString()}`);
+    return apiFetch<{ products: any[] }>(`/search?${searchParams.toString()}`);
   },
 
   getSuggestions: (q: string) =>
@@ -848,17 +803,6 @@ export const profilesApi = {
     return apiFetch<{ products: any[]; pagination: any }>(`/profiles/${id}/products${query ? `?${query}` : ''}`);
   },
 
-  getSales: (id: string, params?: { status?: string; page?: number; limit?: number }) => {
-    const searchParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) searchParams.append(key, String(value));
-      });
-    }
-    const query = searchParams.toString();
-    return apiFetch<{ sales: any[]; pagination: any }>(`/profiles/${id}/sales${query ? `?${query}` : ''}`);
-  },
-
   getReviews: (id: string, page = 1, limit = 20) =>
     apiFetch<{ reviews: any[]; pagination: any }>(`/profiles/${id}/reviews?page=${page}&limit=${limit}`),
 };
@@ -891,7 +835,6 @@ export const reviewsApi = {
 export default {
   auth: authApi,
   products: productsApi,
-  sales: salesApi,
   ai: aiApi,
   favorites: favoritesApi,
   cart: cartApi,

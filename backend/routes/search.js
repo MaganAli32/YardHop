@@ -13,13 +13,13 @@ const router = express.Router();
 
 /**
  * GET /api/search
- * Global search across products and garage sales
+ * Global search across products
  */
 router.get('/', optionalAuth, searchLimiter, async (req, res) => {
   try {
     const {
       q,
-      type = 'all', // 'all', 'products', 'sales'
+      type = 'all', // 'all', 'products'
       category,
       min_price,
       max_price,
@@ -31,7 +31,7 @@ router.get('/', optionalAuth, searchLimiter, async (req, res) => {
     } = req.query;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const results = { products: [], sales: [] };
+    const results = { products: [] };
 
     // Search products
     if (type === 'all' || type === 'products') {
@@ -79,47 +79,6 @@ router.get('/', optionalAuth, searchLimiter, async (req, res) => {
 
         if (radius) {
           results.products = results.products.filter(p => !p.distance || p.distance <= parseFloat(radius));
-        }
-      }
-    }
-
-    // Search garage sales
-    if (type === 'all' || type === 'sales') {
-      const today = new Date().toISOString().split('T')[0];
-
-      let salesQuery = req.supabase
-        .from('garage_sales')
-        .select(`
-          id, title, description, address, latitude, longitude,
-          start_date, start_time, end_time, is_multi_family, created_at,
-          images:garage_sale_images(url, is_primary),
-          host:profiles!host_id(id, name, avatar_url)
-        `)
-        .in('status', ['upcoming', 'active'])
-        .gte('start_date', today);
-
-      if (q) {
-        salesQuery = salesQuery.or(`title.ilike.%${q}%,description.ilike.%${q}%,address.ilike.%${q}%`);
-      }
-
-      salesQuery = salesQuery
-        .order('start_date', { ascending: true })
-        .range(offset, offset + parseInt(limit) - 1);
-
-      const { data: sales } = await salesQuery;
-      results.sales = sales || [];
-
-      // Calculate distance if location provided
-      if (latitude && longitude) {
-        results.sales = results.sales.map(s => ({
-          ...s,
-          distance: s.latitude && s.longitude
-            ? calculateDistance(parseFloat(latitude), parseFloat(longitude), s.latitude, s.longitude)
-            : null,
-        }));
-
-        if (radius) {
-          results.sales = results.sales.filter(s => !s.distance || s.distance <= parseFloat(radius));
         }
       }
     }
@@ -283,7 +242,7 @@ router.delete('/saved/:id', requireAuth, async (req, res) => {
  * GET /api/search/suggestions
  * Get search suggestions
  */
-router.get('/suggestions', async (req, res) => {
+router.get('/suggestions', optionalAuth, async (req, res) => {
   try {
     const { q } = req.query;
 

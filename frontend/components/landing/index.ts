@@ -1,7 +1,6 @@
 export { Hero }        from './Hero'
 export { PullQuote }   from './PullQuote'
-export { HowItWorks }  from './HowItWorks'
-export { Extension }   from './Extension'
+export { LiveCapture } from './LiveCapture'
 export { TryIt }       from './TryIt'
 export { WhoItsFor }   from './WhoItsFor'
 export { Developer }   from './Developer'

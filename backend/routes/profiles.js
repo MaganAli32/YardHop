@@ -36,16 +36,12 @@ router.get('/:id', optionalAuth, async (req, res) => {
     }
 
     // Get stats
-    const [productsCount, salesCount, reviewsData] = await Promise.all([
+    const [productsCount, reviewsData] = await Promise.all([
       req.supabase
         .from('products')
         .select('id', { count: 'exact', head: true })
         .eq('seller_id', id)
         .eq('status', 'active'),
-      req.supabase
-        .from('garage_sales')
-        .select('id', { count: 'exact', head: true })
-        .eq('host_id', id),
       req.supabase
         .from('reviews')
         .select('rating, comment, created_at, reviewer:profiles!reviewer_id(name, avatar_url)')
@@ -58,7 +54,6 @@ router.get('/:id', optionalAuth, async (req, res) => {
       ...data,
       stats: {
         products_count: productsCount.count || 0,
-        garage_sales_count: salesCount.count || 0,
       },
       recent_reviews: reviewsData.data || [],
     });
@@ -140,52 +135,6 @@ router.get('/:id/products', optionalAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching user products:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/profiles/:id/sales
- * Get user's garage sales
- */
-router.get('/:id/sales', optionalAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, page = 1, limit = 20 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-
-    let query = req.supabase
-      .from('garage_sales')
-      .select(`
-        *,
-        images:garage_sale_images(id, url, is_primary, order_index)
-      `, { count: 'exact' })
-      .eq('host_id', id)
-      .order('start_date', { ascending: false });
-
-    if (status) {
-      query = query.eq('status', status);
-    } else if (req.user?.id !== id) {
-      query = query.in('status', ['upcoming', 'active']);
-    }
-
-    query = query.range(offset, offset + parseInt(limit) - 1);
-
-    const { data, error, count } = await query;
-
-    if (error) throw error;
-
-    res.json({
-      sales: data || [],
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: count || 0,
-        pages: Math.ceil((count || 0) / parseInt(limit)),
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching user sales:', error);
     res.status(500).json({ error: error.message });
   }
 });

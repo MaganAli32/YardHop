@@ -1,54 +1,32 @@
 /**
  * Appraisal Results — displays result from POST /api/appraise
- * Reads sessionStorage key `appraisalResult`; redirects to / if missing.
+ * Loads JSON from sessionStorage and the original photo from IndexedDB / memory.
  */
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { ArrowRight, Check } from 'lucide-react';
-
-interface AppraisalResult {
-  appraisalId?: string | null;
-  item: {
-    name: string;
-    brand?: string | null;
-    category?: string;
-    condition?: string;
-    description?: string;
-  };
-  pricing: {
-    fair: number;
-    low: number;
-    high: number;
-    confidenceScore: number;
-    sourcesSummary?: string;
-    sourcesCount?: number;
-  };
-  sellerTips?: string[];
-  elapsedSeconds?: string;
-}
+import { loadAppraisalResult, type AppraisalResult } from '../lib/appraisalSession';
 
 const AppraisalResultsPage: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<AppraisalResult | null>(null);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('appraisalResult');
-    if (!raw) {
-      navigate('/', { replace: true });
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as AppraisalResult;
+    let cancelled = false;
+    (async () => {
+      const parsed = await loadAppraisalResult();
+      if (cancelled) return;
       if (!parsed?.item?.name || parsed?.pricing == null) {
         navigate('/', { replace: true });
         return;
       }
       setData(parsed);
-    } catch {
-      navigate('/', { replace: true });
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   if (data === null) {
@@ -90,6 +68,15 @@ const AppraisalResultsPage: React.FC = () => {
             </div>
 
             <div className="p-6 md:p-8">
+              {data.imageUrls?.[0] && (
+                <div className="mb-6 aspect-[4/3] max-h-[280px] rounded-sm overflow-hidden border border-[#E8E2D9] bg-[#EDE4D7]">
+                  <img
+                    src={data.imageUrls[0]}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
               <h1
                 className="text-[22px] md:text-3xl text-[#1A1A18] mb-1 italic"
                 style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 400 }}
@@ -170,6 +157,7 @@ const AppraisalResultsPage: React.FC = () => {
                         priceHigh: pricing.high,
                         confidenceScore: pricing.confidenceScore,
                         sourcesCount: pricing.sourcesCount,
+                        imageUrls: data.imageUrls ?? [],
                       },
                     });
                   }}

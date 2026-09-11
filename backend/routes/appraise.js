@@ -1,181 +1,31 @@
 import express from 'express';
 import multer from 'multer';
 import { optionalAuth } from '../middleware/auth.js';
-import { appendFileSync } from 'fs';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import { fetchAllPricingSources, describePricingSources, computeMarketPrice } from '../services/pricing.js';
+
+// temperature 0 makes identification/synthesis deterministic for a given input.
+const DETERMINISTIC_CONFIG = { temperature: 0, topP: 0, topK: 1 };
 
 const router = express.Router();
 
-const DEBUG_LOG = '/Users/maganali/Downloads/yardhop/.cursor/debug.log';
-function _log(location, message, data = {}, hypothesisId = '') {
-  try {
-    appendFileSync(DEBUG_LOG, JSON.stringify({ location, message, data, hypothesisId, timestamp: Date.now() }) + '\n');
-  } catch (_) {}
-}
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
-);
+
+// Guarded init: createClient throws if the service key is missing, which would
+// crash the whole server at import time instead of degrading gracefully.
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+const supabase = (process.env.SUPABASE_URL && serviceRoleKey)
+  ? createClient(process.env.SUPABASE_URL, serviceRoleKey)
+  : null;
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+  limits: { fileSize: 20 * 1024 * 1024 } // match frontend Try It 20MB limit
 });
 
-async function fetchEbaySoldListings(itemName) {
-  const encodedItem = encodeURIComponent(itemName);
-  const url = `https://svcs.ebay.com/services/search/FindingService/v1` +
-    `?OPERATION-NAME=findCompletedItems` +
-    `&SERVICE-VERSION=1.0.0` +
-    `&SECURITY-APPNAME=${process.env.EBAY_APP_ID}` +
-    `&RESPONSE-DATA-FORMAT=JSON` +
-    `&keywords=${encodedItem}` +
-    `&itemFilter(0).name=SoldItemsOnly` +
-    `&itemFilter(0).value=true` +
-    `&sortOrder=EndTimeSoonest` +
-    `&paginationInput.entriesPerPage=20`;
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    const items = data?.findCompletedItemsResponse?.[0]
-      ?.searchResult?.[0]?.item || [];
-
-    const prices = items
-      .map(i => parseFloat(i?.sellingStatus?.[0]?.currentPrice?.[0]?.__value__))
-      .filter(p => !isNaN(p) && p > 0);
-
-    if (prices.length === 0) return null;
-
-    return {
-      source: 'eBay Sold Listings',
-      prices,
-      count: prices.length,
-      avg: prices.reduce((a, b) => a + b, 0) / prices.length,
-      low: Math.min(...prices),
-      high: Math.max(...prices),
-    };
-  } catch (err) {
-    console.error('eBay API error:', err.message);
-    return null;
-  }
-}
-
-async function fetchGoogleShopping(query) {
-  try {
-    const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(query)}&api_key=${process.env.SERPAPI_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    console.log('Google Shopping raw response keys:', Object.keys(data));
-    console.log('Google Shopping results count:', data.shopping_results?.length || 0);
-    if (!data.shopping_results || data.shopping_results.length === 0) return null;
-    const prices = data.shopping_results.map(r => parseFloat(r.extracted_price)).filter(p => !isNaN(p));
-    if (prices.length === 0) return null;
-    const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
-    return {
-      avg_price: avg,
-      listings_found: prices.length,
-      source: 'google_shopping',
-      prices,
-      count: prices.length,
-      avg,
-      low: Math.min(...prices),
-      high: Math.max(...prices),
-    };
-  } catch (err) {
-    console.error('Google Shopping (SerpAPI) error:', err.message);
-    return null;
-  }
-}
-
-async function fetchCraigslistPrices(itemName) {
-  const query = encodeURIComponent(itemName);
-  const url = `https://www.craigslist.org/search/sss?query=${query}&hasPic=1&postedToday=0&bundleDuplicates=0`;
-
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-    const html = await res.text();
-
-    // Extract prices from Craigslist HTML
-    const priceRegex = /\$[\d,]+/g;
-    const matches = html.match(priceRegex) || [];
-    const prices = matches
-      .map(p => parseFloat(p.replace(/[$,]/g, '')))
-      .filter(p => !isNaN(p) && p > 0 && p < 100000);
-
-    if (prices.length === 0) return null;
-
-    // Deduplicate and take median range
-    const unique = [...new Set(prices)].sort((a, b) => a - b);
-    const mid = unique.slice(
-      Math.floor(unique.length * 0.1),
-      Math.floor(unique.length * 0.9)
-    );
-
-    return {
-      source: 'Craigslist',
-      prices: mid,
-      count: mid.length,
-      avg: mid.reduce((a, b) => a + b, 0) / mid.length,
-      low: Math.min(...mid),
-      high: Math.max(...mid),
-    };
-  } catch (err) {
-    console.error('Craigslist scrape error:', err.message);
-    return null;
-  }
-}
-
-async function fetchMercariPrices(itemName) {
-  const query = encodeURIComponent(itemName);
-  const url = `https://www.mercari.com/search/?keyword=${query}&status=sold_out`;
-
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      }
-    });
-    const html = await res.text();
-
-    const priceRegex = /\$[\d,]+(?:\.\d{2})?/g;
-    const matches = html.match(priceRegex) || [];
-    const prices = matches
-      .map(p => parseFloat(p.replace(/[$,]/g, '')))
-      .filter(p => !isNaN(p) && p > 0 && p < 50000);
-
-    if (prices.length === 0) return null;
-
-    const sorted = [...new Set(prices)].sort((a, b) => a - b);
-    const trimmed = sorted.slice(
-      Math.floor(sorted.length * 0.1),
-      Math.floor(sorted.length * 0.9)
-    );
-
-    return {
-      source: 'Mercari',
-      prices: trimmed,
-      count: trimmed.length,
-      avg: trimmed.reduce((a, b) => a + b, 0) / trimmed.length,
-      low: Math.min(...trimmed),
-      high: Math.max(...trimmed),
-    };
-  } catch (err) {
-    console.error('Mercari scrape error:', err.message);
-    return null;
-  }
-}
-
 async function identifyItemWithGemini(input) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
 
   const prompt = `You are an expert appraiser. Analyze this item and return ONLY a JSON object with no markdown, no explanation, just raw JSON.
 
@@ -248,57 +98,71 @@ Return this exact structure:
 }
 
 async function synthesizeAppraisalWithGemini(itemData, pricingSources) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  // Prices are computed deterministically in code so reruns are consistent.
+  // The LLM only writes the human-facing summary and tips (temperature 0).
+  const computed = computeMarketPrice(pricingSources, itemData.condition);
+  if (!computed) return null;
 
-  const sourceSummary = pricingSources.length
-    ? pricingSources
-        .filter(Boolean)
-        .map(s => `${s.source}: $${s.low.toFixed(0)}–$${s.high.toFixed(0)} (${s.count} data points, avg $${s.avg.toFixed(0)})`)
-        .join('\n')
-    : 'No comparable sales data found.';
+  const defaultSummary = `Based on ${computed.sourcesCount} comparable listing${computed.sourcesCount === 1 ? '' : 's'} from live market search.`;
+  const defaultTips = [
+    'Use clear, well-lit photos from multiple angles to support your price.',
+    'Mention brand, model, and condition details buyers search for.',
+    `Price near $${computed.priceFair.toLocaleString()} for a quicker sale; list higher only with strong proof of condition.`,
+  ];
 
-  const prompt = `You are an expert secondhand market appraiser. Based on the pricing data below, provide a final appraisal.
+  const withComputed = (extra) => ({
+    priceFair: computed.priceFair,
+    priceLow: computed.priceLow,
+    priceHigh: computed.priceHigh,
+    confidenceScore: computed.confidenceScore,
+    sourcesCount: computed.sourcesCount,
+    sourcesSummary: defaultSummary,
+    sellerTips: defaultTips,
+    ...extra,
+  });
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
+  const sourceSummary = describePricingSources(pricingSources.filter(Boolean));
+
+  const prompt = `You are an expert secondhand market appraiser. The recommended price has ALREADY been computed: fair $${computed.priceFair}, typical range $${computed.priceLow}–$${computed.priceHigh}, based on ${computed.sourcesCount} data points.
 
 Item: ${itemData.name}
 Condition: ${itemData.condition}
 Category: ${itemData.category}
 
-Pricing data found:
+Comparable listings:
 ${sourceSummary}
 
-Return ONLY a JSON object with no markdown, no explanation:
+Write ONLY a JSON object with no markdown, no explanation. Do NOT change the prices:
 {
-  "priceFair": <single number, the recommended selling price>,
-  "priceLow": <lower bound of typical range>,
-  "priceHigh": <upper bound of typical range>,
-  "confidenceScore": <integer 0-100 based on data quality and volume>,
-  "sourcesSummary": "One sentence like: Based on X sales across eBay, Mercari, and Craigslist",
-  "sourcesCount": <total number of data points used>,
-  "sellerTips": ["tip 1", "tip 2", "tip 3"]
-}
-
-Rules:
-- priceFair should be a realistic selling price, not the average — account for condition
-- confidenceScore should be lower if fewer than 5 data points, or if sources disagree widely
-- sellerTips should be specific and actionable, not generic
-- If data is insufficient, still return a best estimate with low confidence score`;
+  "sourcesSummary": "One factual sentence describing what the estimate is based on (mention SOLD listings and sites).",
+  "sellerTips": ["specific actionable tip 1", "tip 2", "tip 3"]
+}`;
 
   try {
     const result = await model.generateContent(prompt);
-    if (!result?.response) return null;
+    if (!result?.response) return withComputed();
     const rawText = result.response.text();
     const text = (typeof rawText === 'string' ? rawText : String(rawText)).trim();
     const clean = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    return withComputed({
+      sourcesSummary: typeof parsed?.sourcesSummary === 'string' && parsed.sourcesSummary.trim()
+        ? parsed.sourcesSummary.trim()
+        : defaultSummary,
+      sellerTips: Array.isArray(parsed?.sellerTips) && parsed.sellerTips.length
+        ? parsed.sellerTips.slice(0, 3)
+        : defaultTips,
+    });
   } catch (err) {
     console.error('Gemini synthesis error:', err.message);
-    return null;
+    return withComputed();
   }
 }
 
 /** When no pricing sources return data, ask Gemini to estimate from item knowledge only (low confidence). */
 async function synthesizeAppraisalFromKnowledgeOnly(itemData) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
   const prompt = `You are a secondhand market appraiser. We have NO live pricing data for this item. Estimate a fair resale price based only on your knowledge of similar items.
 
 Item: ${itemData.name}
@@ -352,12 +216,14 @@ const FALLBACK_SYNTHESIS = {
   sellerTips: ['Take clear photos from multiple angles for a better estimate.', 'Try searching similar items on eBay or Craigslist for comparison.', 'Condition and location affect resale value.']
 };
 
-// #region agent log
-const _dbg = (location, message, data, hypothesisId) => { _log(location, message, data, hypothesisId); fetch('http://127.0.0.1:7244/ingest/7dbf980e-7204-430f-9fda-369640789db7', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location, message, data: data || {}, timestamp: Date.now(), hypothesisId }) }).catch(() => {}); };
-// #endregion
-
 const FREE_LIMIT = 3;
-const APPRAISAL_TIMEOUT_MS = Number(process.env.APPRAISAL_TIMEOUT_MS || 25000);
+const APPRAISAL_TIMEOUT_MS = Number(process.env.APPRAISAL_TIMEOUT_MS || 50000);
+
+// Start of the current calendar month (UTC) — free limit resets monthly.
+function startOfMonthIso() {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
 
 function withTimeout(promise, ms = APPRAISAL_TIMEOUT_MS) {
   return Promise.race([
@@ -393,18 +259,7 @@ export async function runAppraisalForApi(options) {
     }
     if (!itemData) itemData = { ...FALLBACK_ITEM };
     const query = itemData.searchQuery;
-    const [ebayData, googleData, craigslistData, mercariData] = await withTimeout(Promise.allSettled([
-      fetchEbaySoldListings(query),
-      fetchGoogleShopping(query),
-      fetchCraigslistPrices(query),
-      fetchMercariPrices(query),
-    ]));
-    const pricingSources = [
-      ebayData.status === 'fulfilled' ? ebayData.value : null,
-      googleData.status === 'fulfilled' ? googleData.value : null,
-      craigslistData.status === 'fulfilled' ? craigslistData.value : null,
-      mercariData.status === 'fulfilled' ? mercariData.value : null,
-    ].filter(Boolean);
+    const pricingSources = await withTimeout(fetchAllPricingSources(query));
     let synthesis;
     if (pricingSources.length > 0) {
       synthesis = await withTimeout(synthesizeAppraisalWithGemini(itemData, pricingSources));
@@ -420,7 +275,7 @@ export async function runAppraisalForApi(options) {
       price_low: synthesis.priceLow,
       price_high: synthesis.priceHigh,
       price_recommended: synthesis.priceFair,
-      confidence: Math.round((synthesis.confidenceScore || 0) * 10) / 100,
+      confidence: Math.round(synthesis.confidenceScore || 0) / 100,
       sources: sourceNames.length ? sourceNames : ['estimate'],
     };
   })(), APPRAISAL_TIMEOUT_MS);
@@ -438,7 +293,7 @@ router.post('/quick', async (req, res) => {
       return res.status(400).json({ error: 'askingPrice must be a non-negative number' });
     }
 
-    const market = await fetchEbaySoldListings(title);
+    const [market] = await fetchAllPricingSources(title);
     if (!market || market.count === 0) {
       return res.json({
         title,
@@ -473,6 +328,9 @@ router.post('/quick', async (req, res) => {
 
 router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
   try {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Service not configured' });
+    }
     console.log('=== APPRAISE ENDPOINT HIT ===');
     console.log('File received:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'NO FILE');
 
@@ -481,21 +339,24 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     const ip = (req.headers['x-forwarded-for'] || req.ip || 'unknown').toString().split(',')[0].trim();
     const fingerprint = req.headers['x-fingerprint'] || null;
 
-    // Usage check — block if free limit reached
+    // Usage check — block if free monthly limit reached (resets each calendar month)
+    const monthStartIso = startOfMonthIso();
     let count = 0;
     if (userId) {
       const { count: dbCount } = await supabase
         .from('appraisals')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('is_free', true);
+        .eq('is_free', true)
+        .gte('created_at', monthStartIso);
       count = dbCount ?? 0;
     } else {
       let query = supabase
         .from('appraisals')
         .select('*', { count: 'exact', head: true })
         .eq('ip_address', ip)
-        .eq('is_free', true);
+        .eq('is_free', true)
+        .gte('created_at', monthStartIso);
       if (fingerprint) query = query.eq('fingerprint', fingerprint);
       const { count: dbCount } = await query;
       count = dbCount ?? 0;
@@ -503,7 +364,7 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     if (count >= FREE_LIMIT) {
       return res.status(403).json({
         error: 'free_limit_reached',
-        message: "You've used all 3 free appraisals. Upgrade to Pro for unlimited appraisals.",
+        message: `You've used all ${FREE_LIMIT} free appraisals this month. Upgrade to Pro for unlimited appraisals.`,
         used: count,
         limit: FREE_LIMIT,
       });
@@ -512,9 +373,6 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     let itemData = null;
     let inputType = 'text';
 
-    // #region agent log
-    _dbg('appraise.js:POST:entry', 'POST /api/appraise received', { codeVersion: 'no-422-fallback-v1', hasFile: !!req.file, fileSize: req.file?.size ?? 0, mimetype: req.file?.mimetype }, 'H2');
-    // #endregion
     console.log('[appraise] POST: req.file exists=', !!req.file, 'size=', req.file?.size ?? 0, 'mimetype=', req.file?.mimetype);
 
     // Step 1: Identify the item
@@ -522,38 +380,23 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
       inputType = 'photo';
       const buffer = req.file.buffer;
       const base64 = buffer.toString('base64');
-      // #region agent log
-      _dbg('appraise.js:before-gemini', 'Calling Gemini with image', { bufferLength: buffer?.length, base64Length: base64?.length }, 'H2');
-      // #endregion
       console.log('[appraise] Image: buffer length=', buffer?.length, 'base64 length=', base64?.length);
       itemData = await withTimeout(identifyItemWithGemini({
         type: 'image',
         mimeType: req.file.mimetype,
         data: base64
       }));
-      // #region agent log
-      _dbg('appraise.js:after-gemini', 'Gemini identification returned', { itemDataNull: itemData == null, itemName: itemData?.name }, 'H3');
-      // #endregion
     } else if (req.body.description || req.body.item_description) {
       const descriptionText = req.body.description || req.body.item_description;
       itemData = await withTimeout(identifyItemWithGemini({
         type: 'text',
         text: descriptionText
       }));
-      // #region agent log
-      _dbg('appraise.js:after-gemini-text', 'Gemini identification returned (text)', { itemDataNull: itemData == null }, 'H3');
-      // #endregion
     } else {
-      // #region agent log
-      _dbg('appraise.js:400-no-input', 'Sending 400: no image or description', {}, 'H2');
-      // #endregion
       return res.status(400).json({ error: 'No image or description provided' });
     }
 
     if (!itemData) {
-      // #region agent log
-      _dbg('appraise.js:using-fallback', 'Using fallback item (no 422)', {}, 'H1');
-      // #endregion
       console.log('[appraise] Gemini returned null; using fallback item');
       itemData = { ...FALLBACK_ITEM };
     }
@@ -561,36 +404,10 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     console.log('=== GEMINI IDENTIFICATION ===');
     console.log('Result:', JSON.stringify(itemData, null, 2));
 
-    // Step 2: Fetch pricing from all sources in parallel (each failure is isolated via Promise.allSettled)
+    // Step 2: Fetch pricing sources in parallel (grounded live market search + Google Shopping)
     const query = itemData.searchQuery;
-    console.log('=== QUERYING SOURCES ===');
-    console.log('Querying eBay...');
-    console.log('Querying Google Shopping...');
-    console.log('Querying Craigslist...');
-    console.log('Querying Mercari...');
-
-    const [ebayData, googleData, craigslistData, mercariData] = await withTimeout(Promise.allSettled([
-      fetchEbaySoldListings(query).catch(err => { console.log('[appraise] eBay failed:', err?.message); return null; }),
-      fetchGoogleShopping(query).catch(err => { console.log('[appraise] Google Shopping failed:', err?.message); return null; }),
-      fetchCraigslistPrices(query).catch(err => { console.log('[appraise] Craigslist failed:', err?.message); return null; }),
-      fetchMercariPrices(query).catch(err => { console.log('[appraise] Mercari failed:', err?.message); return null; }),
-    ]));
-
-    const results = [ebayData, googleData, craigslistData, mercariData];
-    console.log('=== SOURCE RESULTS ===');
-    results.forEach((r, i) => console.log(`Source ${i}:`, r.status, r.status === 'rejected' ? r.reason?.message : 'OK'));
-
-    if (ebayData.status === 'rejected') console.log('[appraise] eBay rejected:', ebayData.reason?.message);
-    if (googleData.status === 'rejected') console.log('[appraise] Google Shopping rejected:', googleData.reason?.message);
-    if (craigslistData.status === 'rejected') console.log('[appraise] Craigslist rejected:', craigslistData.reason?.message);
-    if (mercariData.status === 'rejected') console.log('[appraise] Mercari rejected:', mercariData.reason?.message);
-
-    const pricingSources = [
-      ebayData.status === 'fulfilled' ? ebayData.value : null,
-      googleData.status === 'fulfilled' ? googleData.value : null,
-      craigslistData.status === 'fulfilled' ? craigslistData.value : null,
-      mercariData.status === 'fulfilled' ? mercariData.value : null,
-    ].filter(Boolean);
+    console.log('=== QUERYING SOURCES (grounded search + Google Shopping) ===');
+    const pricingSources = await withTimeout(fetchAllPricingSources(query));
 
     console.log('[appraise] Pricing sources that returned data:', pricingSources.length, pricingSources.map(s => s?.source));
 
@@ -639,9 +456,6 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     if (dbError) console.error('DB save error:', dbError.message);
 
     // Step 5: Return full appraisal to frontend
-    // #region agent log
-    _dbg('appraise.js:200-success', 'Sending 200 with appraisal', { itemName: itemData.name }, 'H1');
-    // #endregion
     res.json({
       appraisalId: saved?.id || null,
       item: itemData,
@@ -663,9 +477,6 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     if (err?.message === 'Appraisal timed out') {
       return res.status(504).json({ error: 'Appraisal timed out. Please try again with a clearer image.' });
     }
-    // #region agent log
-    _dbg('appraise.js:catch', 'Appraise endpoint exception', { message: err.message }, 'H5');
-    // #endregion
     console.error('Appraise endpoint error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

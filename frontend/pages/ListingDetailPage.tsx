@@ -1,10 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import PriceBadge, { getPriceBadgeType } from '../components/PriceBadge';
 import PriceIntelligenceBox from '../components/PriceIntelligenceBox';
 import { marketplaceApi } from '../lib/api';
+import {
+  isDemoListingId,
+  getDemoListingById,
+  getAllDemoListings,
+  type DemoListing,
+} from '../lib/demoStore';
 import { MapPin, Package, Clock } from 'lucide-react';
+
+const DEMO_SOURCES = ['eBay', 'Mercari', 'OfferUp', 'Facebook', 'Chairish'];
+
+/** Shape a demo-store listing into the structure this page renders. */
+function demoToDetail(d: DemoListing) {
+  const sellerCount = getAllDemoListings().filter((l) => l.seller === d.seller).length;
+  return {
+    id: d.id,
+    title: d.title,
+    description: d.description.join('\n\n'),
+    category: d.category,
+    condition: d.condition,
+    asking_price: d.asking_price,
+    images: d.images,
+    location: d.location,
+    shipping: 'both',
+    created_at: new Date(d.posted_at).toISOString(),
+    seller: {
+      id: d.seller,
+      name: d.seller,
+      avatar_url: null,
+      member_since: '2025-03-01T00:00:00.000Z',
+      listing_count: sellerCount,
+    },
+    appraisal: {
+      price_low: d.price_low,
+      price_high: d.price_high,
+      price_recommended: d.median,
+      confidence_score: d.confidence,
+      sources_count: d.sample_size,
+      sources: DEMO_SOURCES,
+    },
+  };
+}
 
 function formatTimeAgo(iso: string): string {
   const date = new Date(iso);
@@ -25,9 +65,37 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
+
+    // Demo listings (seeded + published from the appraiser) live in localStorage.
+    if (isDemoListingId(id)) {
+      const demo = getDemoListingById(id);
+      if (demo) {
+        setListing(demoToDetail(demo));
+        setError(null);
+      } else {
+        setError('Listing not found');
+      }
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     marketplaceApi
@@ -46,7 +114,7 @@ export default function ListingDetailPage() {
     };
   }, [id]);
 
-  if (loading || !listing) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#F0EAE0] flex items-center justify-center">
         <p className="text-[#6B7A6D]">Loading...</p>
@@ -54,12 +122,12 @@ export default function ListingDetailPage() {
     );
   }
 
-  if (error) {
+  if (error || !listing) {
     return (
       <div className="min-h-screen bg-[#F0EAE0]">
         <Navbar />
         <div className="pt-24 px-6 text-center">
-          <p className="text-[18px] text-[#6B6B6B]">{error}</p>
+          <p className="text-[18px] text-[#6B6B6B]">{error || 'Listing not found'}</p>
           <Link
             to="/marketplace"
             className="inline-block mt-4 text-[#FF6B35] font-semibold hover:underline"
@@ -196,15 +264,36 @@ export default function ListingDetailPage() {
             </div>
 
             <div className="mt-7 flex flex-col gap-2">
-              <button type="button" className="w-full py-3.5 rounded-sm bg-[#1A2A1C] text-[#F0EAE0] text-[12px] uppercase tracking-[0.08em] font-semibold hover:opacity-90">
+              <button
+                type="button"
+                onClick={() =>
+                  showToast(
+                    `Message sent to ${listing.seller?.name || 'the seller'} — they typically reply within a day.`
+                  )
+                }
+                className="w-full py-3.5 rounded-sm bg-[#1A2A1C] text-[#F0EAE0] text-[12px] uppercase tracking-[0.08em] font-semibold hover:opacity-90 cursor-pointer"
+              >
                 Message Seller
               </button>
-              <button type="button" className="w-full py-3 rounded-sm border border-[#D4C9B9] text-[12px] uppercase tracking-[0.08em] font-semibold text-[#1A1A18] hover:border-[#A49A8C]">
+              <button
+                type="button"
+                onClick={() => showToast('Saved to your watchlist.')}
+                className="w-full py-3 rounded-sm border border-[#D4C9B9] text-[12px] uppercase tracking-[0.08em] font-semibold text-[#1A1A18] hover:border-[#A49A8C] cursor-pointer"
+              >
                 Save
               </button>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Toast */}
+      <div
+        className={`fixed bottom-7 left-1/2 -translate-x-1/2 z-[200] bg-[#1A2A1C] text-[#FFFDF7] font-['DM_Mono'] text-[11px] tracking-[0.1em] py-3.5 px-6 transition-all duration-300 pointer-events-none ${
+          toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
+        {toast}
       </div>
     </div>
   );

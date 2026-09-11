@@ -88,7 +88,6 @@ export const schemas = {
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
     quantity: z.coerce.number().int().min(1).default(1),
-    garage_sale_id: z.string().uuid().optional(),
     shipping_available: z.boolean().optional(),
     shipping_price: z.coerce.number().min(0).optional(),
     image_urls: z.array(z.string().min(1)).optional(),
@@ -109,40 +108,6 @@ export const schemas = {
     status: z.enum(['active', 'sold', 'reserved', 'deleted']).optional(),
     shipping_available: z.boolean().optional(),
     shipping_price: z.coerce.number().min(0).optional(),
-  }),
-  
-  // Garage Sale (permissive date/time and image URLs for frontend flexibility)
-  createGarageSale: z.object({
-    title: z.string().min(3).max(200),
-    description: z.string().max(5000).optional(),
-    address: z.string().min(5),
-    latitude: z.coerce.number().min(-90).max(90).optional(),
-    longitude: z.coerce.number().min(-180).max(180).optional(),
-    location_privacy: z.enum(['exact', 'neighborhood', 'city']).optional(),
-    start_date: z.string().min(1),
-    end_date: z.string().min(1).optional(),
-    start_time: z.string().min(1),
-    end_time: z.string().min(1).optional(),
-    tags: z.array(z.string()).optional(),
-    is_multi_family: z.boolean().optional(),
-    items_preview: z.array(z.string()).optional(),
-    image_urls: z.array(z.string().min(1)).optional(),
-  }),
-  
-  updateGarageSale: z.object({
-    title: z.string().min(3).max(200).optional(),
-    description: z.string().max(5000).optional(),
-    address: z.string().min(5).optional(),
-    latitude: z.coerce.number().min(-90).max(90).optional(),
-    longitude: z.coerce.number().min(-180).max(180).optional(),
-    start_date: z.string().min(1).optional(),
-    end_date: z.string().min(1).optional(),
-    start_time: z.string().min(1).optional(),
-    end_time: z.string().min(1).optional(),
-    tags: z.array(z.string()).optional(),
-    is_multi_family: z.boolean().optional(),
-    status: z.enum(['upcoming', 'active', 'completed', 'cancelled']).optional(),
-    items_preview: z.array(z.string()).optional(),
   }),
   
   // Order

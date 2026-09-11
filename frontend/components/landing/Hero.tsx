@@ -1,13 +1,43 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { landingImages } from '../../lib/landingImages'
 import { colors as c, fonts as f } from '../../lib/tokens'
+
+const PRICE_LOW = 2850
+const PRICE_HIGH = 3420
+const CONF_TARGET = 0.87
+const SOURCE_TARGETS = [
+  { name: 'eBay', count: 58 },
+  { name: 'Chairish', count: 31 },
+  { name: '1stDibs', count: 24 },
+  { name: 'Mercari', count: 18 },
+  { name: 'OfferUp', count: 7 },
+  { name: 'Craigslist', count: 4 },
+] as const
+const COMP_DATA = [
+  ['$3,200', 'eBay'],
+  ['$2,950', 'Chairish'],
+  ['$3,420', '1stDibs'],
+  ['$2,890', 'Mercari'],
+] as const
+
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
+/** Scales every Safari mockup demo beat — raise to slow further */
+const DEMO_PACE = 1.2
+const demoMs = (ms: number) => Math.round(ms * DEMO_PACE)
+
+function fmtMoney(n: number) {
+  return `$${Math.round(n).toLocaleString()}`
+}
+
+function easeOut(t: number) {
+  return 1 - (1 - t) ** 3
+}
 
 const css = `
   .yf-hero-root * { box-sizing: border-box; }
   .yf-hero-root {
     background: ${c.parchment};
-    padding: 140px 0 100px;
-    min-height: 100vh;
+    padding: 72px 0 100px;
     position: relative;
     font-family: ${f.sans};
   }
@@ -16,12 +46,44 @@ const css = `
     margin: 0 auto;
     padding: 0 48px;
   }
+  .yf-hero-intro {
+    min-height: clamp(420px, calc(100svh - 72px - 220px), 620px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(56px, 10vh, 112px) 0 clamp(32px, 5vh, 64px);
+  }
   .yf-reveal {
     opacity: 0;
-    transform: translateY(22px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transform: translateY(22px) scale(0.98);
+    transition: opacity 0.85s ${EASE_OUT}, transform 0.85s ${EASE_OUT};
   }
   .yf-reveal.in { opacity: 1; transform: none; }
+
+  .yf-browser {
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    background: #E8E2D6;
+    border-radius: 12px 12px 8px 8px;
+    box-shadow: 0 40px 80px -30px rgba(26,42,28,0.28), 0 12px 28px -12px rgba(26,42,28,0.18);
+    overflow: hidden;
+    border: 0.5px solid ${c.mist};
+    will-change: transform;
+  }
+  .yf-browser.is-live {
+    animation: yf-browser-lift 7s ease-in-out infinite;
+  }
+  @keyframes yf-browser-lift {
+    0%, 100% {
+      box-shadow: 0 40px 80px -30px rgba(26,42,28,0.28), 0 12px 28px -12px rgba(26,42,28,0.18);
+      transform: translateY(0);
+    }
+    50% {
+      box-shadow: 0 52px 96px -26px rgba(26,42,28,0.34), 0 18px 36px -10px rgba(26,42,28,0.22);
+      transform: translateY(-6px);
+    }
+  }
 
   .yf-eyebrow {
     font-family: ${f.mono};
@@ -37,35 +99,47 @@ const css = `
     height: 0.5px;
     background: ${c.mist};
     border: 0;
-    margin: 28px auto;
+    margin: clamp(20px, 3vh, 32px) auto;
   }
   .yf-headline {
     font-family: ${f.serif};
-    font-weight: 300;
-    line-height: 1.08;
-    letter-spacing: -0.01em;
+    font-weight: 500;
+    line-height: 1.06;
+    letter-spacing: -0.02em;
     color: ${c.ink};
-    margin: 0;
-    font-size: clamp(44px, 6.2vw, 84px);
+    margin: 0 auto;
+    max-width: min(680px, 100%);
+    font-size: clamp(44px, 6.8vw, 84px);
     text-wrap: balance;
   }
-  .yf-headline em { font-style: italic; color: ${c.terracotta}; font-weight: 400; }
+  .yf-headline em { font-style: italic; color: ${c.terracotta}; font-weight: 500; }
+  .yf-subkick {
+    font-family: ${f.sans};
+    font-weight: 400;
+    font-size: clamp(15px, 1.8vw, 18px);
+    line-height: 1.6;
+    color: ${c.sage};
+    max-width: 46ch;
+    margin: clamp(18px, 3vh, 28px) auto 0;
+    text-wrap: pretty;
+  }
   .yf-lede {
     font-weight: 300;
     font-size: 17px;
     line-height: 1.55;
     color: ${c.sage};
-    max-width: 52ch;
+    max-width: 70ch;
     margin: 0 auto;
     text-wrap: pretty;
   }
   .yf-editorial {
     text-align: center;
     max-width: 920px;
+    width: 100%;
     margin: 0 auto;
   }
   .yf-meta {
-    margin-top: 28px;
+    margin-top: clamp(24px, 4vh, 36px);
     display: flex;
     justify-content: center;
     gap: 36px;
@@ -78,16 +152,6 @@ const css = `
   }
   .yf-meta span::before { content: "— "; color: ${c.terracotta}; }
 
-  .yf-browser {
-    width: 100%;
-    max-width: 1080px;
-    margin: 72px auto 0;
-    background: #E8E2D6;
-    border-radius: 12px 12px 8px 8px;
-    box-shadow: 0 40px 80px -30px rgba(26,42,28,0.28), 0 12px 28px -12px rgba(26,42,28,0.18);
-    overflow: hidden;
-    border: 0.5px solid ${c.mist};
-  }
   .yf-browser-chrome {
     display: flex;
     align-items: center;
@@ -188,6 +252,24 @@ const css = `
     border: 0.5px solid ${c.mist};
     overflow: hidden;
   }
+  .yf-photo-scan {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 38%;
+    background: linear-gradient(180deg, transparent, rgba(181,68,25,0.14), transparent);
+    opacity: 0;
+    transform: translateY(-120%);
+    pointer-events: none;
+  }
+  .yf-photo-scan.on {
+    opacity: 1;
+    animation: yf-photo-sweep ${1.1 * DEMO_PACE}s ${EASE_OUT} forwards;
+  }
+  @keyframes yf-photo-sweep {
+    0% { transform: translateY(-120%); }
+    100% { transform: translateY(320%); }
+  }
   .yf-item-photo img {
     width: 100%;
     height: 100%;
@@ -223,7 +305,10 @@ const css = `
     letter-spacing: 0.12em;
     margin: 10px 0 0;
     text-transform: uppercase;
+    transition: color 0.35s ease, opacity 0.35s ease;
   }
+  .yf-ident-line.is-busy { color: ${c.sage}; }
+  .yf-ident-line.is-done { color: ${c.forest}; }
   .yf-tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .yf-tag {
     font-family: ${f.mono};
@@ -235,6 +320,13 @@ const css = `
     border: 0.5px solid ${c.mist};
     color: ${c.sage};
     border-radius: 2px;
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+    transition: opacity 0.45s ${EASE_OUT}, transform 0.45s ${EASE_OUT};
+  }
+  .yf-tag.in {
+    opacity: 1;
+    transform: none;
   }
   .yf-tag.hot { color: ${c.terracotta}; border-color: ${c.terracotta}; }
 
@@ -262,6 +354,13 @@ const css = `
     border-radius: 2px;
     letter-spacing: 0.14em;
   }
+  .yf-pill.is-live {
+    animation: yf-live-pulse 2.4s ease-out infinite;
+  }
+  @keyframes yf-live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.82; transform: scale(0.97); }
+  }
   .yf-price-range {
     font-family: ${f.serif};
     font-weight: 300;
@@ -277,6 +376,14 @@ const css = `
   .yf-price-range .low { color: ${c.ink}; }
   .yf-price-range .sep { color: ${c.mist}; font-size: 40px; }
   .yf-price-range .high { color: ${c.terracotta}; font-style: italic; }
+  .yf-price-range .sep {
+    color: ${c.mist};
+    font-size: 40px;
+    opacity: 0;
+    transform: scale(0.92);
+    transition: opacity 0.4s ${EASE_OUT}, transform 0.4s ${EASE_OUT};
+  }
+  .yf-price-range.show-sep .sep { opacity: 1; transform: none; }
   .yf-price-median {
     font-family: ${f.mono};
     font-size: 11px;
@@ -314,9 +421,11 @@ const css = `
   .yf-conf-bar-fill {
     position: absolute;
     inset: 0 auto 0 0;
+    width: 100%;
     background: ${c.terracotta};
-    width: var(--conf, 87%);
-    transition: width 1.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transform: scaleX(var(--conf-scale, 0.87));
+    transform-origin: left center;
+    transition: transform ${1.2 * DEMO_PACE}s cubic-bezier(0.2, 0.7, 0.2, 1);
   }
   .yf-conf-ticks {
     display: flex;
@@ -340,7 +449,11 @@ const css = `
     justify-content: space-between;
     padding: 4px 0;
     border-bottom: 0.5px dashed rgba(201,191,169,0.55);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.4s ${EASE_OUT}, transform 0.4s ${EASE_OUT};
   }
+  .yf-method-row.in { opacity: 1; transform: none; }
   .yf-method-row:last-child { border-bottom: 0; }
 
   .yf-comps-head {
@@ -361,6 +474,13 @@ const css = `
     display: flex;
     flex-direction: column;
     gap: 6px;
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+    transition: opacity ${0.5 * DEMO_PACE}s ${EASE_OUT}, transform ${0.5 * DEMO_PACE}s ${EASE_OUT};
+  }
+  .yf-comp.in {
+    opacity: 1;
+    transform: none;
   }
   .yf-comp-thumb {
     aspect-ratio: 1/1;
@@ -409,12 +529,31 @@ const css = `
     border: 0.5px solid ${c.mist};
     text-transform: uppercase;
     color: ${c.sage};
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.35s ${EASE_OUT}, transform 0.35s ${EASE_OUT};
   }
+  .yf-source-pill.in { opacity: 1; transform: none; }
   .yf-source-pill .cnt { color: ${c.terracotta}; margin-left: 4px; }
 
+  @media (prefers-reduced-motion: reduce) {
+    .yf-browser.is-live,
+    .yf-pill.is-live,
+    .yf-photo-scan.on { animation: none !important; }
+    .yf-reveal, .yf-tag, .yf-comp, .yf-method-row, .yf-source-pill, .yf-price-range .sep {
+      transition-duration: 0.2s !important;
+    }
+  }
+
   @media (max-width: 900px) {
-    .yf-hero-root { min-height: unset; padding: 120px 0 80px; }
+    .yf-hero-root { padding: 72px 0 80px; }
+    .yf-hero-intro {
+      min-height: unset;
+      padding: 56px 0 36px;
+    }
     .yf-hero-container { padding: 0 24px; }
+    .yf-headline { max-width: none; font-size: clamp(38px, 9vw, 52px); }
+    .yf-subkick { max-width: none; font-size: 16px; }
     .yf-app-body { grid-template-columns: 1fr; }
     .yf-app-left { border-right: none; border-bottom: 0.5px solid ${c.mist}; }
     .yf-comps-grid { grid-template-columns: repeat(2, 1fr); }
@@ -426,15 +565,138 @@ const css = `
 
 export function Hero() {
   const rootRef = useRef<HTMLElement>(null)
+  const browserRef = useRef<HTMLDivElement>(null)
+  const timers = useRef<number[]>([])
+  const raf = useRef<number | null>(null)
+  const reduced = useRef(false)
+  const playedOnce = useRef(false)
+
   const [vis, setVis] = useState(false)
+  const [demoStatus, setDemoStatus] = useState<'waiting' | 'running' | 'done'>('waiting')
+  const [scanOn, setScanOn] = useState(false)
+  const [identText, setIdentText] = useState('Ready to appraise')
+  const [identBusy, setIdentBusy] = useState(false)
+  const [priceLow, setPriceLow] = useState(0)
+  const [priceHigh, setPriceHigh] = useState(0)
+  const [showSep, setShowSep] = useState(false)
+  const [sampleN, setSampleN] = useState(0)
+  const [confScale, setConfScale] = useState(0)
+  const [visibleTags, setVisibleTags] = useState(4)
+  const [visibleComps, setVisibleComps] = useState(0)
+  const [visibleMethods, setVisibleMethods] = useState(0)
+  const [sourceCounts, setSourceCounts] = useState(() => SOURCE_TARGETS.map(() => 0))
+  const [visibleSources, setVisibleSources] = useState(0)
+
+  const clearTimers = useCallback(() => {
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = []
+    if (raf.current != null) {
+      cancelAnimationFrame(raf.current)
+      raf.current = null
+    }
+  }, [])
+
+  const at = useCallback((ms: number, fn: () => void) => {
+    timers.current.push(window.setTimeout(fn, ms))
+  }, [])
+
+  const animatePrices = useCallback(() => {
+    const start = performance.now()
+    const duration = demoMs(900)
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration)
+      const e = easeOut(t)
+      setPriceLow(PRICE_LOW * e)
+      setPriceHigh(PRICE_HIGH * e)
+      setSampleN(Math.round(142 * e))
+      if (t < 1) raf.current = requestAnimationFrame(tick)
+      else raf.current = null
+    }
+    raf.current = requestAnimationFrame(tick)
+  }, [])
+
+  const setFinalState = useCallback(() => {
+    setScanOn(false)
+    setIdentText('Identified — 94% match')
+    setIdentBusy(false)
+    setPriceLow(PRICE_LOW)
+    setPriceHigh(PRICE_HIGH)
+    setShowSep(true)
+    setSampleN(142)
+    setConfScale(CONF_TARGET)
+    setVisibleTags(4)
+    setVisibleComps(4)
+    setVisibleMethods(5)
+    setSourceCounts(SOURCE_TARGETS.map((s) => s.count))
+    setVisibleSources(SOURCE_TARGETS.length)
+  }, [])
+
+  const playDemoOnce = useCallback(() => {
+    clearTimers()
+
+    if (reduced.current) {
+      setFinalState()
+      setDemoStatus('done')
+      return
+    }
+
+    setDemoStatus('running')
+    setScanOn(false)
+    setIdentText('Analyzing photo…')
+    setIdentBusy(true)
+    setPriceLow(0)
+    setPriceHigh(0)
+    setShowSep(false)
+    setSampleN(0)
+    setConfScale(0)
+    setVisibleTags(4)
+    setVisibleComps(0)
+    setVisibleMethods(0)
+    setSourceCounts(SOURCE_TARGETS.map(() => 0))
+    setVisibleSources(0)
+
+    at(demoMs(80), () => setScanOn(true))
+    at(demoMs(820), () => {
+      setScanOn(false)
+      setIdentText('Searching marketplaces…')
+    })
+    at(demoMs(1380), () => {
+      setIdentText('Identified — 94% match')
+      setIdentBusy(false)
+    })
+    at(demoMs(1560), () => {
+      setShowSep(true)
+      animatePrices()
+    })
+    at(demoMs(2360), () => setConfScale(CONF_TARGET))
+    at(demoMs(2560), () => setVisibleMethods(5))
+    at(demoMs(2760), () => setVisibleComps(1))
+    at(demoMs(2880), () => setVisibleComps(2))
+    at(demoMs(3000), () => setVisibleComps(3))
+    at(demoMs(3120), () => setVisibleComps(4))
+    at(demoMs(3260), () => {
+      setVisibleSources(SOURCE_TARGETS.length)
+      SOURCE_TARGETS.forEach((source, i) => {
+        at(demoMs(i * 60), () => {
+          setSourceCounts((prev) => {
+            const next = [...prev]
+            next[i] = source.count
+            return next
+          })
+        })
+      })
+    })
+    at(demoMs(3900), () => {
+      setFinalState()
+      setDemoStatus('done')
+    })
+  }, [animatePrices, at, clearTimers, setFinalState])
 
   useEffect(() => {
+    reduced.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const io = new IntersectionObserver(
       ([e]) => {
-        if (e.isIntersecting) {
-          setVis(true)
-          io.disconnect()
-        }
+        if (e.isIntersecting) setVis(true)
       },
       { threshold: 0.08 }
     )
@@ -442,30 +704,65 @@ export function Hero() {
     return () => io.disconnect()
   }, [])
 
+  useEffect(() => {
+    const el = browserRef.current
+    if (!el) return
+
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting || playedOnce.current) return
+        playedOnce.current = true
+        playDemoOnce()
+      },
+      { threshold: 0.05, rootMargin: '0px 0px 18% 0px' }
+    )
+    io.observe(el)
+    return () => {
+      io.disconnect()
+      clearTimers()
+    }
+  }, [clearTimers, playDemoOnce])
+
+  const tags = ['Mid-century', 'Walnut veneer', 'Aniline leather', 'Authenticated'] as const
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <section className="yf-hero-root" ref={rootRef}>
         <div className="yf-hero-container">
-          <div className={`yf-editorial yf-reveal ${vis ? 'in' : ''}`}>
-            <p className="yf-eyebrow">Volume 01 · Issue 04 · Price intelligence</p>
-            <h1 className="yf-headline">
-              What&apos;s it <em>actually</em> worth?
-              <br />
-              Photograph it. We&apos;ll tell you.
-            </h1>
-            <hr className="yf-rule" />
-            <p className="yf-lede">
-              YardFront identifies any secondhand item from a single photo, then searches seven marketplaces at once to return a defensible price range — with the comparable sales to back it up.
-            </p>
-            <div className="yf-meta">
-              <span>7 marketplaces</span>
-              <span>Median 2.4s</span>
-              <span>Confidence per estimate</span>
+          <div className="yf-hero-intro">
+            <div className={`yf-editorial yf-reveal ${vis ? 'in' : ''}`}>
+              <h1 className="yf-headline" style={{ transitionDelay: vis ? '0ms' : undefined }}>
+                Know the value of anything you own.
+              </h1>
+              <p
+                className="yf-subkick yf-reveal"
+                style={{
+                  opacity: vis ? 1 : 0,
+                  transform: vis ? 'none' : 'translateY(14px)',
+                  transition: `opacity 0.85s ${EASE_OUT} 0.08s, transform 0.85s ${EASE_OUT} 0.08s`,
+                }}
+              >
+                Photograph any item and get its real market value — sourced from six major marketplaces in seconds.
+              </p>
+              <div
+                className="yf-meta"
+                style={{
+                  opacity: vis ? 1 : 0,
+                  transform: vis ? 'none' : 'translateY(10px)',
+                  transition: `opacity 0.85s ${EASE_OUT} 0.16s, transform 0.85s ${EASE_OUT} 0.16s`,
+                }}
+              >
+                <span>6 marketplaces</span>
+              </div>
             </div>
           </div>
 
-          <div className={`yf-browser yf-reveal ${vis ? 'in' : ''}`} style={{ transitionDelay: '0.12s' }}>
+          <div
+            ref={browserRef}
+            className={`yf-browser yf-reveal ${vis ? 'in' : ''} ${demoStatus === 'running' ? 'is-live' : ''}`}
+            style={{ transitionDelay: '0.12s' }}
+          >
             <div className="yf-browser-chrome">
               <div className="yf-traffic">
                 <i />
@@ -507,6 +804,7 @@ export function Hero() {
                         loading="lazy"
                         decoding="async"
                       />
+                      <div className={`yf-photo-scan ${scanOn ? 'on' : ''}`} aria-hidden />
                       <span className="yf-photo-caption">{landingImages.hero.main.title}</span>
                     </div>
                   </div>
@@ -514,15 +812,20 @@ export function Hero() {
                     <h3 className="yf-item-title">
                       Walnut <em>lounge chair</em> &amp; ottoman, c. 1958
                     </h3>
-                    <p className="yf-ident-line">Identified — 94% match</p>
+                    <p className={`yf-ident-line ${identBusy ? 'is-busy' : 'is-done'}`}>{identText}</p>
                   </div>
                   <div>
                     <p className="yf-eyebrow" style={{ marginBottom: 10 }}>Attributes</p>
                     <div className="yf-tag-row">
-                      <span className="yf-tag">Mid-century</span>
-                      <span className="yf-tag">Walnut veneer</span>
-                      <span className="yf-tag">Aniline leather</span>
-                      <span className="yf-tag hot">Authenticated</span>
+                      {tags.map((tag, i) => (
+                        <span
+                          key={tag}
+                          className={`yf-tag ${i < visibleTags ? 'in' : ''} ${tag === 'Authenticated' ? 'hot' : ''}`}
+                          style={{ transitionDelay: i < visibleTags ? `${i * demoMs(60)}ms` : undefined }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -531,25 +834,45 @@ export function Hero() {
                   <div>
                     <div className="yf-price-eyebrow">
                       <span>Estimated resale value</span>
-                      <span className="yf-pill">LIVE</span>
+                      <span className={`yf-pill ${demoStatus === 'running' ? 'is-live' : ''}`}>LIVE</span>
                     </div>
-                    <div className="yf-price-range">
-                      <span className="low">$2,850</span>
-                      <span className="sep">/</span>
-                      <span className="high">$3,420</span>
+                    <div className={`yf-price-range ${showSep ? 'show-sep' : ''}`}>
+                      {demoStatus === 'waiting' ? (
+                        <>
+                          <span className="low" style={{ opacity: 0.45 }}>—</span>
+                          <span className="sep" style={{ opacity: 0.35 }}>/</span>
+                          <span className="high" style={{ opacity: 0.45 }}>—</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="low">{fmtMoney(priceLow)}</span>
+                          <span className="sep">/</span>
+                          <span className="high">{fmtMoney(priceHigh)}</span>
+                        </>
+                      )}
                     </div>
-                    <div className="yf-price-median">Median $3,120 · 142 comparable sales, past 90 days</div>
+                    <div className="yf-price-median">
+                      {demoStatus === 'waiting'
+                        ? 'Comparing six marketplaces for comparable sales…'
+                        : sampleN > 0
+                          ? `Median ${fmtMoney((priceLow + priceHigh) / 2)} · ${sampleN} comparable sales, past 90 days`
+                          : 'Searching comparable sales across six marketplaces…'}
+                    </div>
                   </div>
 
                   <div className="yf-conf-card">
                     <div className="yf-conf-head">
                       <span className="yf-conf-label">Confidence</span>
                       <span className="yf-conf-value">
-                        <em>High</em> · 87%
+                        <em>{confScale >= 0.75 ? 'High' : confScale > 0 ? 'Building' : '—'}</em>
+                        {confScale > 0 ? ` · ${Math.round(confScale * 100)}%` : ''}
                       </span>
                     </div>
                     <div className="yf-conf-bar">
-                      <div className="yf-conf-bar-fill" style={{ ['--conf' as string]: '87%' }} />
+                      <div
+                        className="yf-conf-bar-fill"
+                        style={{ ['--conf-scale' as string]: String(confScale) }}
+                      />
                     </div>
                     <div className="yf-conf-ticks">
                       <span>Speculative</span>
@@ -557,26 +880,24 @@ export function Hero() {
                       <span>Ironclad</span>
                     </div>
                     <div className="yf-method">
-                      <div className="yf-method-row">
-                        <span>Image clarity</span>
-                        <span>Excellent</span>
-                      </div>
-                      <div className="yf-method-row">
-                        <span>Brand signals</span>
-                        <span>Herman Miller, Eames</span>
-                      </div>
-                      <div className="yf-method-row">
-                        <span>Condition cues</span>
-                        <span>Light patina</span>
-                      </div>
-                      <div className="yf-method-row">
-                        <span>Sample size</span>
-                        <span>n = 142</span>
-                      </div>
-                      <div className="yf-method-row">
-                        <span>Price dispersion</span>
-                        <span>σ = $184</span>
-                      </div>
+                      {(
+                        [
+                          ['Image clarity', 'Excellent'],
+                          ['Brand signals', 'Herman Miller, Eames'],
+                          ['Condition cues', 'Light patina'],
+                          ['Sample size', `n = ${sampleN || '—'}`],
+                          ['Price dispersion', sampleN > 0 ? 'σ = $184' : '—'],
+                        ] as const
+                      ).map(([label, value], i) => (
+                        <div
+                          key={label}
+                          className={`yf-method-row ${i < visibleMethods ? 'in' : ''}`}
+                          style={{ transitionDelay: i < visibleMethods ? `${i * demoMs(50)}ms` : undefined }}
+                        >
+                          <span>{label}</span>
+                          <span>{value}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -588,17 +909,14 @@ export function Hero() {
                       </span>
                     </div>
                     <div className="yf-comps-grid">
-                      {(
-                        [
-                          ['$3,200', 'eBay'],
-                          ['$2,950', 'Chairish'],
-                          ['$3,420', '1stDibs'],
-                          ['$2,890', 'Mercari'],
-                        ] as const
-                      ).map(([price, source], i) => {
+                      {COMP_DATA.map(([price, source], i) => {
                         const img = landingImages.hero.comparables[i]
                         return (
-                          <div className="yf-comp" key={source}>
+                          <div
+                            className={`yf-comp ${i < visibleComps ? 'in' : ''}`}
+                            key={source}
+                            style={{ transitionDelay: i < visibleComps ? `${i * demoMs(70)}ms` : undefined }}
+                          >
                             <div className="yf-comp-thumb">
                               <img src={img.src} alt={img.alt} loading="lazy" decoding="async" />
                             </div>
@@ -615,24 +933,15 @@ export function Hero() {
                   </div>
 
                   <div className="yf-sources">
-                    <span className="yf-source-pill">
-                      eBay <span className="cnt">58</span>
-                    </span>
-                    <span className="yf-source-pill">
-                      Chairish <span className="cnt">31</span>
-                    </span>
-                    <span className="yf-source-pill">
-                      1stDibs <span className="cnt">24</span>
-                    </span>
-                    <span className="yf-source-pill">
-                      Mercari <span className="cnt">18</span>
-                    </span>
-                    <span className="yf-source-pill">
-                      OfferUp <span className="cnt">7</span>
-                    </span>
-                    <span className="yf-source-pill">
-                      Craigslist <span className="cnt">4</span>
-                    </span>
+                    {SOURCE_TARGETS.map((source, i) => (
+                      <span
+                        key={source.name}
+                        className={`yf-source-pill ${i < visibleSources ? 'in' : ''}`}
+                        style={{ transitionDelay: i < visibleSources ? `${i * demoMs(40)}ms` : undefined }}
+                      >
+                        {source.name} <span className="cnt">{sourceCounts[i]}</span>
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>

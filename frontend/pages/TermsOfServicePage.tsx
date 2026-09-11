@@ -47,7 +47,7 @@ const TermsOfServicePage: React.FC = () => {
             <li>Platform for listing and browsing items for sale</li>
             <li>Communication tools for buyers and sellers</li>
             <li>Payment processing services</li>
-            <li>Community features and garage sale listings</li>
+            <li>Community features</li>
             <li>AI-powered listing assistance ("Stitch")</li>
             <li>Location-based services and safe exchange zones</li>
           </ul>
@@ -161,7 +161,6 @@ const TermsOfServicePage: React.FC = () => {
               Listing individual items on YardFront is free. We may charge fees for:
             </p>
             <ul className="list-disc list-inside space-y-2 text-base text-slate-700 font-medium ml-4">
-              <li>Multi-family garage sale events</li>
               <li>Premium features or subscriptions</li>
               <li>Payment processing (if applicable)</li>
             </ul>

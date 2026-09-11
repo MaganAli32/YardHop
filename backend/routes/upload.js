@@ -57,7 +57,7 @@ router.post('/image', requireAuth, uploadLimiter, upload.single('image'), async 
     }
 
     const { bucket = 'listing-images' } = req.body;
-    const allowedBuckets = ['listing-images', 'garage-sale-images', 'community-images', 'avatars'];
+    const allowedBuckets = ['listing-images', 'community-images', 'avatars'];
 
     if (!allowedBuckets.includes(bucket)) {
       return res.status(400).json({ error: 'Invalid bucket' });
@@ -140,7 +140,7 @@ router.post('/images', requireAuth, uploadLimiter, upload.array('images', 10), a
     }
 
     const { bucket = 'listing-images' } = req.body;
-    const allowedBuckets = ['listing-images', 'garage-sale-images', 'community-images'];
+    const allowedBuckets = ['listing-images', 'community-images'];
 
     if (!allowedBuckets.includes(bucket)) {
       return res.status(400).json({ error: 'Invalid bucket' });

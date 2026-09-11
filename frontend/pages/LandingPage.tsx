@@ -1,8 +1,7 @@
 import {
   Hero,
   PullQuote,
-  HowItWorks,
-  Extension,
+  LiveCapture,
   TryIt,
   WhoItsFor,
   Developer,
@@ -17,8 +16,7 @@ export default function LandingPage() {
       <Navbar />
       <Hero />
       <PullQuote />
-      <HowItWorks />
-      <Extension />
+      <LiveCapture />
       <TryIt />
       <WhoItsFor />
       <Developer />

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { colors as c, fonts as f } from '../../lib/tokens'
+import { scrollToSection } from '../../lib/scrollToSection'
 
 const css = `
   .clo-root {
@@ -12,11 +14,21 @@ const css = `
     max-width: 800px;
     margin: 0 auto;
     padding: 0 48px;
+  }
+  .clo-inner > * {
     opacity: 0;
     transform: translateY(22px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition: opacity 0.8s cubic-bezier(0.23, 1, 0.32, 1), transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
   }
-  .clo-inner.vis { opacity: 1; transform: translateY(0); }
+  .clo-inner.vis > * { opacity: 1; transform: translateY(0); }
+  .clo-inner.vis > *:nth-child(2) { transition-delay: 0.07s; }
+  .clo-inner.vis > *:nth-child(3) { transition-delay: 0.14s; }
+  .clo-inner.vis > *:nth-child(4) { transition-delay: 0.2s; }
+  .clo-inner.vis > *:nth-child(5) { transition-delay: 0.26s; }
+  .clo-rule {
+    transform: scaleX(0);
+  }
+  .clo-inner.vis .clo-rule { transform: scaleX(1); }
   .clo-eyebrow {
     font-family: ${f.mono};
     font-size: 10px;
@@ -76,9 +88,10 @@ const css = `
     border: 0;
     cursor: pointer;
     text-decoration: none;
-    transition: background 0.2s;
+    transition: background 0.18s ease, transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
   }
   .clo-btn-primary:hover { background: ${c.terracotta}; }
+  .clo-btn-primary:active { transform: scale(0.97); }
   .clo-btn-ghost {
     font-family: ${f.mono};
     font-size: 11px;
@@ -90,11 +103,19 @@ const css = `
     padding: 16px 28px;
     text-decoration: none;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
   }
   .clo-btn-ghost:hover {
     background: ${c.forest};
     color: ${c.chalk};
+  }
+  .clo-btn-ghost:active { transform: scale(0.97); }
+  @media (prefers-reduced-motion: reduce) {
+    .clo-inner > * {
+      transform: none;
+      transition: opacity 0.3s ease;
+    }
+    .clo-rule, .clo-inner.vis .clo-rule { transform: none; }
   }
   @media (max-width: 600px) {
     .clo-inner { padding: 0 24px; }
@@ -129,8 +150,10 @@ export function Closing() {
             Free for the first hundred lookups. No card until you start loving it.
           </p>
           <div className="clo-btns">
-            <a href="/app" className="clo-btn-primary">Try it free</a>
-            <a href="/business" className="clo-btn-ghost">Talk to sales</a>
+            <button type="button" className="clo-btn-primary" onClick={() => scrollToSection('try')}>
+              Try it free
+            </button>
+            <Link to="/marketplace" className="clo-btn-ghost">Browse the marketplace</Link>
           </div>
         </div>
       </section>

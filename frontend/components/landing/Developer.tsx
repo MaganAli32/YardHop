@@ -22,7 +22,7 @@ const css = `
   .dev-reveal {
     opacity: 0;
     transform: translateY(22px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition: opacity 0.8s cubic-bezier(0.23, 1, 0.32, 1), transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
   }
   .dev-reveal.vis { opacity: 1; transform: none; }
   .dev-eyebrow {
@@ -74,7 +74,15 @@ const css = `
     gap: 12px;
     font-size: 15px;
     color: ${c.ink};
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.6s cubic-bezier(0.23, 1, 0.32, 1), transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
   }
+  .dev-reveal.vis .dev-feats li { opacity: 1; transform: none; }
+  .dev-reveal.vis .dev-feats li:nth-child(1) { transition-delay: 0.15s; }
+  .dev-reveal.vis .dev-feats li:nth-child(2) { transition-delay: 0.21s; }
+  .dev-reveal.vis .dev-feats li:nth-child(3) { transition-delay: 0.27s; }
+  .dev-reveal.vis .dev-feats li:nth-child(4) { transition-delay: 0.33s; }
   .dev-feats li::before {
     content: "";
     width: 4px;
@@ -102,9 +110,10 @@ const css = `
     cursor: pointer;
     text-decoration: none;
     display: inline-block;
-    transition: background 0.2s;
+    transition: background 0.18s ease, transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
   }
   .dev-btn-primary:hover { background: ${c.terracotta}; }
+  .dev-btn-primary:active { transform: scale(0.97); }
   .dev-btn-ghost {
     font-family: ${f.mono};
     font-size: 11px;
@@ -117,12 +126,13 @@ const css = `
     cursor: pointer;
     text-decoration: none;
     display: inline-block;
-    transition: all 0.2s;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
   }
   .dev-btn-ghost:hover {
     background: ${c.forest};
     color: ${c.chalk};
   }
+  .dev-btn-ghost:active { transform: scale(0.97); }
   .codeblock {
     background: ${c.forest};
     color: #c8d4c9;
@@ -156,12 +166,22 @@ const css = `
     letter-spacing: 0.18em;
     cursor: pointer;
     text-transform: uppercase;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s cubic-bezier(0.23, 1, 0.32, 1);
   }
+  .codeblock .cb-head .copy:hover { color: ${c.terracottaWarm}; border-color: ${c.terracottaWarm}; }
+  .codeblock .cb-head .copy:active { transform: scale(0.94); }
+  .codeblock .cb-head .copy.copied { color: ${c.terracottaWarm}; border-color: ${c.terracottaWarm}; }
   .codeblock .kw { color: #d28f6e; }
   .codeblock .str { color: #b6c9b7; }
   .codeblock .num { color: #e0b26e; }
   .codeblock .dim { color: ${c.forestSoft}; }
   .codeblock pre { margin: 0; white-space: pre; overflow-x: auto; }
+  .codeblock pre {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.7s cubic-bezier(0.23, 1, 0.32, 1) 0.25s, transform 0.7s cubic-bezier(0.23, 1, 0.32, 1) 0.25s;
+  }
+  .dev-reveal.vis .codeblock pre { opacity: 1; transform: none; }
   .dev-response {
     margin-top: 24px;
     background: #112014;
@@ -172,10 +192,20 @@ const css = `
     line-height: 1.7;
     border-top: 2px solid ${c.terracotta};
     overflow-x: auto;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.7s cubic-bezier(0.23, 1, 0.32, 1) 0.55s, transform 0.7s cubic-bezier(0.23, 1, 0.32, 1) 0.55s;
   }
+  .dev-reveal.vis .dev-response { opacity: 1; transform: none; }
   .dev-response .l { color: ${c.forestMuted}; }
   .dev-response .s { color: ${c.terracottaWarm}; }
   .dev-response .n { color: #e0b26e; }
+  @media (prefers-reduced-motion: reduce) {
+    .dev-reveal, .dev-feats li, .codeblock pre, .dev-response {
+      transform: none;
+      transition: opacity 0.3s ease;
+    }
+  }
   @media (max-width: 1000px) {
     .dev-container { padding: 0 24px; }
     .dev-grid { grid-template-columns: 1fr; }
@@ -245,10 +275,10 @@ export function Developer() {
                 <li>SOC 2 Type II, GDPR, and rate-limited by keys; enterprise SLAs available.</li>
               </ul>
               <div className="dev-actions">
-                <Link to="/business" className="dev-btn-primary">
+                <Link to="/developers" className="dev-btn-primary">
                   Read the docs
                 </Link>
-                <Link to="/business#pricing" className="dev-btn-ghost">
+                <Link to="/developers" className="dev-btn-ghost">
                   Get an API key
                 </Link>
               </div>
@@ -258,7 +288,7 @@ export function Developer() {
               <div className="codeblock">
                 <div className="cb-head">
                   <span>POST · /v1/appraise</span>
-                  <button type="button" className="copy" onClick={copyCode}>
+                  <button type="button" className={`copy ${copied ? 'copied' : ''}`} onClick={copyCode}>
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>

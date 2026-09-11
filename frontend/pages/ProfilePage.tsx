@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePersistence } from '../store/PersistenceContext';
 import { productsApi, uploadApi, dashboardApi } from '../lib/api';
-import { Product, GarageSale } from '../types';
+import { Product } from '../types';
 import { MapPin, CheckCircle2, Shield, Settings, LogOut, Plus, Camera } from 'lucide-react';
 
 const ProfilePage: React.FC = () => {
@@ -13,7 +13,6 @@ const ProfilePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('My Garage');
   const [isEditing, setIsEditing] = useState(false);
   const [myProducts, setMyProducts] = useState<Product[]>([]);
-  const [mySales, setMySales] = useState<GarageSale[]>([]);
   const [appraisals, setAppraisals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -84,31 +83,6 @@ const ProfilePage: React.FC = () => {
           setMyProducts([]);
         }
 
-        // Fetch user's garage sales using the user-specific endpoint
-        try {
-          const API_BASE = import.meta.env.VITE_API_BASE || '/api';
-          const salesResponse = await fetch(`${API_BASE}/sales/user/${userId}`, {
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          if (salesResponse.ok) {
-            const sales = await salesResponse.json();
-            // Filter out cancelled sales
-            const activeSales = Array.isArray(sales) 
-              ? sales.filter((s: GarageSale) => (s as any).status !== 'cancelled')
-              : [];
-            setMySales(activeSales);
-          } else {
-            setMySales([]);
-          }
-        } catch (err) {
-          console.error('Failed to fetch sales:', err);
-          setMySales([]);
-        }
-
         // Fetch user appraisal history
         try {
           const appraisalsRes = await dashboardApi.appraisals();
@@ -130,11 +104,7 @@ const ProfilePage: React.FC = () => {
   // Filter out sold and deleted items from "My Garage" view
   const activeProducts = myProducts.filter(item => item.status === 'active' || item.status === 'reserved');
   
-  // Filter out cancelled garage sales
-  const activeSales = mySales.filter(sale => sale.status !== 'cancelled');
-  
-  // Combine both for total count
-  const totalListings = activeProducts.length + activeSales.length;
+  const totalListings = activeProducts.length;
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -422,91 +392,6 @@ const ProfilePage: React.FC = () => {
                                 <span className="text-[19px] font-semibold text-[#1A1A18] shrink-0">${item.price}</span>
                              </div>
                           </Link>
-                         );
-                       })}
-                       
-                       {/* Display Garage Sales */}
-                       {activeSales.map(sale => {
-                         // Extract image using the same logic as other pages
-                         const getSaleImage = (): string => {
-                           // If there's already an image field with a value
-                           if (sale.image && typeof sale.image === 'string' && sale.image.trim() !== '') {
-                             return sale.image;
-                           }
-                           
-                           // If images is an array, extract from it
-                           if (Array.isArray((sale as any).images) && (sale as any).images.length > 0) {
-                             // Sort by is_primary first, then by order_index
-                             const sorted = [...(sale as any).images].sort((a: any, b: any) => {
-                               if (a?.is_primary && !b?.is_primary) return -1;
-                               if (!a?.is_primary && b?.is_primary) return 1;
-                               return (a?.order_index || 0) - (b?.order_index || 0);
-                             });
-                             
-                             const first = sorted[0];
-                             
-                             // If it's a string
-                             if (typeof first === 'string' && first.trim() !== '') {
-                               return first;
-                             }
-                             
-                             // If it's an object with url property
-                             if (first && typeof first === 'object' && first.url) {
-                               return first.url;
-                             }
-                           }
-                           
-                           // Check for image_url property
-                           if ((sale as any).image_url && typeof (sale as any).image_url === 'string') {
-                             return (sale as any).image_url;
-                           }
-                           
-                           return 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop';
-                         };
-                         
-                         const displayImage = getSaleImage();
-                         
-                         // Format date and time
-                         const formatDate = (dateStr: string) => {
-                           if (!dateStr) return '';
-                           const date = new Date(dateStr);
-                           return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                         };
-                         
-                         const formatTime = (timeStr: string) => {
-                           if (!timeStr) return '';
-                           return timeStr.slice(0, 5); // HH:MM format
-                         };
-                         
-                         const startDate = (sale as any).start_date ? formatDate((sale as any).start_date) : sale.date || '';
-                         const startTime = (sale as any).start_time ? formatTime((sale as any).start_time) : sale.time || '';
-                         const address = (sale as any).address || sale.display_text || '';
-                         
-                         return (
-                          <article
-                            key={sale.id}
-                            className="group bg-[#FAF7F2] rounded-sm overflow-hidden border border-[#DCCFBE] shadow-[0_6px_20px_rgba(26,26,24,0.06)]"
-                          >
-                             <div className="aspect-[4/3] relative bg-[#EFE8DD] border-b border-[#E2D8C8]">
-                                <img src={displayImage} alt={sale.title} className="w-full h-full object-cover" />
-                                <div className="absolute top-3 left-3">
-                                   <span className="px-2.5 py-1 bg-[#1A2A1C] text-[#F0EAE0] text-[9px] font-semibold uppercase tracking-[0.12em] rounded-sm">
-                                      Garage sale
-                                   </span>
-                                </div>
-                             </div>
-                             <div className="p-5">
-                                <h4 className="font-['Cormorant_Garamond'] text-[22px] font-light text-[#1A1A18] mb-2 leading-tight">{sale.title}</h4>
-                                {startDate && (
-                                   <p className="text-[11px] font-medium text-[#6B7A6D] mb-1">
-                                      {startDate} {startTime && `· ${startTime}`}
-                                   </p>
-                                )}
-                                {address && (
-                                   <p className="text-[12px] text-[#8D8478] truncate">{address}</p>
-                                )}
-                             </div>
-                          </article>
                          );
                        })}
                        

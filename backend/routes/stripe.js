@@ -4,14 +4,16 @@ import { createClient } from '@supabase/supabase-js';
 
 const router = express.Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-18.acacia',
-});
+// Lazily-safe initialization: constructing Stripe/Supabase clients with empty
+// credentials throws at import time and would crash the whole server.
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-12-18.acacia' })
+  : null;
 
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ''
-);
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+const supabaseAdmin = (process.env.SUPABASE_URL && supabaseServiceKey)
+  ? createClient(process.env.SUPABASE_URL, supabaseServiceKey)
+  : null;
 
 const APP_URL = process.env.APP_URL || process.env.FRONTEND_URL || 'https://yardfrontend.com';
 
@@ -39,7 +41,7 @@ async function getUserFromAuthHeader(authHeader) {
 
 router.post('/create-checkout', async (req, res) => {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
+    if (!stripe || !supabaseAdmin) {
       return res.status(503).json({ error: 'Stripe is not configured' });
     }
 
@@ -99,7 +101,7 @@ router.post('/create-checkout', async (req, res) => {
 
 router.post('/create-portal', async (req, res) => {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
+    if (!stripe || !supabaseAdmin) {
       return res.status(503).json({ error: 'Stripe is not configured' });
     }
 
@@ -129,6 +131,11 @@ router.post('/create-portal', async (req, res) => {
 });
 
 router.post('/webhook', async (req, res) => {
+  if (!stripe || !supabaseAdmin || !process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('Stripe billing webhook not configured');
+    return res.status(503).json({ error: 'Webhook not configured' });
+  }
+
   const sig = req.headers['stripe-signature'];
 
   let event;

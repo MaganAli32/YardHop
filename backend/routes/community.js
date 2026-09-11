@@ -25,7 +25,7 @@ router.get('/', optionalAuth, async (req, res) => {
       .select(`
         *,
         author:profiles!author_id(id, name, avatar_url),
-        images:community_post_images(id, url, order_index),
+        images:community_post_images(id, url),
         likes:post_likes(count),
         comments:post_comments(count)
       `, { count: 'exact' })
@@ -83,7 +83,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
       .select(`
         *,
         author:profiles!author_id(id, name, avatar_url, bio),
-        images:community_post_images(id, url, order_index),
+        images:community_post_images(id, url),
         comments:post_comments(
           id, content, created_at,
           author:profiles!author_id(id, name, avatar_url)
@@ -146,10 +146,11 @@ router.post('/', requireAuth, validate(schemas.createPost), async (req, res) => 
     if (error) throw error;
 
     if (image_urls?.length > 0) {
-      const images = image_urls.map((url, index) => ({
+      // Note: live DB's community_post_images has no order_index column
+      // (created from database/schema/schema.sql); insertion order is preserved.
+      const images = image_urls.map((url) => ({
         post_id: post.id,
         url,
-        order_index: index,
       }));
       await req.supabase.from('community_post_images').insert(images);
     }

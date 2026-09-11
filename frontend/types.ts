@@ -84,31 +84,6 @@ export interface Product {
 
 export type LocationPrivacy = 'exact' | 'neighborhood' | 'city';
 
-export interface GarageSale {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  description: string;
-  image: string;
-  tags: string[];
-  // Date/time (API format)
-  start_date?: string;
-  start_time?: string;
-  // Location privacy fields
-  latitude?: number;
-  longitude?: number;
-  address?: string;
-  location_privacy?: LocationPrivacy;
-  display_latitude?: number;
-  display_longitude?: number;
-  display_text?: string;
-  privacy_radius_meters?: number;
-  distance?: string;
-  // Multiple images
-  images?: Array<{ url: string; is_primary?: boolean }>;
-}
-
 export interface CommunityPost {
   id: string;
   authorName: string;

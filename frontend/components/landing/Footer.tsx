@@ -1,4 +1,6 @@
+import { Link, useNavigate } from 'react-router-dom'
 import { colors as c, fonts as f } from '../../lib/tokens'
+import { scrollToSection } from '../../lib/scrollToSection'
 
 const css = `
   .ft-root {
@@ -59,19 +61,40 @@ const css = `
     margin: 0 0 18px;
     font-weight: 400;
   }
-  .ft-col a {
+  .ft-col a,
+  .ft-col button {
     display: block;
     padding: 6px 0;
     font-size: 14px;
+    font-family: ${f.sans};
     color: ${c.chalk};
     opacity: 0.78;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: color 0.18s ease, opacity 0.18s ease, transform 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
   }
-  .ft-col a:hover {
+  .ft-col a:hover,
+  .ft-col button:hover {
     color: ${c.terracottaWarm};
     opacity: 1;
   }
+  @media (hover: hover) and (pointer: fine) {
+    .ft-col a:hover,
+    .ft-col button:hover { transform: translateX(3px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ft-col a:hover,
+    .ft-col button:hover { transform: none; }
+  }
+  .ft-legal a {
+    color: ${c.forestMuted};
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .ft-legal a:hover { color: ${c.terracottaWarm}; }
   .ft-legal {
     display: flex;
     justify-content: space-between;
@@ -94,6 +117,18 @@ const css = `
 `
 
 export function Footer() {
+  const navigate = useNavigate()
+
+  /** Navigate to a route, then smooth-scroll to an in-page section once it mounts. */
+  const goTo = (path: string, sectionId?: string) => {
+    navigate(path)
+    if (sectionId) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => scrollToSection(sectionId))
+      })
+    }
+  }
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
@@ -101,10 +136,10 @@ export function Footer() {
         <div className="ft-inner">
           <div className="ft-grid">
             <div>
-              <a href="/" className="ft-brand">
+              <Link to="/" className="ft-brand">
                 <span className="dot" />
                 YardFront
-              </a>
+              </Link>
               <div className="ft-tag">
                 Price intelligence for the $50B secondhand market. One photograph in. A defensible number out.
               </div>
@@ -112,29 +147,32 @@ export function Footer() {
             </div>
             <div className="ft-col">
               <h5>Product</h5>
-              <a href="/app">Appraise</a>
-              <a href="/extension">Chrome extension</a>
-              <a href="/marketplace">Marketplace</a>
-              <a href="/#pricing">Pricing</a>
+              <button type="button" onClick={() => goTo('/', 'try')}>Appraise</button>
+              <Link to="/extension">Chrome extension</Link>
+              <Link to="/marketplace">Marketplace</Link>
+              <button type="button" onClick={() => goTo('/developers', 'pricing')}>Pricing</button>
+              <Link to="/beta">Join the beta</Link>
             </div>
             <div className="ft-col">
               <h5>Developers</h5>
-              <a href="/business">API docs</a>
-              <a href="/business">SDKs</a>
-              <a href="/dashboard">Status</a>
-              <a href="/business">Changelog</a>
+              <button type="button" onClick={() => goTo('/developers', 'endpoints')}>API docs</button>
+              <Link to="/developers">SDKs</Link>
+              <Link to="/dashboard">Status</Link>
+              <Link to="/developers">Changelog</Link>
             </div>
             <div className="ft-col">
               <h5>Company</h5>
-              <a href="/about">About</a>
-              <a href="/about">Manifesto</a>
-              <a href="/business">Careers</a>
-              <a href="/business#contact">Contact</a>
+              <Link to="/about">About</Link>
+              <Link to="/about">Manifesto</Link>
+              <Link to="/business">Careers</Link>
+              <Link to="/business">Contact</Link>
             </div>
           </div>
           <div className="ft-legal">
             <span>© 2026 YardFront, Inc.</span>
-            <span>Privacy · Terms · Responsible sourcing</span>
+            <span>
+              <Link to="/privacy-policy">Privacy</Link> · <Link to="/terms-of-service">Terms</Link> · Responsible sourcing
+            </span>
           </div>
         </div>
       </footer>

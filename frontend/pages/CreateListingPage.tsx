@@ -4,6 +4,8 @@ import Navbar from '../components/Navbar';
 import PriceBadge, { getPriceBadgeType } from '../components/PriceBadge';
 import { marketplaceApi, uploadApi } from '../lib/api';
 import { usePersistence } from '../store/PersistenceContext';
+import { getFileFromBlobUrl } from '../lib/fileUtils';
+import { loadAppraisalResult } from '../lib/appraisalSession';
 import { Upload, X } from 'lucide-react';
 
 const CATEGORIES = [
@@ -20,6 +22,19 @@ const CATEGORIES = [
 
 const CONDITIONS = ['New', 'Like New', 'Good', 'Fair'];
 
+function dataUrlToFile(dataUrl: string, filename = 'appraisal-photo.jpg'): File {
+  const [header, base64] = dataUrl.split(',');
+  const mime = header.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
+  const bin = atob(base64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], filename, { type: mime });
+}
+
+function isLocalImage(url: string) {
+  return url.startsWith('data:') || url.startsWith('blob:');
+}
+
 interface PrefillState {
   fromAppraisal: boolean;
   appraisalId?: string;
@@ -32,7 +47,9 @@ interface PrefillState {
   priceHigh?: number;
   confidenceScore?: number;
   imageUrl?: string;
+  imageUrls?: string[];
   sources?: Record<string, unknown>;
+  sourcesCount?: number;
 }
 
 export default function CreateListingPage() {
@@ -47,7 +64,7 @@ export default function CreateListingPage() {
   const [condition, setCondition] = useState('');
   const [askingPrice, setAskingPrice] = useState<string>('');
   const [images, setImages] = useState<string[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageFiles, setImageFiles] = useState<(File | null)[]>([]);
   const [locationText, setLocationText] = useState('');
   const [shipping, setShipping] = useState<'local' | 'shipping' | 'both'>('local');
   const [submitting, setSubmitting] = useState(false);
@@ -66,36 +83,89 @@ export default function CreateListingPage() {
     : 0);
 
   useEffect(() => {
-    if (state) {
-      setTitle(state.title ?? '');
-      setDescription(state.description ?? '');
-      setCategory(state.category ?? '');
-      setCondition(state.condition ?? '');
-      setAskingPrice(String(state.recommendedPrice ?? ''));
-      if (state.imageUrl) setImages([state.imageUrl]);
-    }
+    if (!state) return;
+
+    setTitle(state.title ?? '');
+    setDescription(state.description ?? '');
+    setCategory(state.category ?? '');
+    setCondition(state.condition ?? '');
+    setAskingPrice(String(state.recommendedPrice ?? ''));
+
+    let cancelled = false;
+    (async () => {
+      let imgs = (state.imageUrls ?? []).slice(0, 5);
+      if (!imgs.length && state.imageUrl) imgs = [state.imageUrl];
+
+      const session = await loadAppraisalResult();
+      if (cancelled) return;
+      if (!imgs.length) imgs = (session?.imageUrls ?? []).slice(0, 5);
+
+      if (!imgs.length) return;
+
+      const files = await Promise.all(
+        imgs.map(async (url, i) => {
+          if (i === 0 && session?.imageFile) return session.imageFile;
+          if (url.startsWith('blob:')) {
+            try {
+              return await getFileFromBlobUrl(url);
+            } catch {
+              return null;
+            }
+          }
+          if (url.startsWith('data:')) return dataUrlToFile(url);
+          return null;
+        })
+      );
+      if (cancelled) return;
+      setImages(imgs);
+      setImageFiles(files);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [state]);
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []);
+      const files = Array.from(e.target.files ?? []) as File[];
       if (files.length === 0) return;
-      const toAdd = files.slice(0, 5 - images.length);
+      const slotsLeft = 5 - images.length;
+      const toAdd = files.slice(0, slotsLeft);
       if (toAdd.length === 0) return;
 
-      if (!authToken) {
-        setError('Please sign in to upload photos.');
-        return;
-      }
-
       setError(null);
-      try {
-        const results = await uploadApi.uploadImages(toAdd, 'listing-images');
-        const urls = results.uploaded?.map((r: { url: string }) => r.url) ?? [];
-        setImages((prev) => [...prev, ...urls].slice(0, 5));
-        setImageFiles((prev) => [...prev, ...toAdd].slice(0, 5));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed');
+      const previews = toAdd.map((file) => URL.createObjectURL(file));
+      const startIndex = images.length;
+      setImages((prev) => [...prev, ...previews].slice(0, 5));
+      setImageFiles((prev) => [...prev, ...toAdd].slice(0, 5));
+
+      if (authToken) {
+        try {
+          const results = await uploadApi.uploadImages(toAdd, 'listing-images');
+          const urls = results.uploaded?.map((r: { url: string }) => r.url) ?? [];
+          setImages((prev) => {
+            const next = [...prev];
+            urls.forEach((url, i) => {
+              const idx = startIndex + i;
+              if (idx < next.length) {
+                if (next[idx]?.startsWith('blob:')) URL.revokeObjectURL(next[idx]);
+                next[idx] = url;
+              }
+            });
+            return next.slice(0, 5);
+          });
+          setImageFiles((prev) => {
+            const next = [...prev];
+            urls.forEach((_, i) => {
+              const idx = startIndex + i;
+              if (idx < next.length) next[idx] = null;
+            });
+            return next.slice(0, 5);
+          });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Upload failed');
+        }
       }
       e.target.value = '';
     },
@@ -103,8 +173,32 @@ export default function CreateListingPage() {
   );
 
   const removeImage = (index: number) => {
+    const preview = images[index];
+    if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
     setImages((prev) => prev.filter((_, i) => i !== index));
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const resolveImageUrls = async (): Promise<string[]> => {
+    const resolved: string[] = [];
+    for (let i = 0; i < images.length; i++) {
+      const preview = images[i];
+      const file = imageFiles[i];
+      if (file) {
+        const result = await uploadApi.uploadImage(file, 'listing-images');
+        resolved.push(result.url);
+      } else if (preview.startsWith('data:')) {
+        const result = await uploadApi.uploadImage(dataUrlToFile(preview), 'listing-images');
+        resolved.push(result.url);
+      } else if (preview.startsWith('blob:')) {
+        const blobFile = await getFileFromBlobUrl(preview);
+        const result = await uploadApi.uploadImage(blobFile, 'listing-images');
+        resolved.push(result.url);
+      } else if (!isLocalImage(preview)) {
+        resolved.push(preview);
+      }
+    }
+    return resolved;
   };
 
   const handleSubmit = async () => {
@@ -138,13 +232,14 @@ export default function CreateListingPage() {
     setError(null);
     setSubmitting(true);
     try {
+      const uploadedImages = await resolveImageUrls();
       const listing = await marketplaceApi.create({
         title: title.trim(),
         description: description.trim() || undefined,
         category,
         condition,
         asking_price: price,
-        images,
+        images: uploadedImages,
         location: locationText.trim() || undefined,
         shipping,
         appraisal_id: appraisalId || undefined,
@@ -187,19 +282,32 @@ export default function CreateListingPage() {
               <label className="block border border-[#DED3C3] rounded-sm bg-[#FAF7F2] p-10 text-center cursor-pointer hover:border-[#A49A8C]">
                 <Upload className="w-5 h-5 mx-auto text-[#9E8B6F]" />
                 <p className="text-[13px] text-[#7A7268] mt-2">Drop photos here or <span className="text-[#1A1A18] font-semibold">browse</span></p>
-                <p className="text-[11px] text-[#9E8B6F] mt-1">Up to 5 photos</p>
-                <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
+                <p className="text-[11px] text-[#9E8B6F] mt-1">
+                  {images.length > 0 ? `${images.length} of 5 photos` : 'Up to 5 photos'}
+                  {fromAppraisal && images.length > 0 ? ' · appraisal photo included' : ''}
+                </p>
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} disabled={images.length >= 5} />
               </label>
-              <div className="flex gap-1.5 mt-2.5">
+              <div className="flex gap-1.5 mt-2.5 flex-wrap">
                 {images.map((url, i) => (
-                  <div key={i} className="relative w-14 h-14 rounded-sm overflow-hidden bg-[#EFE8DD] border border-[#DED3C3] group">
-                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  <div key={`${url.slice(0, 32)}-${i}`} className="relative w-14 h-14 rounded-sm overflow-hidden bg-[#EFE8DD] border border-[#DED3C3] group">
+                    <img src={url} alt={`Listing photo ${i + 1}`} className="w-full h-full object-cover" />
+                    {i === 0 && (
+                      <span className="absolute bottom-0 left-0 right-0 bg-black/55 text-white text-[8px] uppercase tracking-wider text-center py-0.5">
+                        Cover
+                      </span>
+                    )}
                     <button type="button" onClick={() => removeImage(i)} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
                       <X size={14} className="text-white" />
                     </button>
                   </div>
                 ))}
-                {images.length < 5 && <div className="w-14 h-14 rounded-sm bg-[#EFE8DD] border border-[#DED3C3] flex items-center justify-center text-[#9E8B6F]"><Upload size={12} /></div>}
+                {images.length < 5 && (
+                  <label className="w-14 h-14 rounded-sm bg-[#EFE8DD] border border-[#DED3C3] flex items-center justify-center text-[#9E8B6F] cursor-pointer hover:border-[#A49A8C]">
+                    <Upload size={12} />
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
+                  </label>
+                )}
               </div>
             </div>
 
