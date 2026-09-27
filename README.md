@@ -33,7 +33,7 @@ npm start
 - **Backend:** Node, Express
 - **DB/Auth:** Supabase (Postgres, Auth, Storage)
 - **Payments:** Stripe
-- **AI:** Google Gemini (price suggestions)
+- **AI:** Google Gemini appraisal pipeline (identify → verify → comps → price → listing); see [docs/project/APPRAISAL_PIPELINE.md](./docs/project/APPRAISAL_PIPELINE.md)
 
 ## Scripts
 
@@ -43,4 +43,6 @@ npm start
 | `npm run dev:api` | Backend API (3000)          |
 | `npm run build`| Build frontend → `frontend/dist` |
 | `npm start`    | Serve API + static frontend    |
+| `npm test`     | Backend unit + mocked pipeline tests |
+| `npm run appraise:eval -- photo.jpg` | Run the real appraisal pipeline on local photos |
 | `npm run deploy` | Build + PM2 start/restart   |

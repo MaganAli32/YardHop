@@ -13,7 +13,9 @@
     "build": "cd frontend && vite build",
     "preview": "cd frontend && vite preview",
     "start": "node backend/server.js",
-    "dev:server": "cd frontend && vite build && cd .. && node backend/server.js"
+    "dev:server": "cd frontend && vite build && cd .. && node backend/server.js",
+    "test": "node --test backend/tests/*.test.mjs",
+    "appraise:eval": "node backend/scripts/appraise-eval.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",

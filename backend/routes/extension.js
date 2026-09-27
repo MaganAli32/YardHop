@@ -1,19 +1,20 @@
 /**
  * Extension API routes: full appraisal (image URL) and quick appraisal (Gemini-only).
  * Auth: Bearer token required (requireAuth).
- * Does not modify routes/appraise.js; duplicates needed logic here.
+ * Full appraisals run the shared pipeline in services/appraisal (same as /api/appraise).
  */
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
-import { fetchAllPricingSources, describePricingSources, computeMarketPrice } from '../services/pricing.js';
+import { runAppraisal } from '../services/appraisal/index.js';
+import { buildAppraisalRow } from './appraise.js';
+import { fetchGroundedComps, fetchEbaySold } from '../services/appraisal/comps.js';
+import { computeMarketPrice } from '../services/appraisal/price.js';
 
 const router = express.Router();
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
-// temperature 0 makes identification/synthesis deterministic for a given input.
-const DETERMINISTIC_CONFIG = { temperature: 0, topP: 0, topK: 1 };
 const supabaseAdmin = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY)
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY)
   : null;
@@ -28,159 +29,7 @@ function startOfMonthIso() {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
 }
 
-// --- Duplicated helpers (from appraise flow, not importing to avoid touching appraise.js) ---
-
-async function identifyItemWithGemini(input) {
-  if (!genAI) return null;
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
-  const prompt = `You are an expert appraiser. Analyze this item and return ONLY a JSON object with no markdown, no explanation, just raw JSON.
-Return this exact structure:
-{
-  "name": "Full item name including brand and model if identifiable",
-  "brand": "Brand name or null",
-  "category": "Category (e.g. Electronics, Furniture, Clothing)",
-  "condition": "One of: Like New, Good, Fair, Poor",
-  "searchQuery": "3-5 word search query for eBay",
-  "description": "One sentence describing the item"
-}`;
-  try {
-    let result;
-    if (input.type === 'image') {
-      result = await model.generateContent([
-        prompt,
-        { inlineData: { mimeType: input.mimeType, data: input.data } },
-      ]);
-    } else {
-      result = await model.generateContent(`${prompt}\n\nItem description: ${input.text}`);
-    }
-    if (!result?.response) return null;
-    const rawText = result.response.text();
-    const text = (typeof rawText === 'string' ? rawText : String(rawText)).trim();
-    const clean = text.replace(/```json|```/g, '').trim();
-    let parsed = null;
-    try {
-      parsed = JSON.parse(clean);
-    } catch (_) {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) try { parsed = JSON.parse(match[0]); } catch (__) {}
-    }
-    if (!parsed || typeof parsed.name !== 'string') return null;
-    return parsed;
-  } catch (err) {
-    console.error('Extension Gemini identification error:', err.message);
-    return null;
-  }
-}
-
-async function synthesizeAppraisalWithGemini(itemData, pricingSources) {
-  if (!genAI) return null;
-  // Prices computed deterministically; LLM only writes summary + tips.
-  const computed = computeMarketPrice(pricingSources, itemData.condition);
-  if (!computed) return null;
-
-  const defaultSummary = `Based on ${computed.sourcesCount} comparable listing${computed.sourcesCount === 1 ? '' : 's'} from live market search.`;
-  const defaultTips = [
-    'Use clear, well-lit photos from multiple angles to support your price.',
-    'Mention brand, model, and condition details buyers search for.',
-    `Price near $${computed.priceFair.toLocaleString()} for a quicker sale.`,
-  ];
-  const withComputed = (extra) => ({
-    priceFair: computed.priceFair,
-    priceLow: computed.priceLow,
-    priceHigh: computed.priceHigh,
-    confidenceScore: computed.confidenceScore,
-    sourcesCount: computed.sourcesCount,
-    sourcesSummary: defaultSummary,
-    sellerTips: defaultTips,
-    ...extra,
-  });
-
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
-  const sourceSummary = describePricingSources(pricingSources.filter(Boolean));
-  const prompt = `The recommended price has ALREADY been computed: fair $${computed.priceFair}, range $${computed.priceLow}–$${computed.priceHigh}, from ${computed.sourcesCount} data points.
-
-Item: ${itemData.name}
-Condition: ${itemData.condition}
-Category: ${itemData.category}
-
-Comparable listings:
-${sourceSummary}
-
-Write ONLY a JSON object, no markdown. Do NOT change the prices:
-{
-  "sourcesSummary": "One factual sentence about what the estimate is based on.",
-  "sellerTips": ["specific tip 1", "tip 2", "tip 3"]
-}`;
-  try {
-    const result = await model.generateContent(prompt);
-    if (!result?.response) return withComputed();
-    const text = (result.response.text() || '').trim().replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(text);
-    return withComputed({
-      sourcesSummary: typeof parsed?.sourcesSummary === 'string' && parsed.sourcesSummary.trim()
-        ? parsed.sourcesSummary.trim()
-        : defaultSummary,
-      sellerTips: Array.isArray(parsed?.sellerTips) && parsed.sellerTips.length
-        ? parsed.sellerTips.slice(0, 3)
-        : defaultTips,
-    });
-  } catch (err) {
-    console.error('Extension Gemini synthesis error:', err.message);
-    return withComputed();
-  }
-}
-
-async function synthesizeAppraisalFromKnowledgeOnly(itemData) {
-  if (!genAI) return null;
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: DETERMINISTIC_CONFIG });
-  const prompt = `You are a secondhand market appraiser. We have NO live pricing data. Estimate a fair resale price.
-
-Item: ${itemData.name}
-Category: ${itemData.category}
-Condition: ${itemData.condition}
-
-Return ONLY a JSON object:
-{
-  "priceFair": <number>,
-  "priceLow": <number>,
-  "priceHigh": <number>,
-  "confidenceScore": 30,
-  "sourcesSummary": "No market data available; estimate based on general knowledge.",
-  "sourcesCount": 0,
-  "sellerTips": ["tip 1", "tip 2", "tip 3"]
-}
-Keep confidenceScore exactly 30.`;
-  try {
-    const result = await model.generateContent(prompt);
-    if (!result?.response) return null;
-    const text = (result.response.text() || '').trim().replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed.priceFair === 'number') return parsed;
-    return null;
-  } catch (err) {
-    console.error('Extension knowledge-only synthesis error:', err.message);
-    return null;
-  }
-}
-
-const FALLBACK_ITEM = {
-  name: 'Unidentified item',
-  brand: null,
-  category: 'General',
-  condition: 'Good',
-  searchQuery: 'miscellaneous secondhand',
-  description: 'Item could not be fully identified.',
-};
-
-const FALLBACK_SYNTHESIS = {
-  priceFair: 50,
-  priceLow: 25,
-  priceHigh: 100,
-  confidenceScore: 15,
-  sourcesSummary: 'Limited data; estimate based on generic secondhand market.',
-  sourcesCount: 0,
-  sellerTips: ['Take clear photos.', 'Compare on eBay or Craigslist.', 'Condition affects value.'],
-};
+// --- Shared appraisal pipeline (services/appraisal) ---
 
 function verdictFromPrice(askingPrice, low, high) {
   if (askingPrice == null || low == null || high == null) return null;
@@ -219,78 +68,53 @@ router.post('/extension', requireAuth, async (req, res) => {
       });
     }
 
-    const { title, askingPrice, imageUrl, platform } = req.body || {};
+    const { title, askingPrice, imageUrl, platform, condition } = req.body || {};
 
     if (!title && !imageUrl) {
       return res.status(400).json({ error: 'Title or image URL required' });
     }
 
-    let itemData = null;
-
+    const images = [];
     if (imageUrl) {
-      const imageResponse = await fetch(imageUrl);
+      const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
       if (!imageResponse.ok) {
         return res.status(400).json({ error: 'Failed to fetch image from URL' });
       }
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-      const base64 = imageBuffer.toString('base64');
-      const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
-      itemData = await identifyItemWithGemini({
-        type: 'image',
-        mimeType: mimeType.split(';')[0].trim(),
-        data: base64,
-      });
-    } else {
-      itemData = await identifyItemWithGemini({
-        type: 'text',
-        text: title,
-      });
+      const buffer = Buffer.from(await imageResponse.arrayBuffer());
+      const mimeType = (imageResponse.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
+      images.push({ buffer, mimeType, filename: imageUrl.split('/').pop() });
     }
 
-    if (!itemData) itemData = { ...FALLBACK_ITEM };
-    if (title && !itemData.name) itemData.name = title;
+    const result = await runAppraisal({
+      images,
+      text: images.length ? undefined : title,
+      hint: images.length ? [title, platform ? `listed on ${platform}` : null].filter(Boolean).join(' — ') : undefined,
+      condition,
+    });
+    const itemData = result.identification;
+    const synthesis = result.pricing;
 
-    const query = itemData.searchQuery || itemData.name || title;
-    const pricingSources = await fetchAllPricingSources(query);
-
-    let synthesis =
-      pricingSources.length > 0
-        ? await synthesizeAppraisalWithGemini(itemData, pricingSources)
-        : await synthesizeAppraisalFromKnowledgeOnly(itemData);
-    if (!synthesis) synthesis = { ...FALLBACK_SYNTHESIS };
-
-    const verdict = verdictFromPrice(
-      askingPrice != null ? Number(askingPrice) : null,
-      synthesis.priceLow,
-      synthesis.priceHigh,
-    );
+    const verdict = synthesis
+      ? verdictFromPrice(
+          askingPrice != null ? Number(askingPrice) : null,
+          synthesis.priceLow,
+          synthesis.priceHigh,
+        )
+      : 'unknown';
 
     let savedId = null;
     if (supabaseAdmin && req.user?.id) {
-      const { data: saved, error: dbError } = await supabaseAdmin
-        .from('appraisals')
-        .insert({
-          user_id: req.user.id,
-          ip_address: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim() || null,
-          fingerprint: null,
-          is_free: true,
-          item_name: itemData.name,
-          item_brand: itemData.brand ?? null,
-          item_category: itemData.category ?? null,
-          item_condition: itemData.condition ?? null,
-          item_description: itemData.description ?? null,
-          input_type: imageUrl ? 'photo' : 'text',
-          price_fair: synthesis.priceFair,
-          price_low: synthesis.priceLow,
-          price_high: synthesis.priceHigh,
-          confidence_score: synthesis.confidenceScore,
-          sources_summary: synthesis.sourcesSummary,
-          sources_count: synthesis.sourcesCount,
-          seller_tips: synthesis.sellerTips ?? null,
-          raw_sources: pricingSources,
-        })
-        .select('id')
-        .single();
+      const { legacy, v2 } = buildAppraisalRow(result, {
+        userId: req.user.id,
+        ip: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim() || null,
+        fingerprint: null,
+        inputType: imageUrl ? 'photo' : 'text',
+        hint: title || null,
+      });
+      let { data: saved, error: dbError } = await supabaseAdmin.from('appraisals').insert({ ...legacy, ...v2 }).select('id').single();
+      if (dbError && /column|schema cache/i.test(dbError.message || '')) {
+        ({ data: saved, error: dbError } = await supabaseAdmin.from('appraisals').insert(legacy).select('id').single());
+      }
       if (!dbError && saved?.id) savedId = saved.id;
     }
 
@@ -299,14 +123,16 @@ router.post('/extension', requireAuth, async (req, res) => {
 
     res.json({
       verdict,
+      status: result.status,
+      message: result.message,
       title: itemData.name || title,
-      marketRange: {
-        low: synthesis.priceLow,
-        high: synthesis.priceHigh,
-        recommended: synthesis.priceFair,
-      },
-      confidence: synthesis.confidenceScore,
-      dataPoints: synthesis.sourcesCount ?? 0,
+      listingTitle: result.listing?.title || null,
+      marketRange: synthesis
+        ? { low: synthesis.priceLow, high: synthesis.priceHigh, recommended: synthesis.priceFair }
+        : null,
+      confidence: synthesis?.confidenceScore ?? 0,
+      dataPoints: synthesis?.sourcesCount ?? 0,
+      needsInput: result.needsInput,
       appraisalUrl,
     });
   } catch (err) {
@@ -427,26 +253,15 @@ router.post('/refine', requireAuth, async (req, res) => {
     let dataPoints = 0;
     const sources = [];
 
-    const pricingSources = await fetchAllPricingSources(searchQuery);
-    for (const data of pricingSources) {
-      if (!data?.prices?.length) continue;
-      if (data.comps) {
-        // Grounded live-market comps are actual secondhand prices — use directly
-        if (priceLow === null || data.low < priceLow) priceLow = Math.round(data.low);
-        if (priceHigh === null || data.high > priceHigh) priceHigh = Math.round(data.high);
-        sources.push('live_market_search');
-      } else {
-        // Google Shopping is new retail — apply secondhand factor
-        const sorted = [...data.prices].sort((a, b) => a - b);
-        const retailLow = sorted[Math.floor(sorted.length * 0.15)] ?? sorted[0];
-        const retailHigh = sorted[Math.floor(sorted.length * 0.85)] ?? sorted[sorted.length - 1];
-        const usedLow = Math.round(retailLow * 0.3);
-        const usedHigh = Math.round(retailHigh * 0.6);
-        if (priceLow === null || usedLow < priceLow) priceLow = usedLow;
-        if (priceHigh === null || usedHigh > priceHigh) priceHigh = usedHigh;
-        sources.push('google_shopping');
-      }
-      dataPoints += data.prices.length;
+    const [grounded, ebay] = await Promise.all([fetchGroundedComps(searchQuery), fetchEbaySold(searchQuery)]);
+    const comps = [...(ebay.comps || []), ...(grounded.comps || [])].map((c) => ({ ...c, match: 'similar' }));
+    const market = computeMarketPrice({ comps, condition: 'Good' });
+    if (market) {
+      priceLow = market.priceLow;
+      priceHigh = market.priceHigh;
+      dataPoints = market.sourcesCount;
+      if (ebay.comps?.length) sources.push('ebay_sold');
+      if (grounded.comps?.length) sources.push('live_market_search');
     }
 
     if (priceLow === null || priceHigh === null) {

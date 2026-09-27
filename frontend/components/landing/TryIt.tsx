@@ -831,6 +831,14 @@ export function TryIt() {
       if (!response.ok) {
         throw new Error(data?.error || data?.message || `Appraisal failed (${response.status})`)
       }
+      if (data?.status === 'unidentified') {
+        const asks: string[] = Array.isArray(data?.needsInput) ? data.needsInput : []
+        setUploadError(
+          `${data?.message || "We couldn't identify this item."}${asks.length ? ` Try adding: ${asks.slice(0, 2).join('; ')}.` : ''}`,
+        )
+        setPanel('empty')
+        return
+      }
       await saveAppraisalResult(data, file)
       setApiUsage((p) => ({
         ...p,
