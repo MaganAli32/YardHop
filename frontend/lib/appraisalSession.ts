@@ -1,12 +1,12 @@
 /**
- * Persist a Try It appraisal across /appraise/results and listing prefill
- * without stuffing the original photo into sessionStorage (5 MB quota).
+ * Persist a Try It appraisal (pipeline v2 response) across /appraise/results
+ * and listing prefill, without stuffing the original photo into sessionStorage
+ * (5 MB quota).
  *
  * - Appraisal JSON → sessionStorage (small)
  * - Original File → IndexedDB + in-memory blob URL (handles 20 MB photos)
  */
 import { createPhotoUrls, getFileFromBlobUrl, revokePhotoUrls } from './fileUtils'
-import type { PricingSource } from './market'
 
 export const APPRAISAL_RESULT_KEY = 'appraisalResult'
 
@@ -14,27 +14,77 @@ const IDB_NAME = 'yardfront-appraisal'
 const IDB_STORE = 'images'
 const IDB_KEY = 'latest'
 
+export type AppraisalStatus = 'ok' | 'low_confidence' | 'insufficient_data' | 'unidentified'
+
+/** Coarse relevance label the pipeline assigns to a comp after filtering. */
+export type CompMatch = 'exact' | 'similar' | string
+
+/** One comparable listing behind the estimate. Real data — see services/appraisal/comps.js. */
+export interface AppraisalComp {
+  price: number
+  site: string | null
+  sold: boolean
+  condition: string | null
+  title: string | null
+  match: CompMatch
+  url: string | null
+}
+
+export interface AppraisalItem {
+  name: string
+  brand?: string | null
+  model?: string | null
+  variant?: string | null
+  referenceNumber?: string | null
+  size?: string | null
+  color?: string | null
+  year?: string | number | null
+  category?: string
+  subcategory?: string | null
+  condition?: string
+  conditionNotes?: string | null
+  /** Listing-copy description (from the listing stage), not a raw model guess. */
+  description?: string
+  identityLevel?: 'exact' | 'model' | 'brand' | 'category' | 'unknown'
+  identityConfidence?: number
+  verified?: boolean
+  msrp?: number | null
+  authenticityRisk?: string | null
+  alternatives?: Array<{ name: string; likelihood: number; howToTell: string }>
+  visibleText?: string | null
+}
+
+export interface AppraisalPricing {
+  fair: number
+  low: number
+  high: number
+  confidenceScore: number
+  priceConfidence?: number
+  method?: 'comps' | 'retail' | 'msrp'
+  sourcesSummary?: string
+  sourcesCount?: number
+}
+
+export interface AppraisalListing {
+  title?: string
+  description?: string
+  highlights?: string[]
+  conditionSummary?: string
+  sellerTips?: string[]
+  keywords?: string[]
+}
+
 export interface AppraisalResult {
+  status?: AppraisalStatus
+  message?: string | null
   appraisalId?: string | null
   imageUrls?: string[]
-  item: {
-    name: string
-    brand?: string | null
-    category?: string
-    condition?: string
-    description?: string
-  }
-  pricing: {
-    fair: number
-    low: number
-    high: number
-    confidenceScore: number
-    sourcesSummary?: string
-    sourcesCount?: number
-    /** Per-marketplace stats, when the backend found any. Drives the market-position bar and distribution. */
-    sources?: PricingSource[]
-  }
+  item: AppraisalItem
+  pricing: AppraisalPricing | null
+  listing?: AppraisalListing | null
+  comps?: AppraisalComp[]
   sellerTips?: string[]
+  needsInput?: string[]
   elapsedSeconds?: string
 }
 
@@ -128,7 +178,7 @@ function readJson(): AppraisalResult | null {
     const raw = sessionStorage.getItem(APPRAISAL_RESULT_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as AppraisalResult
-    if (!parsed?.item?.name || parsed?.pricing == null) return null
+    if (!parsed?.item?.name) return null
     return parsed
   } catch {
     return null
