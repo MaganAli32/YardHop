@@ -177,16 +177,27 @@ router.get('/:id', async (req, res) => {
     if (listing.appraisal_id) {
       const { data: a } = await admin.from('appraisals').select('price_low, price_high, price_fair, confidence_score, sources_count, raw_sources').eq('id', listing.appraisal_id).single();
       if (a) {
-        const sources = a.raw_sources && typeof a.raw_sources === 'object'
-          ? Object.keys(a.raw_sources).filter(k => a.raw_sources[k]).reduce((acc, k) => ({ ...acc, [k]: true }), {})
-          : {};
+        // raw_sources is the pricingSources array saved at appraisal time —
+        // {source, count, avg, low, high, prices}. Older rows may instead
+        // have it as a plain object keyed by source name; fall back to just
+        // the names in that case rather than guessing at missing stats.
+        const sources = Array.isArray(a.raw_sources)
+          ? a.raw_sources.filter(Boolean).map(s => ({
+              name: s.source,
+              count: s.count,
+              avg: Math.round(s.avg),
+              low: Math.round(s.low),
+              high: Math.round(s.high),
+              prices: (s.prices || []).slice(0, 30),
+            }))
+          : (a.raw_sources && typeof a.raw_sources === 'object' ? Object.keys(a.raw_sources) : null);
         appraisal = {
           price_low: a.price_low,
           price_high: a.price_high,
           price_recommended: a.price_fair,
           confidence_score: a.confidence_score ?? 0,
           sources_count: a.sources_count ?? 0,
-          sources: a.raw_sources ? (Array.isArray(a.raw_sources) ? a.raw_sources.map(s => s?.source).filter(Boolean) : Object.keys(a.raw_sources)) : null,
+          sources,
         };
       }
     }

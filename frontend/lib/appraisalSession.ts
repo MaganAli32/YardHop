@@ -6,6 +6,7 @@
  * - Original File → IndexedDB + in-memory blob URL (handles 20 MB photos)
  */
 import { createPhotoUrls, getFileFromBlobUrl, revokePhotoUrls } from './fileUtils'
+import type { PricingSource } from './market'
 
 export const APPRAISAL_RESULT_KEY = 'appraisalResult'
 
@@ -30,6 +31,8 @@ export interface AppraisalResult {
     confidenceScore: number
     sourcesSummary?: string
     sourcesCount?: number
+    /** Per-marketplace stats, when the backend found any. Drives the market-position bar and distribution. */
+    sources?: PricingSource[]
   }
   sellerTips?: string[]
   elapsedSeconds?: string

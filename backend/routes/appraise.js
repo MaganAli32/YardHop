@@ -456,6 +456,18 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
     if (dbError) console.error('DB save error:', dbError.message);
 
     // Step 5: Return full appraisal to frontend
+    // pricingSources (from services/pricing.js) is already computed above and
+    // saved as raw_sources; exposing it here is additive only — existing
+    // consumers that ignore `pricing.sources` are unaffected.
+    const sources = pricingSources.map((s) => ({
+      name: s.source,
+      count: s.count,
+      avg: Math.round(s.avg),
+      low: Math.round(s.low),
+      high: Math.round(s.high),
+      prices: (s.prices || []).slice(0, 30),
+    }));
+
     res.json({
       appraisalId: saved?.id || null,
       item: itemData,
@@ -466,6 +478,7 @@ router.post('/', optionalAuth, upload.single('image'), async (req, res) => {
         confidenceScore: synthesis.confidenceScore,
         sourcesSummary: synthesis.sourcesSummary,
         sourcesCount: synthesis.sourcesCount,
+        sources,
       },
       sellerTips: synthesis.sellerTips,
       elapsedSeconds: elapsed,

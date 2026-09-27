@@ -1,9 +1,14 @@
 /**
- * PriceIntelligenceBox — minimal price section: thin separator, range labels,
- * 2px track with orange fill + black dot, key-value rows. No heavy box.
+ * PriceIntelligenceBox — compact market data for a listing (Level 2: smaller
+ * than the full appraisal page, same underlying numbers). Shows the real
+ * market-position bar when per-marketplace stats are available; otherwise
+ * falls back to the plain range it always showed.
  */
 
 import React from 'react';
+import { colors as t, fonts as tf } from '../lib/tokens';
+import { combinedPrices, money, type PricingSource } from '../lib/market';
+import MarketPosition from './market/MarketPosition';
 import PriceBadge, { getPriceBadgeType } from './PriceBadge';
 
 export interface PriceIntelligenceBoxProps {
@@ -12,21 +17,25 @@ export interface PriceIntelligenceBoxProps {
   priceRecommended?: number;
   confidenceScore: number;
   sourcesCount?: number;
-  sources?: string[] | Record<string, unknown>;
+  /** Either the full per-marketplace stats, or (older rows) just source names. */
+  sources?: PricingSource[] | string[] | Record<string, unknown> | null;
   askingPrice?: number;
   showConfidenceBar?: boolean;
 }
 
-function formatSources(sources: string[] | Record<string, unknown> | undefined): string {
-  if (!sources) return '';
-  if (Array.isArray(sources)) return sources.join(', ');
-  if (typeof sources === 'object') {
-    const keys = Object.keys(sources).filter((k) => sources[k]);
-    return keys
-      .map((k) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
-      .join(', ');
-  }
-  return '';
+function isRichSources(sources: PriceIntelligenceBoxProps['sources']): sources is PricingSource[] {
+  return Array.isArray(sources) && sources.length > 0 && typeof sources[0] === 'object' && sources[0] !== null && 'avg' in (sources[0] as object);
+}
+
+function sourceNames(sources: PriceIntelligenceBoxProps['sources']): string[] {
+  if (!sources) return [];
+  if (isRichSources(sources)) return sources.map((s) => s.name).filter(Boolean);
+  if (Array.isArray(sources)) return sources.filter((s): s is string => typeof s === 'string');
+  return Object.keys(sources).filter((k) => (sources as Record<string, unknown>)[k]);
+}
+
+function label(name: string): string {
+  return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function PriceIntelligenceBox({
@@ -38,65 +47,66 @@ export default function PriceIntelligenceBox({
   askingPrice,
   showConfidenceBar = true,
 }: PriceIntelligenceBoxProps) {
-  const badgeType =
-    askingPrice != null
-      ? getPriceBadgeType(askingPrice, priceLow, priceHigh)
-      : 'unverified';
-  const sourcesStr = formatSources(sources);
-
-  // Position of current price on the range (0–100%)
-  const rangeSpan = priceHigh - priceLow || 1;
-  const dotPosition =
-    askingPrice != null
-      ? Math.min(100, Math.max(0, ((askingPrice - priceLow) / rangeSpan) * 100))
-      : 50;
+  const badgeType = askingPrice != null ? getPriceBadgeType(askingPrice, priceLow, priceHigh) : 'unverified';
+  const names = sourceNames(sources).map(label);
+  const rich = isRichSources(sources) ? sources : null;
+  const fair = rich ? Math.round((priceLow + priceHigh) / 2) : null;
+  const prices = rich ? combinedPrices(rich) : [];
 
   return (
-    <div className="pt-6 mt-6 border-t border-[#ECECEC]">
-      <div className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#AAA] mb-4">
+    <div className="pt-6 mt-6 border-t" style={{ borderColor: t.mist }}>
+      <div className="text-[10px] font-semibold uppercase tracking-[1.5px] mb-4" style={{ color: t.sage, fontFamily: tf.mono }}>
         Price Intelligence
       </div>
-      <div className="flex justify-between text-[12px] text-[#888] mb-1.5">
-        <span>${Math.round(priceLow).toLocaleString()}</span>
-        {askingPrice != null && (
-          <span className="text-[#0A0A0A] font-semibold">
-            ${Math.round(askingPrice).toLocaleString()}
-          </span>
-        )}
-        <span>${Math.round(priceHigh).toLocaleString()}</span>
-      </div>
-      <div className="h-0.5 bg-[#ECECEC] rounded-sm relative mb-1">
-        <div
-          className="absolute inset-y-0 left-0 bg-[#FF6B35] rounded-sm transition-all duration-500"
-          style={{ width: `${dotPosition}%` }}
-        />
-        {askingPrice != null && (
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#0A0A0A] -translate-x-1/2"
-            style={{ left: `${dotPosition}%` }}
-          />
-        )}
-      </div>
-      <div className="flex justify-between items-center mt-3.5">
-        <span className="text-[11px] text-[#888]">Confidence</span>
-        <span className="text-[11px] font-medium text-[#666]">
-          {confidenceScore}%
-        </span>
-      </div>
+
+      {rich && fair != null && prices.length > 0 ? (
+        <MarketPosition fair={fair} low={priceLow} high={priceHigh} prices={prices} askingPrice={askingPrice} />
+      ) : (
+        <>
+          <div className="flex justify-between text-[12px] mb-1.5" style={{ color: t.sage, fontFamily: tf.mono }}>
+            <span>{money(priceLow)}</span>
+            {askingPrice != null && (
+              <span className="font-semibold" style={{ color: t.ink }}>
+                {money(askingPrice)}
+              </span>
+            )}
+            <span>{money(priceHigh)}</span>
+          </div>
+          <div className="h-0.5 rounded-sm relative mb-1" style={{ background: t.mist }}>
+            {askingPrice != null && (
+              <>
+                <div
+                  className="absolute inset-y-0 left-0 rounded-sm"
+                  style={{ width: `${Math.min(100, Math.max(0, ((askingPrice - priceLow) / Math.max(1, priceHigh - priceLow)) * 100))}%`, background: t.terracotta }}
+                />
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full -translate-x-1/2"
+                  style={{ left: `${Math.min(100, Math.max(0, ((askingPrice - priceLow) / Math.max(1, priceHigh - priceLow)) * 100))}%`, background: t.ink }}
+                />
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {showConfidenceBar && (
+        <div className="flex justify-between items-center mt-3.5">
+          <span className="text-[11px]" style={{ color: t.sage }}>Confidence</span>
+          <span className="text-[11px] font-medium" style={{ color: t.ink, fontFamily: tf.mono }}>{confidenceScore}%</span>
+        </div>
+      )}
       {sourcesCount != null && sourcesCount > 0 && (
         <div className="flex justify-between items-center mt-2">
-          <span className="text-[11px] text-[#888]">Data points</span>
-          <span className="text-[11px] font-medium text-[#666]">
-            {sourcesCount} {sourcesStr ? `across ${sourcesStr.split(',').length} sources` : ''}
+          <span className="text-[11px]" style={{ color: t.sage }}>Data points</span>
+          <span className="text-[11px] font-medium" style={{ color: t.ink, fontFamily: tf.mono }}>
+            {sourcesCount}{names.length ? ` across ${names.length} sources` : ''}
           </span>
         </div>
       )}
-      {sourcesStr && (
+      {names.length > 0 && (
         <div className="flex justify-between items-center mt-2">
-          <span className="text-[11px] text-[#888]">Sources</span>
-          <span className="text-[11px] font-medium text-[#666]">
-            {sourcesStr}
-          </span>
+          <span className="text-[11px]" style={{ color: t.sage }}>Sources</span>
+          <span className="text-[11px] font-medium text-right" style={{ color: t.ink }}>{names.join(', ')}</span>
         </div>
       )}
       {askingPrice != null && (
